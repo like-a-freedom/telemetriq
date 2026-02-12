@@ -114,8 +114,6 @@ describe('Overlay Renderer', () => {
             showPace: false,
             showDistance: false,
             showTime: false,
-            showElevation: false,
-            showCadence: false,
         });
 
         const drawCalls = (destinationCtx as unknown as StubContext).drawImage;

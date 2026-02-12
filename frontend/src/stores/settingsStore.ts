@@ -34,7 +34,7 @@ export const useSettingsStore = defineStore('settings', () => {
         const templateConfig = getTemplateConfig(templateId);
         // Preserve user overrides for fields that were customized
         const userOverrides: Partial<ExtendedOverlayConfig> = {};
-        
+
         // Check if the current config is a custom one to preserve changes
         if (overlayConfig.value.templateId === 'custom') {
             // Save any custom changes before applying new template
@@ -45,15 +45,15 @@ export const useSettingsStore = defineStore('settings', () => {
             userOverrides.showDistance = overlayConfig.value.showDistance;
             userOverrides.showTime = overlayConfig.value.showTime;
         }
-        
+
         // Apply template with any preserved user settings
         overlayConfig.value = { ...templateConfig, ...userOverrides };
     }
 
     function saveAsCustomTemplate(): void {
-        overlayConfig.value = { 
-            ...overlayConfig.value, 
-            templateId: 'custom' 
+        overlayConfig.value = {
+            ...overlayConfig.value,
+            templateId: 'custom'
         };
     }
 

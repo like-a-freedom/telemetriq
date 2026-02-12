@@ -10,8 +10,6 @@ export interface TrackPoint {
     time: Date;
     /** Heart rate in BPM (optional) */
     hr?: number;
-    /** Cadence in steps/min (optional) */
-    cadence?: number;
 }
 
 /** Result of GPX parsing */
@@ -40,6 +38,8 @@ export interface TelemetryFrame {
     paceSecondsPerKm?: number;
     /** Distance in km */
     distanceKm: number;
+    /** Elevation in meters (if available) */
+    elevationM?: number;
     /** Elapsed time formatted (HH:MM:SS) */
     elapsedTime: string;
     /** Moving time in seconds */
@@ -97,10 +97,6 @@ export interface ExtendedOverlayConfig extends OverlayConfig {
     gradientStartColor?: string;
     /** Gradient end color */
     gradientEndColor?: string;
-    /** Show elevation metric */
-    showElevation?: boolean;
-    /** Show cadence metric */
-    showCadence?: boolean;
     /** Label style: 'uppercase' for small caps labels, 'hidden' for no labels */
     labelStyle?: 'uppercase' | 'hidden';
     /** Value font weight: 'light' (300), 'normal' (400), 'bold' (700) */
@@ -116,7 +112,7 @@ export interface ExtendedOverlayConfig extends OverlayConfig {
 }
 
 /** Available template IDs */
-export type TemplateId = 
+export type TemplateId =
     | 'horizon'
     | 'margin'
     | 'l-frame'
@@ -124,7 +120,7 @@ export type TemplateId =
     | 'custom';
 
 /** Visual layout mode for the overlay */
-export type OverlayLayoutMode = 
+export type OverlayLayoutMode =
     | 'bottom-bar'     // Horizon: full-width gradient bar at bottom
     | 'side-margins'   // Margin: metrics on left/right margins
     | 'corner-frame'   // L-Frame: L-shaped frame at corner

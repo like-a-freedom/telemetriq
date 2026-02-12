@@ -159,6 +159,7 @@ export function buildTelemetryTimeline(points: TrackPoint[]): TelemetryFrame[] {
             hr: point.hr,
             paceSecondsPerKm: pace,
             distanceKm: distances[i]!,
+            elevationM: point.ele,
             elapsedTime: formatElapsedTime(timeOffset),
             movingTimeSeconds: movingTimeMs / 1000,
         });
@@ -216,12 +217,16 @@ export function getTelemetryAtTime(
 
     const interpolatedDist = lerp(beforeFrame.distanceKm, afterFrame.distanceKm, t);
     const interpolatedMovingTime = lerp(beforeFrame.movingTimeSeconds, afterFrame.movingTimeSeconds, t);
+    const interpolatedElevation = (beforeFrame.elevationM !== undefined && afterFrame.elevationM !== undefined)
+        ? lerp(beforeFrame.elevationM, afterFrame.elevationM, t)
+        : (beforeFrame.elevationM ?? afterFrame.elevationM);
 
     return {
         timeOffset: gpxTime,
         hr: interpolatedHr,
         paceSecondsPerKm: beforeFrame.paceSecondsPerKm,
         distanceKm: interpolatedDist,
+        elevationM: interpolatedElevation,
         elapsedTime: formatElapsedTime(gpxTime),
         movingTimeSeconds: interpolatedMovingTime,
     };
