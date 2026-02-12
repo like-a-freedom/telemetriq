@@ -63,6 +63,12 @@ type DemuxedMedia = {
 };
 
 /**
+ * FFmpeg.wasm fallback reads the whole file into memory.
+ * For very large files this can freeze/crash the tab, so skip fallback.
+ */
+const FFMPEG_FALLBACK_MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1024; // 1 GB
+
+/**
  * Process a video file by decoding each frame, overlaying telemetry data,
  * and encoding back to an MP4 container.
  *
@@ -179,7 +185,7 @@ export class VideoProcessor {
         const canvas = new OffscreenCanvas(videoMeta.width, videoMeta.height);
         const ctx = canvas.getContext('2d')!;
 
-        const encodedChunks: { chunk: EncodedVideoChunk; duration: number }[] = [];
+        const encodedChunks: EncodedVideoChunk[] = [];
         let encodedFrameCount = 0;
         let encoderDecoderConfig: VideoDecoderConfig | undefined;
         let processingError: ProcessingError | undefined;
@@ -198,7 +204,7 @@ export class VideoProcessor {
                 if (metadata?.decoderConfig) {
                     encoderDecoderConfig = metadata.decoderConfig;
                 }
-                encodedChunks.push({ chunk, duration: chunk.duration ?? 0 });
+                encodedChunks.push(chunk);
             },
             recordError,
         );
@@ -344,6 +350,12 @@ export class VideoProcessor {
             console.warn('[demux] Direct parse failed, trying FFmpeg remux', firstError);
         }
 
+        if (file.size >= FFMPEG_FALLBACK_MAX_FILE_SIZE_BYTES) {
+            throw new ProcessingError(
+                'Failed to parse the source container. Automatic FFmpeg repair is disabled for files larger than 1 GB to avoid browser freezes.',
+            );
+        }
+
         // Second attempt: remux through FFmpeg (strips problematic metadata)
         try {
             onProgress?.({ phase: 'demuxing', percent: 0, framesProcessed: 0, totalFrames: 0 });
@@ -391,8 +403,9 @@ export class VideoProcessor {
             for await (const packet of videoSink.packets()) {
                 const timestampUs = Math.round(packet.timestamp * 1_000_000);
                 const durationUs = Math.max(1, Math.round(packet.duration * 1_000_000));
+                const data = toTightArrayBuffer(packet.data);
                 videoSamples.push({
-                    data: packet.data.slice().buffer,
+                    data,
                     duration: durationUs,
                     dts: timestampUs,
                     cts: timestampUs,
@@ -422,8 +435,9 @@ export class VideoProcessor {
                 for await (const packet of audioSink.packets()) {
                     const timestampUs = Math.round(packet.timestamp * 1_000_000);
                     const durationUs = Math.max(1, Math.round(packet.duration * 1_000_000));
+                    const data = toTightArrayBuffer(packet.data);
                     audioSamples.push({
-                        data: packet.data.slice().buffer,
+                        data,
                         duration: durationUs,
                         dts: timestampUs,
                         cts: timestampUs,
@@ -577,7 +591,7 @@ export class VideoProcessor {
 
     private async muxMp4(
         demuxed: DemuxedMedia,
-        encodedChunks: { chunk: EncodedVideoChunk; duration: number }[],
+        encodedChunks: EncodedVideoChunk[],
         decoderConfig: VideoDecoderConfig | undefined,
         meta: VideoMeta,
     ): Promise<Blob> {
@@ -602,7 +616,7 @@ export class VideoProcessor {
             await output.start();
 
             let firstVideoPacket = true;
-            for (const { chunk } of encodedChunks) {
+            for (const chunk of encodedChunks) {
                 const packet = EncodedPacket.fromEncodedChunk(chunk);
                 if (firstVideoPacket) {
                     await videoSource.add(packet, {
@@ -659,4 +673,12 @@ export class VideoProcessor {
             return await muxWithMode(false);
         }
     }
+}
+
+function toTightArrayBuffer(data: Uint8Array): ArrayBuffer {
+    if (data.byteOffset === 0 && data.byteLength === data.buffer.byteLength) {
+        return data.buffer;
+    }
+
+    return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
 }

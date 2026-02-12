@@ -10,6 +10,7 @@ type CachedOverlay = {
 
 const overlayCache = new Map<string, CachedOverlay>();
 const MAX_CACHE_ENTRIES = 200;
+const MAX_CACHE_PIXELS = 1280 * 720;
 
 /** Metric data prepared for rendering */
 interface MetricItem {
@@ -75,11 +76,15 @@ export function renderOverlay(
         effectiveConfig = { ...templateConfig, ...config };
     }
 
-    const cacheKey = buildCacheKey(frame, effectiveConfig, videoWidth, videoHeight);
-    const cached = overlayCache.get(cacheKey);
-    if (cached) {
-        ctx.drawImage(cached.canvas as CanvasImageSource, 0, 0);
-        return;
+    const shouldUseCache = videoWidth * videoHeight <= MAX_CACHE_PIXELS;
+    let cacheKey: string | undefined;
+    if (shouldUseCache) {
+        cacheKey = buildCacheKey(frame, effectiveConfig, videoWidth, videoHeight);
+        const cached = overlayCache.get(cacheKey);
+        if (cached) {
+            ctx.drawImage(cached.canvas as CanvasImageSource, 0, 0);
+            return;
+        }
     }
 
     const overlayTarget = createOverlayTarget(videoWidth, videoHeight);
@@ -107,7 +112,9 @@ export function renderOverlay(
             break;
     }
 
-    cacheOverlay(cacheKey, overlayCanvas, videoWidth, videoHeight);
+    if (shouldUseCache && cacheKey) {
+        cacheOverlay(cacheKey, overlayCanvas, videoWidth, videoHeight);
+    }
     ctx.drawImage(overlayCanvas as CanvasImageSource, 0, 0);
 }
 

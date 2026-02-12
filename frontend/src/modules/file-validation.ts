@@ -11,6 +11,12 @@ export const MAX_VIDEO_DURATION_SECONDS = 60 * 60;
 /** Warning threshold: 30 minutes */
 export const WARN_DURATION_SECONDS = 30 * 60;
 
+/**
+ * For very large files, skip deep MP4 metadata extraction during upload.
+ * This avoids UI freezes when users select multi-GB videos.
+ */
+export const FAST_METADATA_THRESHOLD_BYTES = 1024 * 1024 * 1024; // 1 GB
+
 /** Allowed video MIME types */
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/x-m4v'];
 
@@ -80,6 +86,13 @@ export function extractVideoMeta(file: File): Promise<VideoMeta> {
                 return;
             }
 
+            // Fast path for large videos: keep upload responsive and skip
+            // expensive container parsing on the critical UI path.
+            if (file.size >= FAST_METADATA_THRESHOLD_BYTES) {
+                resolve(meta);
+                return;
+            }
+
             extractMp4Metadata(file)
                 .then((mp4Meta) => {
                     if (mp4Meta.codec) meta.codec = mp4Meta.codec;
@@ -145,7 +158,6 @@ async function extractMp4Metadata(file: File): Promise<{
 
         const width = videoTrack?.displayWidth;
         const height = videoTrack?.displayHeight;
-        const duration = await input.computeDuration();
 
         const tags = await input.getMetadataTags();
         const created = tags.date;
@@ -156,7 +168,6 @@ async function extractMp4Metadata(file: File): Promise<{
             fps,
             width,
             height,
-            duration,
             startTime: created,
             timezoneOffsetMinutes: created ? created.getTimezoneOffset() : undefined,
             gps,

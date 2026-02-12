@@ -2,7 +2,12 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { GpxData, VideoMeta, FileValidation } from '../core/types';
 import { validateGpxFile, readAndParseGpx } from '../modules/gpx-parser';
-import { validateVideoFile, extractVideoMeta, WARN_DURATION_SECONDS } from '../modules/file-validation';
+import {
+    validateVideoFile,
+    extractVideoMeta,
+    WARN_DURATION_SECONDS,
+    FAST_METADATA_THRESHOLD_BYTES,
+} from '../modules/file-validation';
 
 export const useFilesStore = defineStore('files', () => {
     // State
@@ -38,15 +43,25 @@ export const useFilesStore = defineStore('files', () => {
             videoFile.value = file;
             videoMeta.value = await extractVideoMeta(file);
 
-            if (videoMeta.value.duration > WARN_DURATION_SECONDS) {
-                videoValidation.value = {
-                    valid: true,
-                    errors: [],
-                    warnings: [
-                        `Video is longer than 30 minutes (${Math.round(videoMeta.value.duration / 60)} min). Processing may take a long time.`,
-                    ],
-                };
+            const warnings = [...(videoValidation.value?.warnings ?? [])];
+
+            if (file.size >= FAST_METADATA_THRESHOLD_BYTES) {
+                warnings.push(
+                    'Large file mode is enabled to keep the UI responsive. Detailed codec/GPS metadata will be detected during processing.',
+                );
             }
+
+            if (videoMeta.value.duration > WARN_DURATION_SECONDS) {
+                warnings.push(
+                    `Video is longer than 30 minutes (${Math.round(videoMeta.value.duration / 60)} min). Processing may take a long time.`,
+                );
+            }
+
+            videoValidation.value = {
+                valid: true,
+                errors: [],
+                warnings,
+            };
         } catch (err) {
             error.value = err instanceof Error ? err.message : 'Failed to load video';
             videoFile.value = null;
