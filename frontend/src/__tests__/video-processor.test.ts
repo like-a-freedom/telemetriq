@@ -38,10 +38,26 @@ beforeEach(() => {
         constructor(source: any, options?: any) {
             this.source = source;
             this.options = options;
+            this.timestamp = options?.timestamp ?? 0;
+            this.duration = options?.duration;
         }
         source: any;
         options?: any;
+        timestamp: number;
+        duration?: number;
         close() { }
+    });
+    vi.stubGlobal('EncodedVideoChunk', class {
+        type: 'key' | 'delta';
+        timestamp: number;
+        duration?: number;
+        data: Uint8Array;
+        constructor(init: { type: 'key' | 'delta'; timestamp: number; duration?: number; data: Uint8Array }) {
+            this.type = init.type;
+            this.timestamp = init.timestamp;
+            this.duration = init.duration;
+            this.data = init.data;
+        }
     });
     vi.stubGlobal('OffscreenCanvas', class OffscreenCanvas {
         width: number;
@@ -212,5 +228,63 @@ describe('VideoProcessor', () => {
             vi.fn(),
             vi.fn(),
         )).rejects.toBeInstanceOf(ProcessingError);
+    });
+
+    it('process should complete happy path with mux progress', async () => {
+        const processor = new VideoProcessor({
+            videoFile: new File([new Uint8Array([1, 2, 3])], 'test.mp4', { type: 'video/mp4' }),
+            videoMeta: createMockVideoMeta(),
+            telemetryFrames: [],
+            syncOffsetSeconds: 0,
+            useFfmpegMux: true,
+            onProgress: vi.fn(),
+        });
+
+        const demuxed = {
+            videoTrack: { id: 1, codec: 'avc1.640028', codecName: 'avc1', timescale: 1_000_000 },
+            videoSamples: [
+                {
+                    data: new Uint8Array([1, 2, 3]).buffer,
+                    duration: 1_000,
+                    dts: 0,
+                    cts: 0,
+                    timescale: 1_000_000,
+                    is_rap: true,
+                },
+            ],
+            audioSamples: [],
+        };
+
+        vi.spyOn(processor as any, 'demuxSamplesWithFallback').mockResolvedValue(demuxed);
+        vi.spyOn(processor as any, 'isVideoTrackDecodable').mockResolvedValue(true);
+
+        const encoder = {
+            state: 'configured',
+            encode: vi.fn(),
+            flush: vi.fn().mockResolvedValue(undefined),
+            close: vi.fn(),
+        };
+        encoder.close.mockImplementation(() => { encoder.state = 'closed'; });
+        vi.spyOn(processor as any, 'createEncoder').mockResolvedValue({
+            encoder,
+            encodeMeta: createMockVideoMeta(),
+        });
+
+        const decoder = {
+            state: 'configured',
+            decode: vi.fn(),
+            flush: vi.fn().mockResolvedValue(undefined),
+            close: vi.fn(),
+        };
+        decoder.close.mockImplementation(() => { decoder.state = 'closed'; });
+        vi.spyOn(processor as any, 'createDecoder').mockReturnValue(decoder);
+
+        vi.spyOn(processor as any, 'muxMp4').mockResolvedValue(new Blob([new Uint8Array([9])], { type: 'video/mp4' }));
+
+        const result = await processor.process();
+
+        expect(result).toBeInstanceOf(Blob);
+        expect((processor as any).demuxSamplesWithFallback).toHaveBeenCalled();
+        expect((processor as any).muxMp4).toHaveBeenCalled();
     });
 });
