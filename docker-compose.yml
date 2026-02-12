@@ -1,0 +1,27 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+    environment:
+      - NODE_ENV=development
+
+  frontend-prod:
+    build:
+      context: ./frontend
+      target: production
+    ports:
+      - "80:80"
+    healthcheck:
+      test: [ "CMD-SHELL", "test -f /usr/share/caddy/index.html" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - production
