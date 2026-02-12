@@ -149,6 +149,31 @@ function renderHorizonLayout(
     const availableWidth = w - padding * 2;
     const columnWidth = availableWidth / metricCount;
 
+    // One shared value/unit size for all metrics to keep typography consistent
+    let sharedValueSize = Math.min(
+        Math.round(baseFontSize * (config.valueSizeMultiplier || 2.5)),
+        Math.round(barHeight * 0.43),
+    );
+    const minValueSize = Math.max(12, Math.round(barHeight * 0.22));
+    while (sharedValueSize > minValueSize) {
+        const unitSizeTry = Math.max(8, Math.round(sharedValueSize * 0.42));
+        const weightTry = fontWeightValue(config.valueFontWeight || 'bold');
+        let allFit = true;
+        for (const metric of metrics) {
+            ctx.font = `${weightTry} ${sharedValueSize}px ${fontFamily}`;
+            const valueWidth = ctx.measureText(metric.value).width;
+            ctx.font = `300 ${unitSizeTry}px ${fontFamily}`;
+            const unitWidthTry = metric.unit ? ctx.measureText(metric.unit).width + unitSizeTry * 0.35 : 0;
+            if (valueWidth + unitWidthTry > columnWidth * 0.82) {
+                allFit = false;
+                break;
+            }
+        }
+        if (allFit) break;
+        sharedValueSize -= 1;
+    }
+    const sharedUnitSize = Math.max(8, Math.round(sharedValueSize * 0.42));
+
     ctx.save();
     applyTextShadow(ctx, config);
 
@@ -158,29 +183,12 @@ function renderHorizonLayout(
         const centerX = colX + columnWidth / 2;
         const baselineY = h - barHeight * 0.22;
 
-        let valueSize = Math.min(
-            Math.round(baseFontSize * (config.valueSizeMultiplier || 2.5) * tuning.textScale),
-            Math.round(barHeight * 0.43),
-        );
-        const minValueSize = Math.max(12, Math.round(barHeight * 0.22));
-        while (valueSize > minValueSize) {
-            const unitSizeTry = Math.max(8, Math.round(valueSize * 0.42 * tuning.textScale));
-            const weightTry = fontWeightValue(config.valueFontWeight || 'bold');
-            ctx.font = `${weightTry} ${valueSize}px ${fontFamily}`;
-            const valueWidth = ctx.measureText(metric.value).width;
-            ctx.font = `300 ${unitSizeTry}px ${fontFamily}`;
-            const unitWidthTry = metric.unit ? ctx.measureText(metric.unit).width + unitSizeTry * 0.35 : 0;
-            if (valueWidth + unitWidthTry <= columnWidth * 0.82) break;
-            valueSize -= 1;
-        }
-        const unitSize = Math.max(8, Math.round(valueSize * 0.42 * tuning.textScale));
-
         // Separator line (except first)
         if (i > 0) {
             ctx.strokeStyle = 'rgba(255,255,255,0.1)';
             ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.moveTo(colX, baselineY - valueSize * 0.95);
+            ctx.moveTo(colX, baselineY - sharedValueSize * 0.95);
             ctx.lineTo(colX, baselineY + labelSize * 0.5);
             ctx.stroke();
         }
@@ -190,12 +198,12 @@ function renderHorizonLayout(
         ctx.font = `500 ${labelSize}px ${fontFamily}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.fillText(metric.label.toUpperCase(), centerX, baselineY - valueSize - labelSize * 0.3);
+        ctx.fillText(metric.label.toUpperCase(), centerX, baselineY - sharedValueSize - labelSize * 0.3);
 
         // Value (large, bold)
         const weight = fontWeightValue(config.valueFontWeight || 'bold');
         ctx.fillStyle = config.textColor || '#FFFFFF';
-        ctx.font = `${weight} ${valueSize}px ${fontFamily}`;
+        ctx.font = `${weight} ${sharedValueSize}px ${fontFamily}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
 
@@ -209,9 +217,9 @@ function renderHorizonLayout(
         // Unit (small, dimmed)
         if (metric.unit) {
             ctx.fillStyle = 'rgba(255,255,255,0.5)';
-            ctx.font = `300 ${unitSize}px ${fontFamily}`;
+            ctx.font = `300 ${sharedUnitSize}px ${fontFamily}`;
             ctx.textAlign = 'left';
-            ctx.fillText(metric.unit, centerX + totalValueWidth / 2 + unitSize * 0.15, baselineY);
+            ctx.fillText(metric.unit, centerX + totalValueWidth / 2 + sharedUnitSize * 0.15, baselineY);
         }
     }
 
@@ -357,7 +365,7 @@ function renderLFrameLayout(
 
     const fontFamily = config.fontFamily || 'Inter, sans-serif';
     const baseFontSize = Math.round(h * (config.fontSizePercent || 2.0) / 100 * tuning.textScale);
-    const valueSizeBase = Math.round(baseFontSize * (config.valueSizeMultiplier || 3.0) * tuning.textScale);
+    const valueSizeBase = Math.round(baseFontSize * (config.valueSizeMultiplier || 3.0));
 
     const margin = w * 0.04 * tuning.spacingScale;
     const bottomMargin = h * 0.05;
@@ -400,16 +408,45 @@ function renderLFrameLayout(
     const metricGap = metricsAreaWidth / Math.max(1, metrics.length);
     const metricsY = frameBottom - margin * 0.3;
 
+    // Shared font sizing across all selected metrics to avoid overlap when metric count changes
+    let sharedValueSize = Math.max(12, Math.min(valueSizeBase, Math.round(h * 0.09), Math.round(metricGap * 0.4)));
+    const minSharedValueSize = Math.max(10, Math.round(h * 0.035));
+    while (sharedValueSize > minSharedValueSize) {
+        const labelSizeTry = Math.max(8, Math.round(sharedValueSize * 0.2));
+        const unitSizeTry = Math.max(8, Math.round(sharedValueSize * 0.28));
+        const weightTry = fontWeightValue(config.valueFontWeight || 'light');
+        let fitsAll = true;
+        for (const metric of metrics) {
+            ctx.font = `${weightTry} ${sharedValueSize}px ${fontFamily}`;
+            const valueWidth = ctx.measureText(metric.value).width;
+            ctx.font = `300 ${unitSizeTry}px ${fontFamily}`;
+            const unitWidth = metric.unit ? ctx.measureText(metric.unit).width : 0;
+            ctx.font = `300 ${labelSizeTry}px ${fontFamily}`;
+            const labelWidth = measureTrackedTextWidth(
+                ctx,
+                metric.label.toUpperCase(),
+                (config.labelLetterSpacing || 0.15) * tuning.labelTrackingScale,
+                labelSizeTry,
+            );
+            const requiredWidth = Math.max(valueWidth, unitWidth, labelWidth);
+            if (requiredWidth > metricGap * 0.84) {
+                fitsAll = false;
+                break;
+            }
+        }
+        if (fitsAll) break;
+        sharedValueSize -= 1;
+    }
+    const sharedLabelSize = Math.max(8, Math.round(sharedValueSize * 0.2));
+    const sharedUnitSize = Math.max(8, Math.round(sharedValueSize * 0.28));
+
     for (let i = 0; i < metrics.length; i++) {
         const metric = metrics[i]!;
         const mx = metricsStartX + i * metricGap + metricGap / 2;
-        const valueSize = Math.max(14, Math.min(valueSizeBase, Math.round(h * 0.09)));
-        const labelSize = Math.max(8, Math.round(valueSize * 0.2 * tuning.textScale));
-        const unitSize = Math.max(8, Math.round(valueSize * 0.28 * tuning.textScale));
 
         // Label
         ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.font = `300 ${labelSize}px ${fontFamily}`;
+        ctx.font = `300 ${sharedLabelSize}px ${fontFamily}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
         const labelStartX = mx - (ctx.measureText(metric.label.toUpperCase()).width / 2);
@@ -417,15 +454,15 @@ function renderLFrameLayout(
             ctx,
             metric.label.toUpperCase(),
             labelStartX,
-            metricsY - valueSize - labelSize * 0.2,
+            metricsY - sharedValueSize - sharedLabelSize * 0.2,
             (config.labelLetterSpacing || 0.15) * tuning.labelTrackingScale,
-            labelSize,
+            sharedLabelSize,
         );
 
         // Value
         const weight = fontWeightValue(config.valueFontWeight || 'light');
         ctx.fillStyle = config.textColor || '#FFFFFF';
-        ctx.font = `${weight} ${valueSize}px ${fontFamily}`;
+        ctx.font = `${weight} ${sharedValueSize}px ${fontFamily}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
         ctx.fillText(metric.value, mx, metricsY);
@@ -433,9 +470,9 @@ function renderLFrameLayout(
         // Unit
         if (metric.unit) {
             ctx.fillStyle = 'rgba(255,255,255,0.5)';
-            ctx.font = `300 ${unitSize}px ${fontFamily}`;
+            ctx.font = `300 ${sharedUnitSize}px ${fontFamily}`;
             ctx.textAlign = 'center';
-            ctx.fillText(metric.unit, mx, metricsY + unitSize * 1.25);
+            ctx.fillText(metric.unit, mx, metricsY + sharedUnitSize * 1.25);
         }
     }
 
@@ -564,6 +601,22 @@ function drawTrackedText(
         ctx.fillText(char, curX, y);
         curX += ctx.measureText(char).width + spacing;
     }
+}
+
+function measureTrackedTextWidth(
+    ctx: OverlayContext2D,
+    text: string,
+    letterSpacingEm: number,
+    fontSize: number,
+): number {
+    if (!text) return 0;
+    const spacing = fontSize * letterSpacingEm;
+    let width = 0;
+    for (let i = 0; i < text.length; i++) {
+        width += ctx.measureText(text[i]!).width;
+        if (i < text.length - 1) width += spacing;
+    }
+    return width;
 }
 
 function clamp(value: number, min: number, max: number): number {
