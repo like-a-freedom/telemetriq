@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useFilesStore } from '../stores/filesStore';
 import { useSyncStore } from '../stores/syncStore';
@@ -158,7 +159,67 @@ describe('Pinia Stores', () => {
                 framesProcessed: 500,
                 totalFrames: 1000,
             });
-            expect(store.progressPercent).toBe(50);
+            expect(store.progressPercent).toBe(49);
+        });
+
+        it('should not report 100% before complete phase', () => {
+            const store = useProcessingStore();
+            store.startProcessing(12660);
+
+            store.updateProgress({
+                phase: 'processing',
+                percent: 100,
+                framesProcessed: 12660,
+                totalFrames: 12660,
+            });
+            expect(store.progressPercent).toBe(92);
+            expect(store.isComplete).toBe(false);
+
+            store.updateProgress({
+                phase: 'muxing',
+                percent: 0,
+                framesProcessed: 12660,
+                totalFrames: 12660,
+            });
+            expect(store.progressPercent).toBe(92);
+            expect(store.isComplete).toBe(false);
+
+            store.updateProgress({
+                phase: 'muxing',
+                percent: 100,
+                framesProcessed: 12660,
+                totalFrames: 12660,
+            });
+            expect(store.progressPercent).toBe(99);
+            expect(store.isComplete).toBe(false);
+
+            store.setResult(new Blob(['done'], { type: 'video/mp4' }));
+            expect(store.progressPercent).toBe(100);
+            expect(store.isComplete).toBe(true);
+        });
+
+        it('should keep progress monotonic across phase transitions', () => {
+            const store = useProcessingStore();
+            store.startProcessing(1000);
+
+            store.updateProgress({
+                phase: 'processing',
+                percent: 90,
+                framesProcessed: 900,
+                totalFrames: 1000,
+            });
+            const beforeMux = store.progressPercent;
+
+            store.updateProgress({
+                phase: 'muxing',
+                percent: 0,
+                framesProcessed: 1000,
+                totalFrames: 1000,
+            });
+            const muxStart = store.progressPercent;
+
+            expect(muxStart).toBeGreaterThanOrEqual(beforeMux);
+            expect(muxStart).toBeLessThan(100);
         });
 
         it('should set result', () => {
@@ -196,17 +257,53 @@ describe('Pinia Stores', () => {
             expect(store.resultUrl).toBeNull();
             expect(store.resultBlob).toBeNull();
         });
+
+        it('should estimate remaining time while processing', () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-02-12T12:00:00Z'));
+
+            const store = useProcessingStore();
+            store.startProcessing(1000);
+
+            vi.setSystemTime(new Date('2026-02-12T12:01:00Z'));
+            store.updateProgress({
+                phase: 'processing',
+                percent: 50,
+                framesProcessed: 500,
+                totalFrames: 1000,
+            });
+
+            expect(store.progress.estimatedRemainingSeconds).toBeDefined();
+            expect(store.progress.estimatedRemainingSeconds!).toBeGreaterThan(0);
+            expect(store.progress.estimatedRemainingSeconds!).toBeLessThan(5 * 60);
+
+            vi.useRealTimers();
+        });
+
+        it('should set ETA to zero on complete', () => {
+            const store = useProcessingStore();
+            store.startProcessing(100);
+            store.updateProgress({
+                phase: 'muxing',
+                percent: 50,
+                framesProcessed: 100,
+                totalFrames: 100,
+            });
+
+            store.setResult(new Blob(['done'], { type: 'video/mp4' }));
+            expect(store.progress.estimatedRemainingSeconds).toBe(0);
+        });
     });
 
     describe('settingsStore', () => {
         it('should have correct initial state', () => {
             const store = useSettingsStore();
             expect(store.currentScreen).toBe('upload');
-            expect(store.overlayConfig.position).toBe('top-left');
+            expect(store.overlayConfig.position).toBe('bottom-left');
             expect(store.overlayConfig.showHr).toBe(true);
             expect(store.overlayConfig.showPace).toBe(true);
             expect(store.overlayConfig.showDistance).toBe(true);
-            expect(store.overlayConfig.showTime).toBe(true);
+            expect(store.overlayConfig.templateId).toBe('horizon');
         });
 
         it('should change screen', () => {
@@ -216,19 +313,26 @@ describe('Pinia Stores', () => {
             expect(store.isUploadScreen).toBe(false);
         });
 
-        it('should update overlay config partially', () => {
+        it('should update overlay config partially and keep fixed-template position locked', () => {
             const store = useSettingsStore();
             store.updateOverlayConfig({ position: 'bottom-right', showHr: false });
-            expect(store.overlayConfig.position).toBe('bottom-right');
+            expect(store.overlayConfig.position).toBe('bottom-left');
             expect(store.overlayConfig.showHr).toBe(false);
             expect(store.overlayConfig.showPace).toBe(true); // Unchanged
+        });
+
+        it('should allow position changes for classic template', () => {
+            const store = useSettingsStore();
+            store.selectTemplate('classic');
+            store.updateOverlayConfig({ position: 'bottom-right' });
+            expect(store.overlayConfig.position).toBe('bottom-right');
         });
 
         it('should reset overlay config', () => {
             const store = useSettingsStore();
             store.updateOverlayConfig({ position: 'bottom-right' });
             store.resetOverlayConfig();
-            expect(store.overlayConfig.position).toBe('top-left');
+            expect(store.overlayConfig.position).toBe('bottom-left');
         });
 
         it('should reset everything', () => {

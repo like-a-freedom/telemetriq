@@ -99,7 +99,9 @@ export function interpolateHr(
 }
 
 /**
- * Format seconds into HH:MM:SS.
+ * Format seconds into compact elapsed time:
+ * - < 1 hour: M:SS
+ * - >= 1 hour: H:MM:SS
  */
 export function formatElapsedTime(totalSeconds: number): string {
     const hours = Math.floor(totalSeconds / 3600);
@@ -107,7 +109,10 @@ export function formatElapsedTime(totalSeconds: number): string {
     const seconds = Math.floor(totalSeconds % 60);
 
     const pad = (n: number) => n.toString().padStart(2, '0');
-    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+    if (hours > 0) {
+        return `${hours}:${pad(minutes)}:${pad(seconds)}`;
+    }
+    return `${minutes}:${pad(seconds)}`;
 }
 
 /**
@@ -159,6 +164,7 @@ export function buildTelemetryTimeline(points: TrackPoint[]): TelemetryFrame[] {
             hr: point.hr,
             paceSecondsPerKm: pace,
             distanceKm: distances[i]!,
+            elevationM: point.ele,
             elapsedTime: formatElapsedTime(timeOffset),
             movingTimeSeconds: movingTimeMs / 1000,
         });
@@ -216,12 +222,16 @@ export function getTelemetryAtTime(
 
     const interpolatedDist = lerp(beforeFrame.distanceKm, afterFrame.distanceKm, t);
     const interpolatedMovingTime = lerp(beforeFrame.movingTimeSeconds, afterFrame.movingTimeSeconds, t);
+    const interpolatedElevation = (beforeFrame.elevationM !== undefined && afterFrame.elevationM !== undefined)
+        ? lerp(beforeFrame.elevationM, afterFrame.elevationM, t)
+        : (beforeFrame.elevationM ?? afterFrame.elevationM);
 
     return {
         timeOffset: gpxTime,
         hr: interpolatedHr,
         paceSecondsPerKm: beforeFrame.paceSecondsPerKm,
         distanceKm: interpolatedDist,
+        elevationM: interpolatedElevation,
         elapsedTime: formatElapsedTime(gpxTime),
         movingTimeSeconds: interpolatedMovingTime,
     };

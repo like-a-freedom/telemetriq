@@ -6,6 +6,7 @@ test-results/
 docs/
 .agent/
 design-references/
+playwright-report/
 
 # Dependencies
 node_modules/
@@ -149,3 +150,4 @@ Thumbs.db
 # Temporary directories
 tmp/
 temp/
+frontend/playwright-report/index.html

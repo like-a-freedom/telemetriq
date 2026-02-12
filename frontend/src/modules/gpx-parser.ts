@@ -119,7 +119,6 @@ function parseTrackPoints(doc: Document): TrackPoint[] {
         }
 
         const hr = extractHeartRate(trkpt);
-        const cadence = extractCadence(trkpt);
 
         points.push({
             lat,
@@ -127,7 +126,6 @@ function parseTrackPoints(doc: Document): TrackPoint[] {
             ele: ele !== undefined && !isNaN(ele) ? ele : undefined,
             time,
             hr,
-            cadence,
         });
     }
 
@@ -156,25 +154,6 @@ function extractHeartRate(trkpt: Element): number | undefined {
         if (localName === 'hr' || localName === 'heartrate' || localName === 'heart_rate') {
             const val = parseInt(el.textContent ?? '', 10);
             if (!isNaN(val) && val > 0 && val < 300) return val;
-        }
-    }
-
-    return undefined;
-}
-
-/**
- * Extract cadence from GPX extensions.
- */
-function extractCadence(trkpt: Element): number | undefined {
-    const extensions = trkpt.querySelector('extensions');
-    if (!extensions) return undefined;
-
-    const allElements = extensions.getElementsByTagName('*');
-    for (const el of allElements) {
-        const localName = el.localName || el.nodeName.split(':').pop();
-        if (localName === 'cad' || localName === 'cadence') {
-            const val = parseInt(el.textContent ?? '', 10);
-            if (!isNaN(val) && val >= 0 && val < 300) return val;
         }
     }
 

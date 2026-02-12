@@ -64,6 +64,17 @@
       <!-- Settings sidebar -->
       <aside class="preview-view__sidebar">
         <div class="preview-view__card">
+          <h3>Template</h3>
+          <p class="preview-view__desc">
+            Choose a design template for your telemetry overlay.
+          </p>
+
+          <TemplateSelector />
+
+          <div class="preview-view__divider"></div>
+        </div>
+
+        <div class="preview-view__card">
           <h3>Overlay settings</h3>
           <p class="preview-view__desc">
             Configure what appears on the video. Changes apply in real-time.
@@ -102,7 +113,7 @@
 
           <div class="preview-view__divider"></div>
 
-          <div class="preview-view__field">
+          <div class="preview-view__field" v-if="canChangePosition">
             <label class="preview-view__label">Position</label>
             <select
               v-model="settingsStore.overlayConfig.position"
@@ -129,7 +140,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useFilesStore, useSyncStore, useSettingsStore } from "../stores";
 import { buildTelemetryTimeline } from "../modules/telemetry-core";
@@ -138,6 +149,8 @@ import type { TelemetryFrame } from "../core/types";
 import VideoPlayer from "../components/VideoPlayer.vue";
 // @ts-expect-error Vue SFC default export typing handled by Vite/Vue tooling
 import SyncSlider from "../components/SyncSlider.vue";
+// @ts-expect-error Vue SFC default export typing handled by Vite/Vue tooling
+import TemplateSelector from "../components/TemplateSelector.vue";
 
 const router = useRouter();
 const filesStore = useFilesStore();
@@ -147,6 +160,9 @@ const settingsStore = useSettingsStore();
 const videoUrl = ref<string | null>(null);
 const telemetryFrames = ref<TelemetryFrame[]>([]);
 const manualStartTime = ref("");
+const canChangePosition = computed(
+  () => settingsStore.currentTemplateId === "classic"
+);
 
 onMounted(() => {
   if (!filesStore.isReady) {

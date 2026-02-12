@@ -2,6 +2,27 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { ProcessingProgress } from '../core/types';
 
+const PHASE_PERCENT_RANGES: Record<ProcessingProgress['phase'], { min: number; max: number }> = {
+    demuxing: { min: 0, max: 5 },
+    encoding: { min: 5, max: 85 },
+    processing: { min: 5, max: 92 },
+    muxing: { min: 92, max: 99 },
+    complete: { min: 100, max: 100 },
+};
+
+function clampPercent(value: number): number {
+    if (!Number.isFinite(value)) return 0;
+    return Math.max(0, Math.min(100, value));
+}
+
+function mapPhasePercent(phase: ProcessingProgress['phase'], rawPercent: number): number {
+    if (phase === 'complete') return 100;
+
+    const { min, max } = PHASE_PERCENT_RANGES[phase];
+    const normalized = clampPercent(rawPercent) / 100;
+    return Math.round(min + (max - min) * normalized);
+}
+
 export const useProcessingStore = defineStore('processing', () => {
     // State
     const isProcessing = ref(false);
@@ -14,6 +35,8 @@ export const useProcessingStore = defineStore('processing', () => {
     const resultBlob = ref<Blob | null>(null);
     const resultUrl = ref<string | null>(null);
     const processingError = ref<string | null>(null);
+    const startedAtMs = ref<number | null>(null);
+    const smoothedEtaSeconds = ref<number | null>(null);
 
     // Computed
     const isComplete = computed(() => progress.value.phase === 'complete');
@@ -24,6 +47,8 @@ export const useProcessingStore = defineStore('processing', () => {
     function startProcessing(totalFrames: number): void {
         isProcessing.value = true;
         processingError.value = null;
+        startedAtMs.value = Date.now();
+        smoothedEtaSeconds.value = null;
         resultBlob.value = null;
         if (resultUrl.value) {
             URL.revokeObjectURL(resultUrl.value);
@@ -38,7 +63,37 @@ export const useProcessingStore = defineStore('processing', () => {
     }
 
     function updateProgress(update: ProcessingProgress): void {
-        progress.value = update;
+        const mappedPercent = mapPhasePercent(update.phase, update.percent);
+        const previousPercent = progress.value.percent;
+        const safePercent = update.phase === 'complete'
+            ? 100
+            : Math.min(99, Math.max(previousPercent, mappedPercent));
+
+        let estimatedRemainingSeconds = update.estimatedRemainingSeconds;
+        if (!Number.isFinite(estimatedRemainingSeconds) || estimatedRemainingSeconds === undefined) {
+            const start = startedAtMs.value;
+            if (start !== null && safePercent > 0 && safePercent < 100) {
+                const elapsedSeconds = Math.max(0, (Date.now() - start) / 1000);
+                if (elapsedSeconds > 0) {
+                    const rawEtaSeconds = elapsedSeconds * ((100 - safePercent) / safePercent);
+                    const nextSmoothed = smoothedEtaSeconds.value === null
+                        ? rawEtaSeconds
+                        : smoothedEtaSeconds.value * 0.7 + rawEtaSeconds * 0.3;
+                    smoothedEtaSeconds.value = nextSmoothed;
+                    estimatedRemainingSeconds = Math.max(0, Math.round(nextSmoothed));
+                }
+            } else {
+                estimatedRemainingSeconds = undefined;
+            }
+        } else if (Number.isFinite(estimatedRemainingSeconds)) {
+            smoothedEtaSeconds.value = estimatedRemainingSeconds;
+        }
+
+        progress.value = {
+            ...update,
+            percent: safePercent,
+            estimatedRemainingSeconds,
+        };
     }
 
     function setResult(blob: Blob): void {
@@ -48,6 +103,7 @@ export const useProcessingStore = defineStore('processing', () => {
             ...progress.value,
             phase: 'complete',
             percent: 100,
+            estimatedRemainingSeconds: 0,
         };
         isProcessing.value = false;
     }
@@ -59,6 +115,8 @@ export const useProcessingStore = defineStore('processing', () => {
 
     function cancelProcessing(): void {
         isProcessing.value = false;
+        startedAtMs.value = null;
+        smoothedEtaSeconds.value = null;
         progress.value = {
             phase: 'demuxing',
             percent: 0,
@@ -70,6 +128,8 @@ export const useProcessingStore = defineStore('processing', () => {
     function reset(): void {
         isProcessing.value = false;
         processingError.value = null;
+        startedAtMs.value = null;
+        smoothedEtaSeconds.value = null;
         if (resultUrl.value) {
             URL.revokeObjectURL(resultUrl.value);
         }
