@@ -10,7 +10,7 @@ const GPX_PATH = path.resolve(THIS_DIR, '../../test_data/suuntoapp-Running-2026-
 const HAS_FIXTURES = fs.existsSync(VIDEO_PATH) && fs.existsSync(GPX_PATH);
 
 test.describe('Real processing flow', () => {
-    test('should process real DJI video and open result page without stco error', async ({ page, browserName }, testInfo) => {
+    test('should process real DJI video and open result page with valid output', async ({ page, browserName }, testInfo) => {
         test.skip(browserName !== 'chromium' || testInfo.project.name !== 'chromium',
             'Real WebCodecs processing is validated only in Desktop Chromium');
         test.skip(!HAS_FIXTURES, 'Real fixture files are missing in test_data');
