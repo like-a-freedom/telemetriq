@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useFilesStore } from '../stores/filesStore';
 import { useSyncStore } from '../stores/syncStore';
@@ -255,6 +256,42 @@ describe('Pinia Stores', () => {
             store.reset();
             expect(store.resultUrl).toBeNull();
             expect(store.resultBlob).toBeNull();
+        });
+
+        it('should estimate remaining time while processing', () => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-02-12T12:00:00Z'));
+
+            const store = useProcessingStore();
+            store.startProcessing(1000);
+
+            vi.setSystemTime(new Date('2026-02-12T12:01:00Z'));
+            store.updateProgress({
+                phase: 'processing',
+                percent: 50,
+                framesProcessed: 500,
+                totalFrames: 1000,
+            });
+
+            expect(store.progress.estimatedRemainingSeconds).toBeDefined();
+            expect(store.progress.estimatedRemainingSeconds!).toBeGreaterThan(0);
+            expect(store.progress.estimatedRemainingSeconds!).toBeLessThan(5 * 60);
+
+            vi.useRealTimers();
+        });
+
+        it('should set ETA to zero on complete', () => {
+            const store = useProcessingStore();
+            store.startProcessing(100);
+            store.updateProgress({
+                phase: 'muxing',
+                percent: 50,
+                framesProcessed: 100,
+                totalFrames: 100,
+            });
+
+            store.setResult(new Blob(['done'], { type: 'video/mp4' }));
+            expect(store.progress.estimatedRemainingSeconds).toBe(0);
         });
     });
 
