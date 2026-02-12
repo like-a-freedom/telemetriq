@@ -2,8 +2,18 @@ import type { TelemetryFrame, OverlayConfig, ProcessingProgress, VideoMeta } fro
 import { ProcessingError } from '../core/errors';
 import { getTelemetryAtTime } from './telemetry-core';
 import { renderOverlay, DEFAULT_OVERLAY_CONFIG } from './overlay-renderer';
-import { createSafeMP4BoxFile, appendFileToMp4box } from './mp4box-safe';
-import * as MP4Box from 'mp4box';
+import {
+    ALL_FORMATS,
+    BlobSource,
+    BufferTarget,
+    EncodedAudioPacketSource,
+    EncodedPacket,
+    EncodedPacketSink,
+    EncodedVideoPacketSource,
+    Input,
+    Mp4OutputFormat,
+    Output,
+} from 'mediabunny';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { toBlobURL } from '@ffmpeg/util';
 
@@ -26,11 +36,32 @@ type Mp4Sample = {
     is_rap: boolean;
 };
 
+type DemuxedMedia = {
+    videoTrack: {
+        id: number;
+        codec: string;
+        codecName: string;
+        description?: BufferSource;
+        timescale: number;
+        decoderConfig?: VideoDecoderConfig;
+    };
+    audioTrack?: {
+        id: number;
+        codec: string;
+        codecName: string;
+        timescale: number;
+        audio?: { channel_count?: number; sample_rate?: number };
+        decoderConfig?: AudioDecoderConfig;
+    };
+    videoSamples: Mp4Sample[];
+    audioSamples: Mp4Sample[];
+};
+
 /**
  * Process a video file by decoding each frame, overlaying telemetry data,
  * and encoding back to an MP4 container.
  *
- * Uses MP4Box.js for demux/mux and WebCodecs for decode/encode.
+ * Uses Mediabunny for demux/mux and WebCodecs for decode/encode.
  */
 export class VideoProcessor {
     private abortController: AbortController;
@@ -236,7 +267,7 @@ export class VideoProcessor {
             try {
                 blob = await this.remuxWithFfmpeg(blob);
             } catch (error) {
-                console.warn('[mux] FFmpeg remux failed, using MP4Box output as-is', error);
+                console.warn('[mux] FFmpeg remux failed, using Mediabunny output as-is', error);
             }
         }
 
@@ -255,20 +286,14 @@ export class VideoProcessor {
     private async demuxSamplesWithFallback(
         file: File,
         onProgress?: (progress: ProcessingProgress) => void,
-    ): Promise<{
-        videoTrack: { id: number; codec: string; description?: ArrayBuffer; timescale: number };
-        audioTrack?: { id: number; codec: string; timescale: number; audio?: any; description?: ArrayBuffer };
-        videoSamples: Mp4Sample[];
-        audioSamples: Mp4Sample[];
-    }> {
-        // First attempt: direct MP4Box parse (with safe wrapper)
+    ): Promise<DemuxedMedia> {
+        // First attempt: direct parse
         try {
             const result = await this.demuxSamples(file);
             if (result.videoSamples.length > 0) return result;
-            // onReady fired but no samples extracted – treat as failure
-            throw new ProcessingError('MP4Box returned zero video samples');
+            throw new ProcessingError('Parser returned zero video samples');
         } catch (firstError) {
-            console.warn('[demux] Direct MP4Box parse failed, trying FFmpeg remux', firstError);
+            console.warn('[demux] Direct parse failed, trying FFmpeg remux', firstError);
         }
 
         // Second attempt: remux through FFmpeg (strips problematic metadata)
@@ -279,120 +304,132 @@ export class VideoProcessor {
         } catch (secondError) {
             throw new ProcessingError(
                 'Failed to parse the video file. The file may contain unsupported metadata '
-                + '(e.g. DJI ©dji atoms) or be corrupted. Automatic repair did not succeed.',
+                + 'or be corrupted. Automatic repair did not succeed.',
             );
         }
     }
 
-    private async demuxSamples(file: File): Promise<{
-        videoTrack: { id: number; codec: string; description?: ArrayBuffer; timescale: number };
-        audioTrack?: { id: number; codec: string; timescale: number; audio?: any; description?: ArrayBuffer };
-        videoSamples: Mp4Sample[];
-        audioSamples: Mp4Sample[];
-    }> {
-        return new Promise((resolve, reject) => {
-            const mp4boxfile = createSafeMP4BoxFile();
-            const videoSamples: Mp4Sample[] = [];
-            const audioSamples: Mp4Sample[] = [];
-            let videoTrack: any;
-            let audioTrack: any;
-            let rejected = false;
-
-            const safeReject = (reason: unknown): void => {
-                if (!rejected) {
-                    rejected = true;
-                    reject(reason);
-                }
-            };
-
-            mp4boxfile.onError = (e: unknown) => safeReject(e);
-
-            mp4boxfile.onReady = (info: any) => {
-                videoTrack = info.tracks?.find((t: any) => t.video);
-                audioTrack = info.tracks?.find((t: any) => t.audio);
-
-                if (!videoTrack) {
-                    safeReject(new ProcessingError('No video track found in the file'));
-                    return;
-                }
-
-                if (!videoTrack.description) {
-                    const extracted = this.extractCodecDescriptionFromMp4box(
-                        mp4boxfile,
-                        videoTrack.id,
-                        videoTrack.codec,
-                    );
-                    if (extracted) {
-                        videoTrack.description = extracted;
-                    }
-                }
-
-                try {
-                    mp4boxfile.setExtractionOptions(videoTrack.id, null, { nbSamples: 1, rapAlignement: false });
-                    if (audioTrack) {
-                        mp4boxfile.setExtractionOptions(audioTrack.id, null, { nbSamples: 50, rapAlignement: false });
-                    }
-                    mp4boxfile.start();
-                } catch (error) {
-                    safeReject(new ProcessingError('Failed to start sample extraction'));
-                }
-            };
-
-            mp4boxfile.onSamples = (id: number, _user: unknown, samples: Mp4Sample[]) => {
-                if (videoTrack && id === videoTrack.id) {
-                    videoSamples.push(...samples);
-                }
-                if (audioTrack && id === audioTrack.id) {
-                    audioSamples.push(...samples);
-                }
-            };
-
-            appendFileToMp4box(mp4boxfile, file, { signal: this.abortController.signal })
-                .then(() => {
-                    if (rejected) return;
-
-                    try {
-                        mp4boxfile.flush();
-                    } catch (flushError) {
-                        safeReject(new ProcessingError('Failed to finalise MP4 parsing'));
-                        return;
-                    }
-
-                    if (!videoTrack) {
-                        safeReject(new ProcessingError('No video track found after parsing'));
-                        return;
-                    }
-
-                    resolve({
-                        videoTrack: {
-                            id: videoTrack.id,
-                            codec: videoTrack.codec,
-                            description: videoTrack.description,
-                            timescale: videoTrack.timescale,
-                        },
-                        audioTrack: audioTrack
-                            ? {
-                                id: audioTrack.id,
-                                codec: audioTrack.codec,
-                                timescale: audioTrack.timescale,
-                                audio: audioTrack.audio,
-                                description: audioTrack.description,
-                            }
-                            : undefined,
-                        videoSamples,
-                        audioSamples,
-                    });
-                })
-                .catch((error) => {
-                    if (error instanceof Error && error.message === 'Aborted') return;
-                    safeReject(error);
-                });
+    private async demuxSamples(file: File): Promise<DemuxedMedia> {
+        const input = new Input({
+            formats: ALL_FORMATS,
+            source: new BlobSource(file),
         });
+
+        try {
+            const videoTrack = await input.getPrimaryVideoTrack();
+            const audioTrack = await input.getPrimaryAudioTrack();
+
+            if (!videoTrack) {
+                throw new ProcessingError('No video track found in the file');
+            }
+
+            const videoCodecString =
+                (await videoTrack.getCodecParameterString())
+                ?? (await videoTrack.getDecoderConfig())?.codec
+                ?? 'unknown';
+            let videoDecoderConfig: VideoDecoderConfig | undefined;
+            try {
+                videoDecoderConfig = await videoTrack.getDecoderConfig() ?? undefined;
+            } catch {
+                // Some test/runtime environments may not support decoder config extraction.
+                videoDecoderConfig = undefined;
+            }
+            const videoCodecName = String(videoTrack.codec ?? '').toLowerCase();
+
+            const videoSink = new EncodedPacketSink(videoTrack);
+            const videoSamples: Mp4Sample[] = [];
+            for await (const packet of videoSink.packets()) {
+                const timestampUs = Math.round(packet.timestamp * 1_000_000);
+                const durationUs = Math.max(1, Math.round(packet.duration * 1_000_000));
+                videoSamples.push({
+                    data: packet.data.slice().buffer,
+                    duration: durationUs,
+                    dts: timestampUs,
+                    cts: timestampUs,
+                    timescale: 1_000_000,
+                    is_rap: packet.type === 'key',
+                });
+            }
+            const videoSinkClosable = videoSink as unknown as { close?: () => void };
+            videoSinkClosable.close?.();
+
+            let parsedAudioTrack: DemuxedMedia['audioTrack'];
+            const audioSamples: Mp4Sample[] = [];
+
+            if (audioTrack) {
+                const audioCodecString =
+                    (await audioTrack.getCodecParameterString())
+                    ?? (await audioTrack.getDecoderConfig())?.codec
+                    ?? 'unknown';
+                let audioDecoderConfig: AudioDecoderConfig | undefined;
+                try {
+                    audioDecoderConfig = await audioTrack.getDecoderConfig() ?? undefined;
+                } catch {
+                    audioDecoderConfig = undefined;
+                }
+
+                const audioSink = new EncodedPacketSink(audioTrack);
+                for await (const packet of audioSink.packets()) {
+                    const timestampUs = Math.round(packet.timestamp * 1_000_000);
+                    const durationUs = Math.max(1, Math.round(packet.duration * 1_000_000));
+                    audioSamples.push({
+                        data: packet.data.slice().buffer,
+                        duration: durationUs,
+                        dts: timestampUs,
+                        cts: timestampUs,
+                        timescale: 1_000_000,
+                        is_rap: packet.type === 'key',
+                    });
+                }
+                const audioSinkClosable = audioSink as unknown as { close?: () => void };
+                audioSinkClosable.close?.();
+
+                parsedAudioTrack = {
+                    id: 2,
+                    codec: audioCodecString,
+                    codecName: String(audioTrack.codec ?? '').toLowerCase(),
+                    timescale: 1_000_000,
+                    decoderConfig: audioDecoderConfig,
+                    audio: {
+                        channel_count: audioTrack.numberOfChannels,
+                        sample_rate: audioTrack.sampleRate,
+                    },
+                };
+            }
+
+            return {
+                videoTrack: {
+                    id: 1,
+                    codec: videoCodecString,
+                    codecName: videoCodecName,
+                    description: videoDecoderConfig?.description,
+                    timescale: 1_000_000,
+                    decoderConfig: videoDecoderConfig,
+                },
+                audioTrack: parsedAudioTrack,
+                videoSamples,
+                audioSamples,
+            };
+        } catch (error) {
+            const details = error instanceof Error
+                ? { cause: error.message }
+                : { cause: String(error) };
+            throw error instanceof ProcessingError
+                ? error
+                : new ProcessingError('Failed to parse media tracks with Mediabunny', details);
+        } finally {
+            const disposable = input as unknown as { [Symbol.dispose]?: () => void };
+            try {
+                disposable[Symbol.dispose]?.();
+            } catch {
+                // no-op
+            }
+        }
     }
 
     private createDecoder(
         codec: string,
-        description: ArrayBuffer | undefined,
+        description: BufferSource | undefined,
         onFrame: (frame: VideoFrame) => void,
         onError: (message: string) => void,
     ): VideoDecoder {
@@ -409,7 +446,7 @@ export class VideoProcessor {
         return decoder;
     }
 
-    private async isVideoTrackDecodable(codec: string, description?: ArrayBuffer): Promise<boolean> {
+    private async isVideoTrackDecodable(codec: string, description?: BufferSource): Promise<boolean> {
         try {
             const config: VideoDecoderConfig = { codec };
             if (description) config.description = description;
@@ -508,106 +545,105 @@ export class VideoProcessor {
     }
 
     private async muxMp4(
-        demuxed: {
-            videoTrack: { id: number; codec: string; description?: ArrayBuffer; timescale: number };
-            audioTrack?: { id: number; codec: string; timescale: number; audio?: any; description?: ArrayBuffer };
-            audioSamples: Mp4Sample[];
-        },
+        demuxed: DemuxedMedia,
         encodedChunks: { chunk: EncodedVideoChunk; duration: number }[],
         decoderConfig: VideoDecoderConfig | undefined,
         meta: VideoMeta,
     ): Promise<Blob> {
-        const toTrackType = (codec: string): string => {
+        const toMediabunnyVideoCodec = (codec: string): string => {
             const normalized = codec.toLowerCase();
-            if (normalized.startsWith('avc1') || normalized.startsWith('avc3')) return 'avc1';
-            if (normalized.startsWith('hvc1') || normalized.startsWith('hev1')) return 'hvc1';
-            if (normalized.startsWith('mp4a')) return 'mp4a';
-            if (normalized.startsWith('opus')) return 'Opus';
-            if (normalized.startsWith('vp09')) return 'vp09';
-            if (normalized.startsWith('av01')) return 'av01';
+            if (normalized.startsWith('avc1') || normalized.startsWith('avc3')) return 'avc';
+            if (normalized.startsWith('hvc1') || normalized.startsWith('hev1')) return 'hevc';
+            if (normalized.startsWith('vp09')) return 'vp9';
+            if (normalized.startsWith('vp08')) return 'vp8';
+            if (normalized.startsWith('av01')) return 'av1';
+            return 'avc';
+        };
 
-            const fourcc = normalized.split('.')[0];
-            return fourcc || 'avc1';
+        const toMediabunnyAudioCodec = (codec: string): string => {
+            const normalized = codec.toLowerCase();
+            if (normalized.startsWith('mp4a')) return 'aac';
+            if (normalized.startsWith('opus')) return 'opus';
+            if (normalized.startsWith('mp3')) return 'mp3';
+            if (normalized.startsWith('flac')) return 'flac';
+            return 'aac';
         };
 
         const muxWithMode = async (includeAudio: boolean): Promise<Blob> => {
-            const mp4boxfile = createSafeMP4BoxFile();
-
-            const videoCodec = decoderConfig?.codec ?? demuxed.videoTrack.codec;
-            const videoType = toTrackType(videoCodec);
-            const videoConfigRecord = decoderConfig?.description ?? demuxed.videoTrack.description;
-
-            const videoTrackId = mp4boxfile.addTrack({
-                type: videoType,
-                timescale: 1_000_000,
-                width: meta.width,
-                height: meta.height,
-                codec: videoCodec,
-                avcDecoderConfigRecord: videoType === 'avc1' ? videoConfigRecord : undefined,
-                hevcDecoderConfigRecord: videoType === 'hvc1' ? videoConfigRecord : undefined,
-                description: undefined,
-                hdlr: 'vide',
+            const output = new Output({
+                format: new Mp4OutputFormat(),
+                target: new BufferTarget(),
             });
 
-            if (!videoTrackId) {
-                throw new ProcessingError(`MP4 mux failed: unsupported video track type ${videoType} (${videoCodec})`);
-            }
+            const videoCodec = decoderConfig?.codec ?? demuxed.videoTrack.codec;
+            const videoSource = new EncodedVideoPacketSource(toMediabunnyVideoCodec(videoCodec) as any);
+            output.addVideoTrack(videoSource, { frameRate: meta.fps });
 
-            let audioTrackId: number | undefined;
+            let audioSource: EncodedAudioPacketSource | undefined;
             if (includeAudio && demuxed.audioTrack) {
-                const audioType = toTrackType(demuxed.audioTrack.codec);
-                audioTrackId = mp4boxfile.addTrack({
-                    type: audioType,
-                    timescale: demuxed.audioTrack.timescale,
-                    codec: demuxed.audioTrack.codec,
-                    description: demuxed.audioTrack.description,
-                    channel_count: demuxed.audioTrack.audio?.channel_count,
-                    samplerate: demuxed.audioTrack.audio?.sample_rate,
-                    hdlr: 'soun',
-                });
-
-                if (!audioTrackId) {
-                    console.warn(`[mux] Skipping unsupported audio track type ${audioType} (${demuxed.audioTrack.codec})`);
-                }
+                audioSource = new EncodedAudioPacketSource(
+                    toMediabunnyAudioCodec(demuxed.audioTrack.codec) as any,
+                );
+                output.addAudioTrack(audioSource);
             }
 
+            await output.start();
+
+            let firstVideoPacket = true;
             for (const { chunk } of encodedChunks) {
-                const data = new Uint8Array(chunk.byteLength);
-                chunk.copyTo(data);
-                mp4boxfile.addSample(videoTrackId, data, {
-                    duration: chunk.duration ?? Math.round(1_000_000 / meta.fps),
-                    dts: chunk.timestamp ?? 0,
-                    cts: chunk.timestamp ?? 0,
-                    is_sync: chunk.type === 'key',
-                });
-            }
-
-            if (audioTrackId && demuxed.audioSamples.length) {
-                for (const sample of demuxed.audioSamples) {
-                    mp4boxfile.addSample(audioTrackId, new Uint8Array(sample.data), {
-                        duration: sample.duration,
-                        dts: sample.dts,
-                        cts: sample.cts,
-                        is_sync: sample.is_rap,
+                const packet = EncodedPacket.fromEncodedChunk(chunk);
+                if (firstVideoPacket) {
+                    await videoSource.add(packet, {
+                        decoderConfig: decoderConfig,
                     });
+                    firstVideoPacket = false;
+                } else {
+                    await videoSource.add(packet);
                 }
             }
 
-            const stream = mp4boxfile.getBuffer() as { buffer: ArrayBuffer; getPosition?: () => number };
-            const end = typeof stream.getPosition === 'function' ? stream.getPosition() : stream.buffer.byteLength;
-            return new Blob([stream.buffer.slice(0, end)], { type: 'video/mp4' });
+            if (audioSource && demuxed.audioSamples.length) {
+                let firstAudioPacket = true;
+                for (const sample of demuxed.audioSamples) {
+                    const chunk = new EncodedAudioChunk({
+                        type: sample.is_rap ? 'key' : 'delta',
+                        timestamp: sample.cts,
+                        duration: sample.duration,
+                        data: new Uint8Array(sample.data),
+                    });
+                    const packet = EncodedPacket.fromEncodedChunk(chunk);
+
+                    if (firstAudioPacket) {
+                        await audioSource.add(packet, {
+                            decoderConfig: demuxed.audioTrack?.decoderConfig,
+                        });
+                        firstAudioPacket = false;
+                    } else {
+                        await audioSource.add(packet);
+                    }
+                }
+            }
+
+            await output.finalize();
+
+            const buffer = output.target.buffer;
+            if (!buffer || buffer.byteLength === 0) {
+                throw new ProcessingError('Mediabunny mux produced empty output');
+            }
+
+            return new Blob([buffer], { type: 'video/mp4' });
         };
 
         try {
             return await muxWithMode(true);
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            const isStcoError = /stco/i.test(message);
-            if (!isStcoError || !demuxed.audioTrack) {
+            const isContainerError = /stco|isobmff|mux|container|track/i.test(message);
+            if (!isContainerError || !demuxed.audioTrack) {
                 throw error;
             }
 
-            console.warn('[mux] MP4Box audio mux failed with stco-related error, retrying video-only output', error);
+            console.warn('[mux] Audio+video mux failed, retrying video-only output', error);
             return await muxWithMode(false);
         }
     }
@@ -641,8 +677,7 @@ export class VideoProcessor {
             await ffmpeg.writeFile('input.mp4', inputData);
             console.info('[ffmpeg remux] input written');
 
-            // -map_metadata -1 strips ALL metadata (including non-standard atoms like ©dji)
-            // that cause MP4Box.js to crash during parsing.
+            // -map_metadata -1 strips metadata and rewrites container atoms.
             await ffmpeg.exec(['-i', 'input.mp4', '-c', 'copy', '-map_metadata', '-1', 'output.mp4']);
             console.info('[ffmpeg remux] remux succeeded');
 
@@ -921,7 +956,7 @@ export class VideoProcessor {
 
     private createKeyframeDetector(
         codec: string,
-        description?: ArrayBuffer,
+        description?: BufferSource,
     ): (sample: Mp4Sample) => boolean {
         const codecLower = codec.toLowerCase();
         const isH264 = codecLower.startsWith('avc1') || codecLower.startsWith('avc3');
@@ -946,9 +981,10 @@ export class VideoProcessor {
         };
     }
 
-    private getNalLengthSize(codecLower: string, description?: ArrayBuffer): number | undefined {
+    private getNalLengthSize(codecLower: string, description?: BufferSource): number | undefined {
         if (!description) return undefined;
-        const view = new DataView(description);
+        const buffer = this.normalizeToArrayBuffer(description);
+        const view = new DataView(buffer);
 
         if ((codecLower.startsWith('avc1') || codecLower.startsWith('avc3')) && view.byteLength >= 5) {
             const lengthSizeMinusOne = view.getUint8(4) & 0x03;
@@ -963,50 +999,16 @@ export class VideoProcessor {
         return undefined;
     }
 
-    private extractCodecDescriptionFromMp4box(
-        mp4boxfile: any,
-        trackId: number,
-        codec: string,
-    ): ArrayBuffer | undefined {
-        try {
-            const moov = mp4boxfile?.moov;
-            const traks = moov?.traks;
-            if (!traks || !Array.isArray(traks)) return undefined;
-
-            const trak = traks.find((t: any) => t?.tkhd?.track_id === trackId);
-            const entry = trak?.mdia?.minf?.stbl?.stsd?.entries?.[0];
-            if (!entry) return undefined;
-
-            const codecLower = codec.toLowerCase();
-            const box = codecLower.startsWith('hvc1') || codecLower.startsWith('hev1')
-                ? entry.hvcC
-                : (codecLower.startsWith('avc1') || codecLower.startsWith('avc3')
-                    ? entry.avcC
-                    : undefined);
-
-            if (!box || typeof box.write !== 'function') return undefined;
-
-            const DataStreamCtor = (MP4Box as unknown as { DataStream?: any }).DataStream;
-            if (!DataStreamCtor) return undefined;
-
-            // Write the full box (header + data) into a DataStream
-            const stream = new DataStreamCtor(undefined, 0, 1 /* BIG_ENDIAN */);
-            box.write(stream);
-            const written: number = stream.getPosition();
-
-            // MP4 box header is 8 bytes (4-byte size + 4-byte fourcc type).
-            // WebCodecs expects only the raw DecoderConfigurationRecord
-            // (AVCDecoderConfigurationRecord / HEVCDecoderConfigurationRecord)
-            // without the box header.
-            const BOX_HEADER_SIZE = 8;
-            if (written <= BOX_HEADER_SIZE) return undefined;
-
-            const buffer: ArrayBuffer = stream.buffer;
-            return buffer.slice(BOX_HEADER_SIZE, written);
-        } catch (error) {
-            console.warn('[mp4box] Failed to extract codec description', error);
-            return undefined;
+    private normalizeToArrayBuffer(source: BufferSource): ArrayBuffer {
+        if (source instanceof ArrayBuffer) {
+            return source;
         }
+
+        if (ArrayBuffer.isView(source)) {
+            return source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength);
+        }
+
+        return source as ArrayBuffer;
     }
 
     private detectNalLengthSizeFromSample(data: Uint8Array): number | undefined {

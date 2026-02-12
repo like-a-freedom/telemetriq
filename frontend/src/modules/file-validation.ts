@@ -1,6 +1,6 @@
 import type { FileValidation, VideoMeta } from '../core/types';
 import { ValidationError } from '../core/errors';
-import { createSafeMP4BoxFile, appendFileToMp4box } from './mp4box-safe';
+import { ALL_FORMATS, BlobSource, Input } from 'mediabunny';
 
 /** Maximum video file size: 4 GB */
 const MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;
@@ -128,66 +128,47 @@ async function extractMp4Metadata(file: File): Promise<{
     height?: number;
     duration?: number;
 }> {
-    return new Promise((resolve, reject) => {
-        const mp4boxfile = createSafeMP4BoxFile();
-        let resolved = false;
-        mp4boxfile.onError = (e: unknown) => {
-            if (!resolved) {
-                resolved = true;
-                reject(e);
-            }
-        };
-
-        mp4boxfile.onReady = (info: any) => {
-            if (resolved) return;
-            resolved = true;
-
-            const videoTrack = info.tracks?.find((t: any) => t.video) ?? info.tracks?.[0];
-            const codec = videoTrack?.codec;
-            const fps = videoTrack?.video?.frame_rate
-                ? Number(videoTrack.video.frame_rate)
-                : undefined;
-            const width = videoTrack?.video?.width ? Number(videoTrack.video.width) : undefined;
-            const height = videoTrack?.video?.height ? Number(videoTrack.video.height) : undefined;
-            const duration =
-                typeof info.duration === 'number' && typeof info.timescale === 'number' && info.timescale > 0
-                    ? Number(info.duration) / Number(info.timescale)
-                    : undefined;
-
-            const created = info.created ? new Date(info.created) : undefined;
-            const gps = findIso6709Location(info);
-
-            resolve({
-                codec,
-                fps,
-                width,
-                height,
-                duration,
-                startTime: created,
-                timezoneOffsetMinutes: created ? created.getTimezoneOffset() : undefined,
-                gps,
-            });
-        };
-
-        appendFileToMp4box(mp4boxfile, file)
-            .then(() => {
-                try {
-                    mp4boxfile.flush();
-                } catch (flushError) {
-                    if (!resolved) {
-                        resolved = true;
-                        reject(flushError);
-                    }
-                    return;
-                }
-            })
-            .catch((error) => {
-                if (!resolved) {
-                    resolved = true;
-                    reject(error);
-                }
-            });
+    const input = new Input({
+        formats: ALL_FORMATS,
+        source: new BlobSource(file),
     });
+
+    try {
+        const videoTrack = await input.getPrimaryVideoTrack();
+        const codec = videoTrack
+            ? ((await videoTrack.getCodecParameterString()) ?? (await videoTrack.getDecoderConfig())?.codec)
+            : undefined;
+
+        const fps = videoTrack
+            ? (await videoTrack.computePacketStats(120)).averagePacketRate
+            : undefined;
+
+        const width = videoTrack?.displayWidth;
+        const height = videoTrack?.displayHeight;
+        const duration = await input.computeDuration();
+
+        const tags = await input.getMetadataTags();
+        const created = tags.date;
+        const gps = findIso6709Location(tags.raw);
+
+        return {
+            codec,
+            fps,
+            width,
+            height,
+            duration,
+            startTime: created,
+            timezoneOffsetMinutes: created ? created.getTimezoneOffset() : undefined,
+            gps,
+        };
+    } finally {
+        const disposable = input as unknown as { [Symbol.dispose]?: () => void };
+        try {
+            disposable[Symbol.dispose]?.();
+        } catch {
+            // no-op
+        }
+    }
 }
 
 function findIso6709Location(info: unknown): { lat: number; lon: number } | undefined {

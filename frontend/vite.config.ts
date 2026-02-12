@@ -12,7 +12,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           vendor: ['vue', 'vue-router', 'pinia'],
-          wasm: ['@ffmpeg/ffmpeg', '@ffmpeg/util', 'mp4box'],
+          wasm: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
         },
       },
     },
