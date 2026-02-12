@@ -99,7 +99,9 @@ export function interpolateHr(
 }
 
 /**
- * Format seconds into HH:MM:SS.
+ * Format seconds into compact elapsed time:
+ * - < 1 hour: M:SS
+ * - >= 1 hour: H:MM:SS
  */
 export function formatElapsedTime(totalSeconds: number): string {
     const hours = Math.floor(totalSeconds / 3600);
@@ -107,7 +109,10 @@ export function formatElapsedTime(totalSeconds: number): string {
     const seconds = Math.floor(totalSeconds % 60);
 
     const pad = (n: number) => n.toString().padStart(2, '0');
-    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+    if (hours > 0) {
+        return `${hours}:${pad(minutes)}:${pad(seconds)}`;
+    }
+    return `${minutes}:${pad(seconds)}`;
 }
 
 /**

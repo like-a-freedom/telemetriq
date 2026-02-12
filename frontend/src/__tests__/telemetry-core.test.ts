@@ -203,23 +203,23 @@ describe('Telemetry Core', () => {
 
     describe('formatElapsedTime', () => {
         it('should format zero seconds', () => {
-            expect(formatElapsedTime(0)).toBe('00:00:00');
+            expect(formatElapsedTime(0)).toBe('0:00');
         });
 
         it('should format seconds only', () => {
-            expect(formatElapsedTime(45)).toBe('00:00:45');
+            expect(formatElapsedTime(45)).toBe('0:45');
         });
 
         it('should format minutes and seconds', () => {
-            expect(formatElapsedTime(125)).toBe('00:02:05');
+            expect(formatElapsedTime(125)).toBe('2:05');
         });
 
         it('should format hours, minutes, and seconds', () => {
-            expect(formatElapsedTime(3661)).toBe('01:01:01');
+            expect(formatElapsedTime(3661)).toBe('1:01:01');
         });
 
         it('should handle large values', () => {
-            expect(formatElapsedTime(7200)).toBe('02:00:00');
+            expect(formatElapsedTime(7200)).toBe('2:00:00');
         });
     });
 
@@ -259,7 +259,7 @@ describe('Telemetry Core', () => {
             expect(timeline[0]!.timeOffset).toBe(0);
             expect(timeline[0]!.distanceKm).toBe(0);
             expect(timeline[0]!.hr).toBe(140);
-            expect(timeline[0]!.elapsedTime).toBe('00:00:00');
+            expect(timeline[0]!.elapsedTime).toBe('0:00');
 
             expect(timeline[1]!.timeOffset).toBe(30);
             expect(timeline[1]!.distanceKm).toBeGreaterThan(0);

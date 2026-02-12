@@ -178,14 +178,12 @@ function renderHorizonLayout(
             ctx.stroke();
         }
 
-        // Label (uppercase, small, wide tracking)
+        // Label (uppercase, compact, center-aligned)
         ctx.fillStyle = 'rgba(255,255,255,0.55)';
         ctx.font = `500 ${labelSize}px ${fontFamily}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        const labelText = metric.label.toUpperCase();
-        // Simulate letter-spacing by manually spacing characters
-        drawTrackedText(ctx, labelText, centerX, baselineY - valueSize - labelSize * 0.3, config.labelLetterSpacing || 0.15, labelSize);
+        ctx.fillText(metric.label.toUpperCase(), centerX, baselineY - valueSize - labelSize * 0.3);
 
         // Value (large, bold)
         const weight = fontWeightValue(config.valueFontWeight || 'bold');
@@ -194,21 +192,19 @@ function renderHorizonLayout(
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
 
-        // Measure value to offset unit
+        // Measure value for placing unit without changing value center
         const valueMetrics = ctx.measureText(metric.value);
         const totalValueWidth = valueMetrics.width;
 
-        // Draw value slightly left to make room for unit
-        const unitWidth = metric.unit ? measureTrackedWidth(ctx, ` ${metric.unit}`, unitSize, fontFamily) : 0;
-        const valueX = centerX - unitWidth / 2;
-        ctx.fillText(metric.value, valueX, baselineY);
+        // Keep all values centered in their columns for vertical consistency
+        ctx.fillText(metric.value, centerX, baselineY);
 
         // Unit (small, dimmed)
         if (metric.unit) {
             ctx.fillStyle = 'rgba(255,255,255,0.5)';
             ctx.font = `300 ${unitSize}px ${fontFamily}`;
             ctx.textAlign = 'left';
-            ctx.fillText(metric.unit, valueX + totalValueWidth / 2 + unitSize * 0.15, baselineY);
+            ctx.fillText(metric.unit, centerX + totalValueWidth / 2 + unitSize * 0.15, baselineY);
         }
     }
 
@@ -268,13 +264,15 @@ function renderMarginLayout(
         const labelSize = Math.max(8, Math.round(valueSize * 0.2));
         const unitSize = Math.max(8, Math.round(valueSize * 0.22));
 
-        // Vertical label (rotated)
+        // Vertical label (rotated, compact abbreviation to avoid overflow)
         ctx.save();
         ctx.fillStyle = 'rgba(255,255,255,0.5)';
         ctx.font = `300 ${labelSize}px ${fontFamily}`;
-        ctx.translate(marginX - labelSize * 1.5, metricY + valueSize);
+        ctx.translate(marginX + labelSize * 0.8, metricY + valueSize);
         ctx.rotate(-Math.PI / 2);
-        drawTrackedText(ctx, metric.label.toUpperCase(), 0, 0, config.labelLetterSpacing || 0.25, labelSize);
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillText(getMarginLabel(metric.label), 0, 0);
         ctx.restore();
 
         // Value
@@ -288,7 +286,7 @@ function renderMarginLayout(
         // Unit below value
         ctx.fillStyle = 'rgba(255,255,255,0.4)';
         ctx.font = `300 ${unitSize}px ${fontFamily}`;
-        drawTrackedText(ctx, metric.unit.toUpperCase(), marginX, metricY + valueSize + unitSize * 1.5, 0.2, unitSize);
+        ctx.fillText(metric.unit.toUpperCase(), marginX, metricY + valueSize + unitSize * 1.5);
     }
 
     // Right side metrics (aligned right)
@@ -484,18 +482,25 @@ function renderClassicLayout(
 
     ctx.save();
 
-    if (config.gradientBackground && config.gradientStartColor && config.gradientEndColor) {
-        const gradient = ctx.createLinearGradient(x, y, x, y + bgHeight);
-        gradient.addColorStop(0, config.gradientStartColor);
-        gradient.addColorStop(1, config.gradientEndColor);
-        ctx.fillStyle = gradient;
-    } else {
-        ctx.fillStyle = config.backgroundColor || `rgba(0, 0, 0, ${config.backgroundOpacity})`;
-    }
+    const hasVisibleBackground =
+        (config.gradientBackground && !!config.gradientStartColor && !!config.gradientEndColor)
+        || (!!config.backgroundColor && config.backgroundColor !== 'transparent' && config.backgroundColor !== 'rgba(0, 0, 0, 0)')
+        || ((config.backgroundOpacity || 0) > 0);
 
-    ctx.beginPath();
-    ctx.roundRect(x, y, bgWidth, bgHeight, borderRadius);
-    ctx.fill();
+    if (hasVisibleBackground) {
+        if (config.gradientBackground && config.gradientStartColor && config.gradientEndColor) {
+            const gradient = ctx.createLinearGradient(x, y, x, y + bgHeight);
+            gradient.addColorStop(0, config.gradientStartColor);
+            gradient.addColorStop(1, config.gradientEndColor);
+            ctx.fillStyle = gradient;
+        } else {
+            ctx.fillStyle = config.backgroundColor || `rgba(0, 0, 0, ${config.backgroundOpacity})`;
+        }
+
+        ctx.beginPath();
+        ctx.roundRect(x, y, bgWidth, bgHeight, borderRadius);
+        ctx.fill();
+    }
 
     if (config.borderWidth && config.borderColor) {
         ctx.strokeStyle = config.borderColor;
@@ -544,19 +549,6 @@ function drawTrackedText(
     }
 }
 
-function measureTrackedWidth(
-    ctx: OverlayContext2D,
-    text: string,
-    fontSize: number,
-    fontFamily: string,
-): number {
-    const saveFont = ctx.font;
-    ctx.font = `300 ${fontSize}px ${fontFamily}`;
-    const w = ctx.measureText(text).width;
-    ctx.font = saveFont;
-    return w;
-}
-
 function fontWeightValue(weight: string): number {
     switch (weight) {
         case 'light': return 300;
@@ -566,12 +558,23 @@ function fontWeightValue(weight: string): number {
     }
 }
 
+function getMarginLabel(label: string): string {
+    switch (label.toLowerCase()) {
+        case 'heart rate':
+            return 'HR';
+        case 'distance':
+            return 'DIST';
+        default:
+            return label.toUpperCase();
+    }
+}
+
 function buildMetrics(frame: TelemetryFrame, config: ExtendedOverlayConfig): MetricItem[] {
     const items: MetricItem[] = [];
 
     if (config.showPace && frame.paceSecondsPerKm !== undefined) {
         const paceStr = formatPace(frame.paceSecondsPerKm);
-        if (paceStr) items.push({ label: 'Pace', value: paceStr, unit: '/km' });
+        if (paceStr) items.push({ label: 'Pace', value: paceStr, unit: 'min/km' });
     }
     if (config.showHr && frame.hr !== undefined) {
         items.push({ label: 'Heart Rate', value: String(frame.hr), unit: 'bpm' });
