@@ -1,139 +1,211 @@
 <template>
   <div class="template-selector">
-    <h3>Select Overlay Template</h3>
-    <div class="template-grid">
+    <div class="template-list">
       <button
-        v-for="template in availableTemplates"
+        v-for="template in templates"
         :key="template.id"
-        class="template-option"
-        :class="{ 'selected': isSelected(template.id) }"
+        class="template-card"
+        :class="{ 'template-card--active': isSelected(template.id) }"
         @click="selectTemplate(template.id)"
       >
-        <div class="template-preview" :style="getPreviewStyle(template.id)">
-          {{ template.name }}
+        <div class="template-card__preview">
+          <canvas
+            :ref="(el) => setCanvasRef(template.id, el)"
+            class="template-card__canvas"
+            width="280"
+            height="158"
+          />
+          <div v-if="isSelected(template.id)" class="template-card__badge">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M2 6L5 9L10 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
         </div>
-        <span class="template-name">{{ template.name }}</span>
+        <div class="template-card__info">
+          <span class="template-card__name">{{ template.name }}</span>
+          <span class="template-card__desc">{{ template.description }}</span>
+        </div>
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { onMounted, nextTick, watch } from 'vue';
 import { useSettingsStore } from '../stores/settingsStore';
-import type { TemplateId } from '../core/types';
-import { getTemplateConfig, getAvailableTemplates as getAvailableTemplateIds } from '../modules/template-configs';
+import type { TemplateId, TelemetryFrame } from '../core/types';
+import {
+  getTemplateConfig,
+  getAllTemplateMetadata,
+} from '../modules/template-configs';
+import { renderOverlay } from '../modules/overlay-renderer';
 
-// Define the template info type
-interface TemplateInfo {
-  id: TemplateId;
-  name: string;
-}
-
-// Get available template IDs and map to template info
-const availableTemplateIds = getAvailableTemplateIds().filter(id => id !== 'custom') as TemplateId[];
-
-// Map template IDs to readable names
-const templateMap: Record<TemplateId, string> = {
-  'minimalist': 'Minimalist',
-  'sporty': 'Sporty',
-  'professional': 'Professional',
-  'modern': 'Modern',
-  'high-contrast': 'High Contrast',
-  'custom': 'Custom'
-};
-
-const availableTemplates = computed<TemplateInfo[]>(() => {
-  return availableTemplateIds.map(id => ({
-    id,
-    name: templateMap[id] || id
-  }));
-});
-
+const templates = getAllTemplateMetadata();
 const settingsStore = useSettingsStore();
 
-const isSelected = (templateId: TemplateId) => {
+const canvasRefs = new Map<TemplateId, HTMLCanvasElement>();
+
+const sampleFrame: TelemetryFrame = {
+  timeOffset: 2520,
+  hr: 164,
+  paceSecondsPerKm: 272,
+  distanceKm: 12.4,
+  elapsedTime: '00:42:00',
+  movingTimeSeconds: 2520,
+};
+
+function setCanvasRef(id: TemplateId, el: unknown): void {
+  if (el instanceof HTMLCanvasElement) canvasRefs.set(id, el);
+}
+
+function isSelected(templateId: TemplateId): boolean {
   return settingsStore.currentTemplateId === templateId;
-};
+}
 
-const selectTemplate = (templateId: TemplateId) => {
+function selectTemplate(templateId: TemplateId): void {
   settingsStore.selectTemplate(templateId);
-};
+}
 
-const getPreviewStyle = (templateId: TemplateId) => {
-  const config = getTemplateConfig(templateId);
-  return {
-    backgroundColor: config.backgroundColor || '#000000',
-    color: config.textColor || '#FFFFFF',
-    fontFamily: config.fontFamily || 'sans-serif',
-    fontSize: '12px',
-    padding: '8px',
-    borderRadius: `${config.cornerRadius || 4}px`,
-    border: config.borderWidth ? `${config.borderWidth}px solid ${config.borderColor || '#FFFFFF'}` : 'none',
-    textAlign: 'center',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: '60px',
-    fontWeight: 'bold',
-    boxShadow: config.textShadow ? `2px 2px 4px ${config.textShadowColor || '#000000'}` : 'none',
-    background: config.gradientBackground && config.gradientStartColor && config.gradientEndColor
-      ? `linear-gradient(to bottom, ${config.gradientStartColor}, ${config.gradientEndColor})`
-      : 'none'
-  };
-};
+function renderPreviews(): void {
+  for (const tmpl of templates) {
+    const canvas = canvasRefs.get(tmpl.id);
+    if (!canvas) continue;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) continue;
+
+    // Dark cinematic background
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    bgGrad.addColorStop(0, '#1a1a2e');
+    bgGrad.addColorStop(1, '#16213e');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Subtle grid for depth
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 0.5;
+    for (let x = 0; x < canvas.width; x += 20) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.stroke();
+    }
+    for (let y = 0; y < canvas.height; y += 20) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
+    }
+
+    // Render the template overlay
+    const config = getTemplateConfig(tmpl.id);
+    renderOverlay(ctx, sampleFrame, canvas.width, canvas.height, config);
+  }
+}
+
+onMounted(async () => {
+  await nextTick();
+  renderPreviews();
+});
+
+watch(() => settingsStore.overlayConfig, () => {
+  nextTick(renderPreviews);
+}, { deep: true });
 </script>
 
 <style scoped>
 .template-selector {
-  margin-bottom: 24px;
+  margin-bottom: 0;
 }
 
-.template-selector h3 {
-  margin-bottom: 16px;
-  color: var(--color-text, #333333);
-  font-weight: 600;
-}
-
-.template-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 16px;
-}
-
-.template-option {
+.template-list {
   display: flex;
   flex-direction: column;
+  gap: 10px;
+}
+
+.template-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: var(--color-bg-tertiary, #1e1e1e);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.template-card:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.template-card--active {
+  border-color: var(--color-primary, #646cff);
+  box-shadow:
+    0 0 0 1px var(--color-primary, #646cff),
+    0 4px 16px rgba(100, 108, 255, 0.15);
+}
+
+.template-card--active:hover {
+  border-color: var(--color-primary, #646cff);
+}
+
+.template-card__preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 8px 8px 0 0;
+}
+
+.template-card__canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.template-card__badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-primary, #646cff);
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 12px;
-  border: 2px solid transparent;
-  border-radius: 8px;
-  background-color: var(--color-background-soft, #f5f5f5);
-  cursor: pointer;
-  transition: all 0.2s ease;
+  color: white;
+  box-shadow: 0 2px 6px rgba(100, 108, 255, 0.4);
 }
 
-.template-option:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+.template-card__info {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.template-option.selected {
-  border-color: var(--color-primary, #406de6);
-  background-color: var(--color-primary-light, #e6eeff);
+.template-card__name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text, #ffffff);
+  letter-spacing: -0.01em;
 }
 
-.template-preview {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.template-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-text, #333333);
-  text-align: center;
+.template-card__desc {
+  font-size: 0.72rem;
+  color: var(--color-text-secondary, #888);
+  line-height: 1.3;
 }
 </style>

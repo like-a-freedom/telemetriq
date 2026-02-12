@@ -202,11 +202,11 @@ describe('Pinia Stores', () => {
         it('should have correct initial state', () => {
             const store = useSettingsStore();
             expect(store.currentScreen).toBe('upload');
-            expect(store.overlayConfig.position).toBe('top-left');
+            expect(store.overlayConfig.position).toBe('bottom-left');
             expect(store.overlayConfig.showHr).toBe(true);
             expect(store.overlayConfig.showPace).toBe(true);
             expect(store.overlayConfig.showDistance).toBe(true);
-            expect(store.overlayConfig.showTime).toBe(true);
+            expect(store.overlayConfig.templateId).toBe('horizon');
         });
 
         it('should change screen', () => {
@@ -228,7 +228,7 @@ describe('Pinia Stores', () => {
             const store = useSettingsStore();
             store.updateOverlayConfig({ position: 'bottom-right' });
             store.resetOverlayConfig();
-            expect(store.overlayConfig.position).toBe('top-left');
+            expect(store.overlayConfig.position).toBe('bottom-left');
         });
 
         it('should reset everything', () => {

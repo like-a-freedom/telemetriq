@@ -1,4 +1,4 @@
-import type { TelemetryFrame, OverlayConfig, ExtendedOverlayConfig } from '../core/types';
+import type { TelemetryFrame, ExtendedOverlayConfig } from '../core/types';
 import { formatPace } from './telemetry-core';
 import { getTemplateConfig } from './template-configs';
 
@@ -11,36 +11,52 @@ type CachedOverlay = {
 const overlayCache = new Map<string, CachedOverlay>();
 const MAX_CACHE_ENTRIES = 200;
 
+/** Metric data prepared for rendering */
+interface MetricItem {
+    label: string;
+    value: string;
+    unit: string;
+}
+
 /** Default overlay configuration */
 export const DEFAULT_OVERLAY_CONFIG: ExtendedOverlayConfig = {
-    templateId: 'minimalist',
-    position: 'top-left',
-    backgroundOpacity: 0.7,
-    fontSizePercent: 2.5,
+    templateId: 'horizon',
+    layoutMode: 'bottom-bar',
+    position: 'bottom-left',
+    backgroundOpacity: 0.85,
+    fontSizePercent: 2.4,
     showHr: true,
     showPace: true,
     showDistance: true,
-    showTime: true,
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    showTime: false,
+    showElevation: true,
+    showCadence: false,
+    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     textColor: '#FFFFFF',
     backgroundColor: '#000000',
     borderWidth: 0,
-    borderColor: '#FFFFFF',
-    cornerRadius: 4,
+    borderColor: 'transparent',
+    cornerRadius: 0,
     textShadow: false,
     textShadowColor: '#000000',
-    textShadowBlur: 2,
-    lineSpacing: 1.5,
-    layout: 'vertical',
-    iconStyle: 'outline',
-    gradientBackground: false,
-    gradientStartColor: '#000000',
-    gradientEndColor: '#333333',
+    textShadowBlur: 0,
+    lineSpacing: 1.2,
+    layout: 'horizontal',
+    iconStyle: 'none',
+    gradientBackground: true,
+    gradientStartColor: 'rgba(0,0,0,0)',
+    gradientEndColor: 'rgba(0,0,0,0.9)',
+    labelStyle: 'uppercase',
+    valueFontWeight: 'bold',
+    valueSizeMultiplier: 2.5,
+    labelSizeMultiplier: 0.4,
+    labelLetterSpacing: 0.15,
+    accentColor: '#ef4444',
 };
 
 /**
  * Render the telemetry overlay onto a canvas.
- * This function draws the telemetry data as a semi-transparent overlay.
+ * Dispatches to the appropriate layout renderer based on template config.
  */
 export function renderOverlay(
     ctx: OverlayContext2D,
@@ -49,11 +65,9 @@ export function renderOverlay(
     videoHeight: number,
     config: ExtendedOverlayConfig = DEFAULT_OVERLAY_CONFIG,
 ): void {
-    // If config has a templateId that differs from the current config, merge template properties
     let effectiveConfig = config;
     if (config.templateId && config.templateId !== 'custom') {
         const templateConfig = getTemplateConfig(config.templateId as any);
-        // Merge template config with user overrides
         effectiveConfig = { ...templateConfig, ...config };
     }
 
@@ -68,124 +82,534 @@ export function renderOverlay(
     if (!overlayTarget) return;
     const { canvas: overlayCanvas, ctx: overlayCtx } = overlayTarget;
 
-    const fontSize = Math.round(videoHeight * (effectiveConfig.fontSizePercent / 100));
-    const lineHeight = fontSize * (effectiveConfig.lineSpacing || 1.5);
-    const padding = fontSize * 0.6;
-    const borderRadius = effectiveConfig.cornerRadius !== undefined 
-        ? Math.round(videoHeight * (effectiveConfig.cornerRadius / 100)) 
-        : Math.round(videoHeight * 0.005);
+    const metrics = buildMetrics(frame, effectiveConfig);
+    if (metrics.length === 0) return;
 
-    const lines = buildOverlayLines(frame, effectiveConfig);
+    const layoutMode = effectiveConfig.layoutMode || 'box';
 
-    if (lines.length === 0) return;
-
-    // Measure text
-    const fontFamily = effectiveConfig.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    overlayCtx.font = `bold ${fontSize}px ${fontFamily}`;
-    let maxWidth = 0;
-    for (const line of lines) {
-        const metrics = overlayCtx.measureText(line);
-        if (metrics.width > maxWidth) {
-            maxWidth = metrics.width;
-        }
-    }
-
-    // Background dimensions
-    const bgWidth = maxWidth + padding * 2;
-    const bgHeight = lines.length * lineHeight + padding * 2;
-
-    // Position
-    let x: number;
-    let y: number;
-    const margin = fontSize;
-
-    switch (effectiveConfig.position) {
-        case 'top-left':
-            x = margin;
-            y = margin;
+    switch (layoutMode) {
+        case 'bottom-bar':
+            renderHorizonLayout(overlayCtx, metrics, videoWidth, videoHeight, effectiveConfig);
             break;
-        case 'top-right':
-            x = videoWidth - bgWidth - margin;
-            y = margin;
+        case 'side-margins':
+            renderMarginLayout(overlayCtx, metrics, videoWidth, videoHeight, effectiveConfig);
             break;
-        case 'bottom-left':
-            x = margin;
-            y = videoHeight - bgHeight - margin;
+        case 'corner-frame':
+            renderLFrameLayout(overlayCtx, metrics, frame, videoWidth, videoHeight, effectiveConfig);
             break;
-        case 'bottom-right':
-            x = videoWidth - bgWidth - margin;
-            y = videoHeight - bgHeight - margin;
+        case 'box':
+        default:
+            renderClassicLayout(overlayCtx, metrics, videoWidth, videoHeight, effectiveConfig);
             break;
     }
-
-    // Draw background with rounded corners
-    overlayCtx.save();
-    
-    // Handle gradient background if enabled
-    if (effectiveConfig.gradientBackground && effectiveConfig.gradientStartColor && effectiveConfig.gradientEndColor) {
-        const gradient = overlayCtx.createLinearGradient(x, y, x, y + bgHeight);
-        gradient.addColorStop(0, effectiveConfig.gradientStartColor);
-        gradient.addColorStop(1, effectiveConfig.gradientEndColor);
-        overlayCtx.fillStyle = gradient;
-    } else {
-        // Use solid background color if specified, otherwise fallback to original behavior
-        const bgColor = effectiveConfig.backgroundColor || `rgba(0, 0, 0, ${effectiveConfig.backgroundOpacity})`;
-        if (bgColor.startsWith('rgba')) {
-            overlayCtx.fillStyle = bgColor;
-        } else {
-            // If it's a hex color, we need to incorporate the opacity
-            overlayCtx.fillStyle = bgColor;
-        }
-    }
-    
-    overlayCtx.beginPath();
-    overlayCtx.roundRect(x, y, bgWidth, bgHeight, borderRadius);
-    overlayCtx.fill();
-
-    // Draw border if specified
-    if (effectiveConfig.borderWidth && effectiveConfig.borderColor) {
-        overlayCtx.strokeStyle = effectiveConfig.borderColor;
-        overlayCtx.lineWidth = effectiveConfig.borderWidth;
-        overlayCtx.stroke();
-    }
-
-    // Draw text
-    const textColor = effectiveConfig.textColor || '#FFFFFF';
-    overlayCtx.fillStyle = textColor;
-    
-    // Apply text shadow if enabled
-    if (effectiveConfig.textShadow && effectiveConfig.textShadowColor && effectiveConfig.textShadowBlur) {
-        overlayCtx.shadowColor = effectiveConfig.textShadowColor;
-        overlayCtx.shadowBlur = effectiveConfig.textShadowBlur;
-        overlayCtx.shadowOffsetX = 0;
-        overlayCtx.shadowOffsetY = 0;
-    }
-    
-    overlayCtx.font = `bold ${fontSize}px ${fontFamily}`;
-    overlayCtx.textBaseline = 'top';
-
-    for (let i = 0; i < lines.length; i++) {
-        overlayCtx.fillText(
-            lines[i]!,
-            x + padding,
-            y + padding + i * lineHeight,
-        );
-    }
-
-    overlayCtx.restore();
 
     cacheOverlay(cacheKey, overlayCanvas, videoWidth, videoHeight);
     ctx.drawImage(overlayCanvas as CanvasImageSource, 0, 0);
 }
 
+// ──────────────────────────────────────────────
+// Horizon Layout (Bottom bar with gradient)
+// ──────────────────────────────────────────────
+
+function renderHorizonLayout(
+    ctx: OverlayContext2D,
+    metrics: MetricItem[],
+    w: number,
+    h: number,
+    config: ExtendedOverlayConfig,
+): void {
+    const barHeight = h * 0.14;
+    const barY = h - barHeight;
+
+    // Gradient background: transparent → dark
+    const grad = ctx.createLinearGradient(0, barY - barHeight * 0.5, 0, h);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(0.4, 'rgba(0,0,0,0.3)');
+    grad.addColorStop(1, `rgba(0,0,0,${config.backgroundOpacity})`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, barY - barHeight * 0.5, w, barHeight * 1.5);
+
+    // Progress line at very bottom
+    const accent = config.accentColor || '#ef4444';
+    ctx.fillStyle = accent;
+    ctx.fillRect(0, h - Math.max(2, h * 0.003), w * 0.35, Math.max(2, h * 0.003));
+
+    // Layout metrics horizontally
+    const fontFamily = config.fontFamily || 'Inter, sans-serif';
+    const baseFontSize = Math.round(h * (config.fontSizePercent || 2.4) / 100);
+    const valueSize = Math.round(baseFontSize * (config.valueSizeMultiplier || 2.5));
+    const labelSize = Math.round(baseFontSize * (config.labelSizeMultiplier || 0.4));
+    const unitSize = Math.round(valueSize * 0.45);
+
+    const padding = w * 0.04;
+    const metricCount = metrics.length;
+    const availableWidth = w - padding * 2;
+    const columnWidth = availableWidth / metricCount;
+
+    ctx.save();
+    applyTextShadow(ctx, config);
+
+    for (let i = 0; i < metricCount; i++) {
+        const metric = metrics[i]!;
+        const colX = padding + columnWidth * i;
+        const centerX = colX + columnWidth / 2;
+        const baselineY = h - barHeight * 0.25;
+
+        // Separator line (except first)
+        if (i > 0) {
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(colX, baselineY - valueSize * 0.8);
+            ctx.lineTo(colX, baselineY + labelSize * 0.5);
+            ctx.stroke();
+        }
+
+        // Label (uppercase, small, wide tracking)
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.font = `500 ${labelSize}px ${fontFamily}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        const labelText = metric.label.toUpperCase();
+        // Simulate letter-spacing by manually spacing characters
+        drawTrackedText(ctx, labelText, centerX, baselineY - valueSize - labelSize * 0.3, config.labelLetterSpacing || 0.15, labelSize);
+
+        // Value (large, bold)
+        const weight = fontWeightValue(config.valueFontWeight || 'bold');
+        ctx.fillStyle = config.textColor || '#FFFFFF';
+        ctx.font = `${weight} ${valueSize}px ${fontFamily}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+
+        // Measure value to offset unit
+        const valueMetrics = ctx.measureText(metric.value);
+        const totalValueWidth = valueMetrics.width;
+
+        // Draw value slightly left to make room for unit
+        const unitWidth = metric.unit ? measureTrackedWidth(ctx, ` ${metric.unit}`, unitSize, fontFamily) : 0;
+        const valueX = centerX - unitWidth / 2;
+        ctx.fillText(metric.value, valueX, baselineY);
+
+        // Unit (small, dimmed)
+        if (metric.unit) {
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.font = `300 ${unitSize}px ${fontFamily}`;
+            ctx.textAlign = 'left';
+            ctx.fillText(metric.unit, valueX + totalValueWidth / 2 + unitSize * 0.15, baselineY);
+        }
+    }
+
+    ctx.restore();
+}
+
+// ──────────────────────────────────────────────
+// Margin Layout (Large typography on side margins)
+// ──────────────────────────────────────────────
+
+function renderMarginLayout(
+    ctx: OverlayContext2D,
+    metrics: MetricItem[],
+    w: number,
+    h: number,
+    config: ExtendedOverlayConfig,
+): void {
+    // Subtle edge gradients
+    const leftGrad = ctx.createLinearGradient(0, 0, w * 0.15, 0);
+    leftGrad.addColorStop(0, `rgba(0,0,0,${config.backgroundOpacity * 0.7})`);
+    leftGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = leftGrad;
+    ctx.fillRect(0, 0, w * 0.15, h);
+
+    const rightGrad = ctx.createLinearGradient(w, 0, w * 0.85, 0);
+    rightGrad.addColorStop(0, `rgba(0,0,0,${config.backgroundOpacity * 0.7})`);
+    rightGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rightGrad;
+    ctx.fillRect(w * 0.85, 0, w * 0.15, h);
+
+    const fontFamily = config.fontFamily || 'Inter, sans-serif';
+    const baseFontSize = Math.round(h * (config.fontSizePercent || 2.0) / 100);
+    const valueSize = Math.round(baseFontSize * (config.valueSizeMultiplier || 3.5));
+    const labelSize = Math.round(baseFontSize * (config.labelSizeMultiplier || 0.35));
+    const unitSize = Math.round(valueSize * 0.2);
+
+    // Split metrics into left and right columns
+    const half = Math.ceil(metrics.length / 2);
+    const leftMetrics = metrics.slice(0, half);
+    const rightMetrics = metrics.slice(half);
+
+    const marginX = w * 0.045;
+    const verticalSpacing = h * 0.2;
+
+    ctx.save();
+    applyTextShadow(ctx, config);
+
+    // Left side metrics (aligned left)
+    const leftStartY = h * 0.35;
+    for (let i = 0; i < leftMetrics.length; i++) {
+        const metric = leftMetrics[i]!;
+        const metricY = leftStartY + i * verticalSpacing;
+
+        // Vertical label (rotated)
+        ctx.save();
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.font = `300 ${labelSize}px ${fontFamily}`;
+        ctx.translate(marginX - labelSize * 1.5, metricY + valueSize);
+        ctx.rotate(-Math.PI / 2);
+        drawTrackedText(ctx, metric.label.toUpperCase(), 0, 0, config.labelLetterSpacing || 0.25, labelSize);
+        ctx.restore();
+
+        // Value
+        const weight = fontWeightValue(config.valueFontWeight || 'light');
+        ctx.fillStyle = config.textColor || '#FFFFFF';
+        ctx.font = `${weight} ${valueSize}px ${fontFamily}`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillText(metric.value, marginX, metricY + valueSize);
+
+        // Unit below value
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.font = `300 ${unitSize}px ${fontFamily}`;
+        drawTrackedText(ctx, metric.unit.toUpperCase(), marginX, metricY + valueSize + unitSize * 1.5, 0.2, unitSize);
+    }
+
+    // Right side metrics (aligned right)
+    const rightStartY = h * 0.3;
+    for (let i = 0; i < rightMetrics.length; i++) {
+        const metric = rightMetrics[i]!;
+        const metricY = rightStartY + i * verticalSpacing;
+        const rightX = w - marginX;
+
+        // Value
+        const weight = fontWeightValue(config.valueFontWeight || 'light');
+        ctx.fillStyle = config.textColor || '#FFFFFF';
+        ctx.font = `${weight} ${valueSize}px ${fontFamily}`;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillText(metric.value, rightX, metricY + valueSize);
+
+        // Unit below value
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.font = `300 ${unitSize}px ${fontFamily}`;
+        ctx.textAlign = 'right';
+        ctx.fillText(metric.unit.toUpperCase(), rightX, metricY + valueSize + unitSize * 1.5);
+    }
+
+    // Left vertical progress line
+    const lineX = Math.round(w * 0.005);
+    const lineW = Math.max(1, Math.round(w * 0.002));
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(lineX, 0, lineW, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillRect(lineX, 0, lineW, h * 0.33);
+
+    ctx.restore();
+}
+
+// ──────────────────────────────────────────────
+// L-Frame Layout (Corner frame with metrics)
+// ──────────────────────────────────────────────
+
+function renderLFrameLayout(
+    ctx: OverlayContext2D,
+    metrics: MetricItem[],
+    frame: TelemetryFrame,
+    w: number,
+    h: number,
+    config: ExtendedOverlayConfig,
+): void {
+    // Subtle bottom gradient
+    const grad = ctx.createLinearGradient(0, h * 0.7, 0, h);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.25)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, h * 0.7, w, h * 0.3);
+
+    const fontFamily = config.fontFamily || 'Inter, sans-serif';
+    const baseFontSize = Math.round(h * (config.fontSizePercent || 2.0) / 100);
+    const valueSize = Math.round(baseFontSize * (config.valueSizeMultiplier || 3.0));
+    const labelSize = Math.round(baseFontSize * (config.labelSizeMultiplier || 0.4));
+    const unitSize = Math.round(valueSize * 0.3);
+
+    const margin = w * 0.04;
+    const bottomMargin = h * 0.05;
+    const frameX = margin + valueSize * 0.2;
+    const frameBottom = h - bottomMargin;
+
+    ctx.save();
+    applyTextShadow(ctx, config);
+
+    // Draw L-frame lines
+    const lineColor = 'rgba(255,255,255,0.5)';
+    const lineW = Math.max(1, Math.round(h * 0.001));
+    const verticalLineHeight = h * 0.18;
+    const horizontalLineWidth = w * 0.75;
+
+    // Vertical line of L
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = lineW;
+    ctx.beginPath();
+    ctx.moveTo(frameX, frameBottom - verticalLineHeight);
+    ctx.lineTo(frameX, frameBottom);
+    ctx.stroke();
+
+    // Horizontal line of L
+    ctx.beginPath();
+    ctx.moveTo(frameX, frameBottom);
+    ctx.lineTo(frameX + horizontalLineWidth, frameBottom);
+    ctx.stroke();
+
+    // Corner dot
+    const dotRadius = Math.max(2, h * 0.003);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.arc(frameX, frameBottom, dotRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Metrics along horizontal line
+    const metricsStartX = frameX + margin * 0.5;
+    const metricGap = w * 0.14;
+    const metricsY = frameBottom - margin * 0.3;
+
+    for (let i = 0; i < metrics.length; i++) {
+        const metric = metrics[i]!;
+        const mx = metricsStartX + i * metricGap;
+
+        // Label
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.font = `300 ${labelSize}px ${fontFamily}`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'bottom';
+        drawTrackedText(ctx, metric.label.toUpperCase(), mx, metricsY - valueSize - labelSize * 0.2, config.labelLetterSpacing || 0.15, labelSize);
+
+        // Value
+        const weight = fontWeightValue(config.valueFontWeight || 'light');
+        ctx.fillStyle = config.textColor || '#FFFFFF';
+        ctx.font = `${weight} ${valueSize}px ${fontFamily}`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        const vm = ctx.measureText(metric.value);
+        ctx.fillText(metric.value, mx, metricsY);
+
+        // Unit
+        if (metric.unit) {
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.font = `300 ${unitSize}px ${fontFamily}`;
+            ctx.textAlign = 'left';
+            ctx.fillText(metric.unit, mx + vm.width + unitSize * 0.3, metricsY);
+        }
+    }
+
+    // Time in top-right corner
+    if (frame.elapsedTime) {
+        const timeSize = Math.round(valueSize * 0.5);
+        const timeLabelSize = Math.round(labelSize * 0.9);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.font = `300 ${timeLabelSize}px ${fontFamily}`;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'bottom';
+        drawTrackedText(ctx, 'TIME', w - margin, margin + timeLabelSize, 0.15, timeLabelSize);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.font = `300 ${timeSize}px ${fontFamily}`;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'top';
+        ctx.fillText(frame.elapsedTime, w - margin, margin + timeLabelSize + timeLabelSize * 0.5);
+    }
+
+    // Progress bar at very bottom
+    const barH = Math.max(1, h * 0.002);
+    ctx.fillStyle = 'rgba(128,128,128,0.3)';
+    ctx.fillRect(0, h - barH * 2, w, barH * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillRect(0, h - barH * 2, w * 0.33, barH * 2);
+
+    ctx.restore();
+}
+
+// ──────────────────────────────────────────────
+// Classic Layout (Original box overlay)
+// ──────────────────────────────────────────────
+
+function renderClassicLayout(
+    ctx: OverlayContext2D,
+    metrics: MetricItem[],
+    w: number,
+    h: number,
+    config: ExtendedOverlayConfig,
+): void {
+    const fontSize = Math.round(h * (config.fontSizePercent / 100));
+    const lineHeight = fontSize * (config.lineSpacing || 1.5);
+    const padding = fontSize * 0.6;
+    const borderRadius = config.cornerRadius !== undefined
+        ? Math.round(h * (config.cornerRadius / 100))
+        : Math.round(h * 0.005);
+
+    const lines = buildOverlayLines(metrics);
+    if (lines.length === 0) return;
+
+    const fontFamily = config.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = `bold ${fontSize}px ${fontFamily}`;
+    let maxWidth = 0;
+    for (const line of lines) {
+        const m = ctx.measureText(line);
+        if (m.width > maxWidth) maxWidth = m.width;
+    }
+
+    const bgWidth = maxWidth + padding * 2;
+    const bgHeight = lines.length * lineHeight + padding * 2;
+
+    let x: number;
+    let y: number;
+    const margin = fontSize;
+
+    switch (config.position) {
+        case 'top-left':
+            x = margin; y = margin; break;
+        case 'top-right':
+            x = w - bgWidth - margin; y = margin; break;
+        case 'bottom-left':
+            x = margin; y = h - bgHeight - margin; break;
+        case 'bottom-right':
+            x = w - bgWidth - margin; y = h - bgHeight - margin; break;
+    }
+
+    ctx.save();
+
+    if (config.gradientBackground && config.gradientStartColor && config.gradientEndColor) {
+        const gradient = ctx.createLinearGradient(x, y, x, y + bgHeight);
+        gradient.addColorStop(0, config.gradientStartColor);
+        gradient.addColorStop(1, config.gradientEndColor);
+        ctx.fillStyle = gradient;
+    } else {
+        ctx.fillStyle = config.backgroundColor || `rgba(0, 0, 0, ${config.backgroundOpacity})`;
+    }
+
+    ctx.beginPath();
+    ctx.roundRect(x, y, bgWidth, bgHeight, borderRadius);
+    ctx.fill();
+
+    if (config.borderWidth && config.borderColor) {
+        ctx.strokeStyle = config.borderColor;
+        ctx.lineWidth = config.borderWidth;
+        ctx.stroke();
+    }
+
+    ctx.fillStyle = config.textColor || '#FFFFFF';
+    applyTextShadow(ctx, config);
+    ctx.font = `bold ${fontSize}px ${fontFamily}`;
+    ctx.textBaseline = 'top';
+
+    for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i]!, x + padding, y + padding + i * lineHeight);
+    }
+
+    ctx.restore();
+}
+
+// ──────────────────────────────────────────────
+// Shared helpers
+// ──────────────────────────────────────────────
+
+function applyTextShadow(ctx: OverlayContext2D, config: ExtendedOverlayConfig): void {
+    if (config.textShadow && config.textShadowColor) {
+        ctx.shadowColor = config.textShadowColor;
+        ctx.shadowBlur = config.textShadowBlur || 4;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+    }
+}
+
+function drawTrackedText(
+    ctx: OverlayContext2D,
+    text: string,
+    x: number,
+    y: number,
+    letterSpacingEm: number,
+    fontSize: number,
+): void {
+    const spacing = fontSize * letterSpacingEm;
+    let curX = x;
+    for (const char of text) {
+        ctx.fillText(char, curX, y);
+        curX += ctx.measureText(char).width + spacing;
+    }
+}
+
+function measureTrackedWidth(
+    ctx: OverlayContext2D,
+    text: string,
+    fontSize: number,
+    fontFamily: string,
+): number {
+    const saveFont = ctx.font;
+    ctx.font = `300 ${fontSize}px ${fontFamily}`;
+    const w = ctx.measureText(text).width;
+    ctx.font = saveFont;
+    return w;
+}
+
+function fontWeightValue(weight: string): number {
+    switch (weight) {
+        case 'light': return 300;
+        case 'normal': return 400;
+        case 'bold': return 700;
+        default: return 400;
+    }
+}
+
+function buildMetrics(frame: TelemetryFrame, config: ExtendedOverlayConfig): MetricItem[] {
+    const items: MetricItem[] = [];
+
+    if (config.showPace && frame.paceSecondsPerKm !== undefined) {
+        const paceStr = formatPace(frame.paceSecondsPerKm);
+        if (paceStr) items.push({ label: 'Pace', value: paceStr, unit: '/km' });
+    }
+    if (config.showHr && frame.hr !== undefined) {
+        items.push({ label: 'Heart Rate', value: String(frame.hr), unit: 'bpm' });
+    }
+    if (config.showDistance) {
+        items.push({ label: 'Distance', value: frame.distanceKm.toFixed(1), unit: 'km' });
+    }
+    if (config.showElevation) {
+        items.push({ label: 'Elevation', value: '—', unit: 'm' });
+    }
+    if (config.showCadence) {
+        items.push({ label: 'Cadence', value: '—', unit: 'spm' });
+    }
+    if (config.showTime) {
+        items.push({ label: 'Time', value: frame.elapsedTime, unit: '' });
+    }
+
+    return items;
+}
+
+function buildOverlayLines(metrics: MetricItem[]): string[] {
+    return metrics.map(m => {
+        const icon = metricIcon(m.label);
+        return `${icon} ${m.value} ${m.unit}`.trim();
+    });
+}
+
+function metricIcon(label: string): string {
+    switch (label.toLowerCase()) {
+        case 'heart rate': return '❤️';
+        case 'pace': return '🏃';
+        case 'distance': return '📏';
+        case 'time': return '⏱️';
+        case 'elevation': return '⛰️';
+        case 'cadence': return '👟';
+        default: return '';
+    }
+}
+
 /**
  * Render overlay onto a VideoFrame and return a new frame with overlay.
- * Uses OffscreenCanvas for rendering.
  */
 export function renderOverlayOnFrame(
     videoFrame: VideoFrame,
     telemetryFrame: TelemetryFrame,
-    config: OverlayConfig = DEFAULT_OVERLAY_CONFIG,
+    config: ExtendedOverlayConfig = DEFAULT_OVERLAY_CONFIG,
 ): VideoFrame {
     const width = videoFrame.displayWidth;
     const height = videoFrame.displayHeight;
@@ -193,13 +617,9 @@ export function renderOverlayOnFrame(
     const canvas = new OffscreenCanvas(width, height);
     const ctx = canvas.getContext('2d')!;
 
-    // Draw the video frame
     ctx.drawImage(videoFrame, 0, 0, width, height);
-
-    // Draw overlay
     renderOverlay(ctx, telemetryFrame, width, height, config);
 
-    // Create a new VideoFrame from the canvas
     const newFrame = new VideoFrame(canvas, {
         timestamp: videoFrame.timestamp,
         duration: videoFrame.duration ?? undefined,
@@ -221,22 +641,16 @@ function buildCacheKey(frame: TelemetryFrame, config: ExtendedOverlayConfig, wid
         showPace: config.showPace,
         showDistance: config.showDistance,
         showTime: config.showTime,
+        showElevation: config.showElevation,
+        showCadence: config.showCadence,
         templateId: config.templateId,
+        layoutMode: config.layoutMode,
         fontFamily: config.fontFamily,
         textColor: config.textColor,
         backgroundColor: config.backgroundColor,
-        borderWidth: config.borderWidth,
-        borderColor: config.borderColor,
-        cornerRadius: config.cornerRadius,
-        textShadow: config.textShadow,
-        textShadowColor: config.textShadowColor,
-        textShadowBlur: config.textShadowBlur,
-        lineSpacing: config.lineSpacing,
-        layout: config.layout,
-        iconStyle: config.iconStyle,
-        gradientBackground: config.gradientBackground,
-        gradientStartColor: config.gradientStartColor,
-        gradientEndColor: config.gradientEndColor,
+        valueFontWeight: config.valueFontWeight,
+        valueSizeMultiplier: config.valueSizeMultiplier,
+        accentColor: config.accentColor,
         width,
         height,
     });
@@ -270,26 +684,6 @@ function cacheOverlay(
     overlayCache.set(key, { canvas: cacheCanvas });
 }
 
-function buildOverlayLines(frame: TelemetryFrame, config: OverlayConfig): string[] {
-    const lines: string[] = [];
-
-    if (config.showHr && frame.hr !== undefined) {
-        lines.push(`❤️ ${frame.hr} BPM`);
-    }
-    if (config.showPace && frame.paceSecondsPerKm !== undefined) {
-        const paceStr = formatPace(frame.paceSecondsPerKm);
-        if (paceStr) lines.push(`🏃 ${paceStr} /km`);
-    }
-    if (config.showDistance) {
-        lines.push(`📏 ${frame.distanceKm.toFixed(2)} km`);
-    }
-    if (config.showTime) {
-        lines.push(`⏱️ ${frame.elapsedTime}`);
-    }
-
-    return lines;
-}
-
 function createOverlayTarget(
     width: number,
     height: number,
@@ -306,8 +700,5 @@ function createOverlayTarget(
         : (canvas as HTMLCanvasElement).getContext('2d');
 
     if (!ctx) return null;
-    return {
-        canvas,
-        ctx,
-    };
+    return { canvas, ctx };
 }
