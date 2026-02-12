@@ -62,10 +62,10 @@ const phaseLabel = computed(() => {
 });
 
 function formatRemaining(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return "";
   if (seconds < 60) return `${Math.round(seconds)} sec`;
-  const min = Math.floor(seconds / 60);
-  const sec = Math.round(seconds % 60);
-  return `${min} min ${sec} sec`;
+  const minutes = Math.max(0, seconds / 60);
+  return `${minutes.toFixed(1)} min`;
 }
 </script>
 

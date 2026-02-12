@@ -35,6 +35,8 @@ export const useProcessingStore = defineStore('processing', () => {
     const resultBlob = ref<Blob | null>(null);
     const resultUrl = ref<string | null>(null);
     const processingError = ref<string | null>(null);
+    const startedAtMs = ref<number | null>(null);
+    const smoothedEtaSeconds = ref<number | null>(null);
 
     // Computed
     const isComplete = computed(() => progress.value.phase === 'complete');
@@ -45,6 +47,8 @@ export const useProcessingStore = defineStore('processing', () => {
     function startProcessing(totalFrames: number): void {
         isProcessing.value = true;
         processingError.value = null;
+        startedAtMs.value = Date.now();
+        smoothedEtaSeconds.value = null;
         resultBlob.value = null;
         if (resultUrl.value) {
             URL.revokeObjectURL(resultUrl.value);
@@ -65,9 +69,30 @@ export const useProcessingStore = defineStore('processing', () => {
             ? 100
             : Math.min(99, Math.max(previousPercent, mappedPercent));
 
+        let estimatedRemainingSeconds = update.estimatedRemainingSeconds;
+        if (!Number.isFinite(estimatedRemainingSeconds) || estimatedRemainingSeconds === undefined) {
+            const start = startedAtMs.value;
+            if (start !== null && safePercent > 0 && safePercent < 100) {
+                const elapsedSeconds = Math.max(0, (Date.now() - start) / 1000);
+                if (elapsedSeconds > 0) {
+                    const rawEtaSeconds = elapsedSeconds * ((100 - safePercent) / safePercent);
+                    const nextSmoothed = smoothedEtaSeconds.value === null
+                        ? rawEtaSeconds
+                        : smoothedEtaSeconds.value * 0.7 + rawEtaSeconds * 0.3;
+                    smoothedEtaSeconds.value = nextSmoothed;
+                    estimatedRemainingSeconds = Math.max(0, Math.round(nextSmoothed));
+                }
+            } else {
+                estimatedRemainingSeconds = undefined;
+            }
+        } else if (Number.isFinite(estimatedRemainingSeconds)) {
+            smoothedEtaSeconds.value = estimatedRemainingSeconds;
+        }
+
         progress.value = {
             ...update,
             percent: safePercent,
+            estimatedRemainingSeconds,
         };
     }
 
@@ -78,6 +103,7 @@ export const useProcessingStore = defineStore('processing', () => {
             ...progress.value,
             phase: 'complete',
             percent: 100,
+            estimatedRemainingSeconds: 0,
         };
         isProcessing.value = false;
     }
@@ -89,6 +115,8 @@ export const useProcessingStore = defineStore('processing', () => {
 
     function cancelProcessing(): void {
         isProcessing.value = false;
+        startedAtMs.value = null;
+        smoothedEtaSeconds.value = null;
         progress.value = {
             phase: 'demuxing',
             percent: 0,
@@ -100,6 +128,8 @@ export const useProcessingStore = defineStore('processing', () => {
     function reset(): void {
         isProcessing.value = false;
         processingError.value = null;
+        startedAtMs.value = null;
+        smoothedEtaSeconds.value = null;
         if (resultUrl.value) {
             URL.revokeObjectURL(resultUrl.value);
         }
