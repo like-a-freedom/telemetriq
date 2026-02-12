@@ -41,7 +41,7 @@ type DemuxedMedia = {
         id: number;
         codec: string;
         codecName: string;
-        description?: BufferSource;
+        description?: AllowSharedBufferSource;
         timescale: number;
         decoderConfig?: VideoDecoderConfig;
     };
@@ -82,6 +82,7 @@ export class VideoProcessor {
 
         const { videoFile, videoMeta, telemetryFrames, syncOffsetSeconds, overlayConfig, onProgress } = this.options;
         const config = overlayConfig ?? DEFAULT_OVERLAY_CONFIG;
+        const safeSyncOffsetSeconds = Number.isFinite(syncOffsetSeconds) ? syncOffsetSeconds : 0;
 
         onProgress?.({ phase: 'demuxing', percent: 0, framesProcessed: 0, totalFrames: 0 });
 
@@ -114,7 +115,10 @@ export class VideoProcessor {
             demuxed.videoTrack.codec,
             demuxed.videoTrack.description,
         );
-        let firstKeyframeIndex = demuxed.videoSamples.findIndex((sample) => keyframeDetector(sample));
+        let firstKeyframeIndex = demuxed.videoSamples.findIndex((sample) => sample.is_rap);
+        if (firstKeyframeIndex === -1) {
+            firstKeyframeIndex = demuxed.videoSamples.findIndex((sample) => keyframeDetector(sample));
+        }
 
         if (firstKeyframeIndex === -1) {
             onProgress?.({ phase: 'encoding', percent: 0, framesProcessed: 0, totalFrames: 0 });
@@ -135,6 +139,7 @@ export class VideoProcessor {
 
         const videoSamples = demuxed.videoSamples.slice(firstKeyframeIndex);
         const totalFrames = videoSamples.length;
+        const gopFrames = this.detectSourceLikeGopSize(videoSamples, videoMeta.fps);
 
         onProgress?.({ phase: 'processing', percent: 0, framesProcessed: 0, totalFrames });
 
@@ -142,7 +147,7 @@ export class VideoProcessor {
         const ctx = canvas.getContext('2d')!;
 
         const encodedChunks: { chunk: EncodedVideoChunk; duration: number }[] = [];
-        const keyframeQueue: boolean[] = [];
+        let encodedFrameCount = 0;
         let encoderDecoderConfig: VideoDecoderConfig | undefined;
         let processingError: ProcessingError | undefined;
 
@@ -153,12 +158,17 @@ export class VideoProcessor {
             }
         };
 
-        const { encoder, encodeMeta } = await this.createEncoder(videoMeta, (chunk, metadata) => {
-            if (metadata?.decoderConfig) {
-                encoderDecoderConfig = metadata.decoderConfig;
-            }
-            encodedChunks.push({ chunk, duration: chunk.duration ?? 0 });
-        }, recordError);
+        const { encoder, encodeMeta } = await this.createEncoder(
+            videoMeta,
+            demuxed.videoTrack.codec,
+            (chunk, metadata) => {
+                if (metadata?.decoderConfig) {
+                    encoderDecoderConfig = metadata.decoderConfig;
+                }
+                encodedChunks.push({ chunk, duration: chunk.duration ?? 0 });
+            },
+            recordError,
+        );
 
         if (encodeMeta.width !== videoMeta.width || encodeMeta.height !== videoMeta.height) {
             canvas.width = encodeMeta.width;
@@ -175,7 +185,7 @@ export class VideoProcessor {
                 }
 
                 const videoTimeSec = (frame.timestamp ?? 0) / 1_000_000;
-                const telemetry = getTelemetryAtTime(telemetryFrames, videoTimeSec, syncOffsetSeconds);
+                const telemetry = getTelemetryAtTime(telemetryFrames, videoTimeSec, safeSyncOffsetSeconds);
 
                 ctx.drawImage(frame, 0, 0, encodeMeta.width, encodeMeta.height);
                 if (telemetry) {
@@ -188,8 +198,14 @@ export class VideoProcessor {
                 });
                 frame.close();
 
-                const keyFrame = keyframeQueue.shift() ?? false;
-                encoder.encode(newFrame, { keyFrame });
+                const forceKeyFrame = encodedFrameCount === 0
+                    || (gopFrames > 0 && encodedFrameCount % gopFrames === 0);
+                if (forceKeyFrame) {
+                    encoder.encode(newFrame, { keyFrame: true });
+                } else {
+                    encoder.encode(newFrame);
+                }
+                encodedFrameCount += 1;
                 newFrame.close();
             },
             recordError,
@@ -204,10 +220,9 @@ export class VideoProcessor {
                 const timestampUs = (sample.cts / sample.timescale) * 1_000_000;
                 const durationUs = (sample.duration / sample.timescale) * 1_000_000;
 
-                const isKeyframe = keyframeDetector(sample);
-                keyframeQueue.push(isKeyframe);
+                const isChunkKeyframe = sample.is_rap || framesProcessed === 0;
                 const chunk = new EncodedVideoChunk({
-                    type: isKeyframe ? 'key' : 'delta',
+                    type: isChunkKeyframe ? 'key' : 'delta',
                     timestamp: Math.round(timestampUs),
                     duration: Math.round(durationUs),
                     data: new Uint8Array(sample.data),
@@ -429,7 +444,7 @@ export class VideoProcessor {
 
     private createDecoder(
         codec: string,
-        description: BufferSource | undefined,
+        description: AllowSharedBufferSource | undefined,
         onFrame: (frame: VideoFrame) => void,
         onError: (message: string) => void,
     ): VideoDecoder {
@@ -446,13 +461,13 @@ export class VideoProcessor {
         return decoder;
     }
 
-    private async isVideoTrackDecodable(codec: string, description?: BufferSource): Promise<boolean> {
+    private async isVideoTrackDecodable(codec: string, description?: AllowSharedBufferSource): Promise<boolean> {
         try {
             const config: VideoDecoderConfig = { codec };
             if (description) config.description = description;
 
             const support = await VideoDecoder.isConfigSupported(config);
-            return support.supported;
+            return support.supported === true;
         } catch {
             return false;
         }
@@ -460,6 +475,7 @@ export class VideoProcessor {
 
     private async createEncoder(
         meta: VideoMeta,
+        sourceCodec: string,
         onChunk: (chunk: EncodedVideoChunk, metadata?: EncodedVideoChunkMetadata) => void,
         onError: (message: string) => void,
     ): Promise<{ encoder: VideoEncoder; encodeMeta: VideoMeta }> {
@@ -476,11 +492,12 @@ export class VideoProcessor {
             codecCandidates: string[],
             targetMeta: VideoMeta,
         ): Promise<VideoEncoderConfig | undefined> => {
+            const targetBitrate = this.estimateTargetBitrate(meta, targetMeta, this.options.videoFile);
             const baseConfig: VideoEncoderConfig = {
                 codec: codecCandidates[0] ?? 'avc1.640028',
                 width: targetMeta.width,
                 height: targetMeta.height,
-                bitrate: this.estimateBitrate(targetMeta),
+                bitrate: targetBitrate,
                 framerate: targetMeta.fps,
                 hardwareAcceleration: 'prefer-hardware',
             };
@@ -505,13 +522,14 @@ export class VideoProcessor {
             return undefined;
         };
 
-        const codecCandidates = this.getAvcCodecCandidates(meta);
+        const codecCandidates = this.getCodecCandidates(meta, sourceCodec);
         let supportedConfig = await configureWithCandidates(codecCandidates, encodeMeta);
 
         if (!supportedConfig) {
             const fallbackMeta = this.scaleToMaxArea(meta, 2_097_152);
             encodeMeta = fallbackMeta;
-            supportedConfig = await configureWithCandidates(['avc1.640028'], encodeMeta);
+            const fallbackCandidates = this.getCodecCandidates(encodeMeta, sourceCodec);
+            supportedConfig = await configureWithCandidates(fallbackCandidates, encodeMeta);
         }
 
         if (!supportedConfig) {
@@ -520,6 +538,31 @@ export class VideoProcessor {
 
         encoder.configure(supportedConfig);
         return { encoder, encodeMeta };
+    }
+
+    private getCodecCandidates(meta: VideoMeta, sourceCodec: string): string[] {
+        const sourceCodecLower = sourceCodec.toLowerCase();
+        const avcCandidates = this.getAvcCodecCandidates(meta);
+
+        if (sourceCodecLower.startsWith('hvc1') || sourceCodecLower.startsWith('hev1')) {
+            return [
+                'hvc1.1.6.L153.B0',
+                'hev1.1.6.L153.B0',
+                'hvc1.1.6.L123.B0',
+                'hev1.1.6.L123.B0',
+                ...avcCandidates,
+            ];
+        }
+
+        if (sourceCodecLower.startsWith('av01')) {
+            return ['av01.0.12M.08', ...avcCandidates];
+        }
+
+        if (sourceCodecLower.startsWith('vp09')) {
+            return ['vp09.00.41.08', ...avcCandidates];
+        }
+
+        return avcCandidates;
     }
 
     private getAvcCodecCandidates(meta: VideoMeta): string[] {
@@ -841,12 +884,51 @@ export class VideoProcessor {
         }
     }
 
-    private estimateBitrate(meta: VideoMeta): number {
+    private estimateBitrateBaseline(meta: VideoMeta): number {
         const pixels = meta.width * meta.height;
         if (pixels >= 3840 * 2160) return 35_000_000; // 4K: 35 Mbps
         if (pixels >= 1920 * 1080) return 15_000_000; // 1080p: 15 Mbps
         if (pixels >= 1280 * 720) return 8_000_000;   // 720p: 8 Mbps
         return 5_000_000;                              // Default: 5 Mbps
+    }
+
+    private detectSourceLikeGopSize(samples: Mp4Sample[], fps: number): number {
+        const rapIndexes: number[] = [];
+        for (let i = 0; i < samples.length; i += 1) {
+            if (samples[i]?.is_rap) rapIndexes.push(i);
+            if (rapIndexes.length >= 16) break;
+        }
+
+        if (rapIndexes.length >= 3) {
+            const deltas: number[] = [];
+            for (let i = 1; i < rapIndexes.length; i += 1) {
+                const delta = rapIndexes[i]! - rapIndexes[i - 1]!;
+                if (delta > 0) deltas.push(delta);
+            }
+            if (deltas.length > 0) {
+                const average = Math.round(deltas.reduce((sum, v) => sum + v, 0) / deltas.length);
+                return Math.max(1, Math.min(300, average));
+            }
+        }
+
+        const fallback = Math.max(1, Math.round(fps / 2));
+        return Math.min(300, fallback);
+    }
+
+    private estimateTargetBitrate(sourceMeta: VideoMeta, targetMeta: VideoMeta, sourceFile: File): number {
+        const sourceDuration = Math.max(1, sourceMeta.duration || 1);
+        const sourceBitrate = Math.round((sourceFile.size * 8) / sourceDuration);
+
+        const sourcePixels = Math.max(1, sourceMeta.width * sourceMeta.height);
+        const targetPixels = Math.max(1, targetMeta.width * targetMeta.height);
+        const pixelScale = targetPixels / sourcePixels;
+
+        const scaledSourceBitrate = Math.round(sourceBitrate * Math.min(1, pixelScale));
+        const baseline = this.estimateBitrateBaseline(targetMeta);
+        const target = Math.max(scaledSourceBitrate, baseline);
+
+        // Keep bitrate sane for browser encoders while preserving source quality intent.
+        return Math.min(140_000_000, Math.max(5_000_000, target));
     }
 
     /**
@@ -888,7 +970,7 @@ export class VideoProcessor {
                             const blobUrl = URL.createObjectURL(blob);
                             try {
                                 // eslint-disable-next-line no-await-in-loop
-                                await import(/* webpackIgnore: true */ blobUrl);
+                                await import(/* webpackIgnore: true */ /* @vite-ignore */ blobUrl);
                                 candidateDiagnostics.push('dynamic import(blob) succeeded');
                                 URL.revokeObjectURL(blobUrl);
                             } catch (importErr) {
@@ -956,7 +1038,7 @@ export class VideoProcessor {
 
     private createKeyframeDetector(
         codec: string,
-        description?: BufferSource,
+        description?: AllowSharedBufferSource,
     ): (sample: Mp4Sample) => boolean {
         const codecLower = codec.toLowerCase();
         const isH264 = codecLower.startsWith('avc1') || codecLower.startsWith('avc3');
@@ -981,7 +1063,7 @@ export class VideoProcessor {
         };
     }
 
-    private getNalLengthSize(codecLower: string, description?: BufferSource): number | undefined {
+    private getNalLengthSize(codecLower: string, description?: AllowSharedBufferSource): number | undefined {
         if (!description) return undefined;
         const buffer = this.normalizeToArrayBuffer(description);
         const view = new DataView(buffer);
@@ -999,16 +1081,17 @@ export class VideoProcessor {
         return undefined;
     }
 
-    private normalizeToArrayBuffer(source: BufferSource): ArrayBuffer {
+    private normalizeToArrayBuffer(source: AllowSharedBufferSource): ArrayBuffer {
         if (source instanceof ArrayBuffer) {
             return source;
         }
 
         if (ArrayBuffer.isView(source)) {
-            return source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength);
+            const bytes = new Uint8Array(source.buffer, source.byteOffset, source.byteLength);
+            return bytes.slice().buffer;
         }
 
-        return source as ArrayBuffer;
+        return new Uint8Array(source as SharedArrayBuffer).slice().buffer;
     }
 
     private detectNalLengthSizeFromSample(data: Uint8Array): number | undefined {

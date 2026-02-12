@@ -85,6 +85,15 @@ describe('Sync Engine', () => {
             expect(clampSyncOffset(100)).toBe(100);
         });
 
+        it('should normalize NaN to zero', () => {
+            expect(clampSyncOffset(Number.NaN)).toBe(0);
+        });
+
+        it('should normalize Infinity to zero', () => {
+            expect(clampSyncOffset(Number.POSITIVE_INFINITY)).toBe(0);
+            expect(clampSyncOffset(Number.NEGATIVE_INFINITY)).toBe(0);
+        });
+
         it('should clamp to positive max', () => {
             expect(clampSyncOffset(MANUAL_SYNC_RANGE_SECONDS + 100)).toBe(MANUAL_SYNC_RANGE_SECONDS);
         });

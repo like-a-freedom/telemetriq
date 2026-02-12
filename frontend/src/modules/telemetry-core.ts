@@ -177,8 +177,10 @@ export function getTelemetryAtTime(
     syncOffsetSeconds: number,
 ): TelemetryFrame | null {
     if (frames.length === 0) return null;
+    if (!Number.isFinite(videoTimeSeconds) || !Number.isFinite(syncOffsetSeconds)) return null;
 
     const gpxTime = videoTimeSeconds + syncOffsetSeconds;
+    if (!Number.isFinite(gpxTime)) return null;
 
     const firstFrame = frames[0]!;
     const lastFrame = frames[frames.length - 1]!;

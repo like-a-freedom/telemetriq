@@ -306,6 +306,18 @@ describe('Telemetry Core', () => {
             expect(result!.hr).toBe(150); // Frame at t=30
         });
 
+        it('should return null for non-finite sync offset', () => {
+            expect(getTelemetryAtTime(frames, 0, Number.NaN)).toBeNull();
+            expect(getTelemetryAtTime(frames, 0, Number.POSITIVE_INFINITY)).toBeNull();
+            expect(getTelemetryAtTime(frames, 0, Number.NEGATIVE_INFINITY)).toBeNull();
+        });
+
+        it('should return null for non-finite video time', () => {
+            expect(getTelemetryAtTime(frames, Number.NaN, 0)).toBeNull();
+            expect(getTelemetryAtTime(frames, Number.POSITIVE_INFINITY, 0)).toBeNull();
+            expect(getTelemetryAtTime(frames, Number.NEGATIVE_INFINITY, 0)).toBeNull();
+        });
+
         it('should interpolate distance', () => {
             const result = getTelemetryAtTime(frames, 15, 0);
             expect(result).not.toBeNull();

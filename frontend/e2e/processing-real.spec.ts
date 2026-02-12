@@ -9,6 +9,7 @@ const GPX_PATH = path.resolve(THIS_DIR, '../../test_data/suuntoapp-Running-2026-
 
 const HAS_FIXTURES = fs.existsSync(VIDEO_PATH) && fs.existsSync(GPX_PATH);
 
+
 test.describe('Real processing flow', () => {
     test('should process real DJI video and open result page with valid output', async ({ page, browserName }, testInfo) => {
         test.skip(browserName !== 'chromium' || testInfo.project.name !== 'chromium',
@@ -58,5 +59,38 @@ test.describe('Real processing flow', () => {
 
         // Guard against malformed tiny outputs (e.g. ~0.6 KB invalid MP4)
         expect(resultSize).toBeGreaterThan(1024 * 1024);
+    });
+
+    test('manual sync adjustment controls should update offset state', async ({ page, browserName }, testInfo) => {
+        test.skip(browserName !== 'chromium' || testInfo.project.name !== 'chromium',
+            'Real WebCodecs processing is validated only in Desktop Chromium');
+        test.skip(!HAS_FIXTURES, 'Real fixture files are missing in test_data');
+
+        test.setTimeout(90_000);
+
+        await page.goto('/');
+
+        await page.getByTestId('video-upload').locator('input[type="file"]').setInputFiles(VIDEO_PATH);
+        await page.getByTestId('gpx-upload').locator('input[type="file"]').setInputFiles(GPX_PATH);
+
+        await expect(page.getByTestId('proceed-btn')).toBeEnabled({ timeout: 30_000 });
+        await page.getByTestId('proceed-btn').click();
+
+        await expect(page).toHaveURL(/\/preview/, { timeout: 30_000 });
+
+        const syncRange = page.getByTestId('sync-range');
+        await expect(syncRange).toBeVisible({ timeout: 30_000 });
+
+        // Reproduce user flow: manual adjustment via sync controls.
+        await page.getByTestId('sync-reset').click({ force: true });
+        await expect(syncRange).toHaveValue('0');
+
+        for (let i = 0; i < 3; i += 1) {
+            await page.getByTestId('sync-plus1').click({ force: true });
+        }
+
+        await expect(syncRange).not.toHaveValue('1800');
+        await expect(page.getByTestId('sync-slider').locator('.sync-slider__badge--manual')).toBeVisible();
+        await expect(page.getByTestId('process-btn')).toBeVisible();
     });
 });

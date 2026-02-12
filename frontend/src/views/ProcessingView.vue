@@ -80,7 +80,9 @@ const processingStore = useProcessingStore();
 const settingsStore = useSettingsStore();
 const syncStore = useSyncStore();
 const processorRef = ref<VideoProcessor | null>(null);
-const isE2E = new URLSearchParams(window.location.search).has("e2e");
+const isE2E =
+  new URLSearchParams(window.location.search).has("e2e") ||
+  window.sessionStorage.getItem("e2e-mode") === "1";
 const hasStarted = ref(false);
 
 async function startProcessingFlow(): Promise<void> {
@@ -100,11 +102,14 @@ async function startProcessingFlow(): Promise<void> {
     }
 
     const telemetryFrames = buildTelemetryTimeline(filesStore.gpxData!.points);
+    const safeSyncOffset = Number.isFinite(syncStore.offsetSeconds)
+      ? syncStore.offsetSeconds
+      : 0;
     const processor = new VideoProcessor({
       videoFile: filesStore.videoFile!,
       videoMeta,
       telemetryFrames,
-      syncOffsetSeconds: syncStore.offsetSeconds,
+      syncOffsetSeconds: safeSyncOffset,
       overlayConfig: settingsStore.overlayConfig,
       onProgress: (progress) => processingStore.updateProgress(progress),
       useFfmpegMux: typeof SharedArrayBuffer !== "undefined",
