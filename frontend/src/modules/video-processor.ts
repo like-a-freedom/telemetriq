@@ -1,4 +1,4 @@
-import type { TelemetryFrame, OverlayConfig, ProcessingProgress, VideoMeta } from '../core/types';
+import type { TelemetryFrame, ExtendedOverlayConfig, ProcessingProgress, VideoMeta } from '../core/types';
 import { ProcessingError } from '../core/errors';
 import { getTelemetryAtTime } from './telemetry-core';
 import { renderOverlay, DEFAULT_OVERLAY_CONFIG } from './overlay-renderer';
@@ -36,7 +36,7 @@ export interface VideoProcessorOptions {
     videoMeta: VideoMeta;
     telemetryFrames: TelemetryFrame[];
     syncOffsetSeconds: number;
-    overlayConfig?: OverlayConfig;
+    overlayConfig?: ExtendedOverlayConfig;
     onProgress?: (progress: ProcessingProgress) => void;
     useFfmpegMux?: boolean;
 }
@@ -61,6 +61,25 @@ type DemuxedMedia = {
     videoSamples: Mp4Sample[];
     audioSamples: Mp4Sample[];
 };
+
+type StreamingMuxSession = {
+    enqueueVideoChunk: (chunk: EncodedVideoChunk, decoderConfig?: VideoDecoderConfig) => void;
+    flushVideoQueue: () => Promise<void>;
+    finalize: (
+        audioSamples: Mp4Sample[],
+        audioDecoderConfig?: AudioDecoderConfig,
+        onProgress?: (percent: number) => void,
+    ) => Promise<Blob>;
+};
+
+/**
+ * FFmpeg.wasm fallback reads the whole file into memory.
+ * For very large files this can freeze/crash the tab, so skip fallback.
+ */
+const FFMPEG_FALLBACK_MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1024; // 1 GB
+const STREAMING_MUX_FILE_SIZE_BYTES = 512 * 1024 * 1024; // 512 MB
+const PROGRESS_UPDATE_MIN_INTERVAL_MS = 120;
+const CODEC_QUEUE_HIGH_WATERMARK = 24;
 
 /**
  * Process a video file by decoding each frame, overlaying telemetry data,
@@ -173,16 +192,20 @@ export class VideoProcessor {
         const videoSamples = demuxed.videoSamples.slice(firstKeyframeIndex);
         const totalFrames = videoSamples.length;
         const gopFrames = detectSourceGopSize(videoSamples, videoMeta.fps);
+        const reportProcessingProgress = createProcessingProgressReporter(onProgress, totalFrames);
+        const reportMuxProgress = createMuxProgressReporter(onProgress, totalFrames);
 
         onProgress?.({ phase: 'processing', percent: 0, framesProcessed: 0, totalFrames });
 
         const canvas = new OffscreenCanvas(videoMeta.width, videoMeta.height);
         const ctx = canvas.getContext('2d')!;
 
-        const encodedChunks: { chunk: EncodedVideoChunk; duration: number }[] = [];
+        const useStreamingMux = sourceFile.size >= STREAMING_MUX_FILE_SIZE_BYTES;
+        const encodedChunks: EncodedVideoChunk[] = [];
         let encodedFrameCount = 0;
         let encoderDecoderConfig: VideoDecoderConfig | undefined;
         let processingError: ProcessingError | undefined;
+        let streamingMuxSession: StreamingMuxSession | undefined;
 
         const recordError = (message: string): void => {
             if (!processingError) {
@@ -198,10 +221,18 @@ export class VideoProcessor {
                 if (metadata?.decoderConfig) {
                     encoderDecoderConfig = metadata.decoderConfig;
                 }
-                encodedChunks.push({ chunk, duration: chunk.duration ?? 0 });
+                if (useStreamingMux && streamingMuxSession) {
+                    streamingMuxSession.enqueueVideoChunk(chunk, metadata?.decoderConfig ?? encoderDecoderConfig);
+                } else {
+                    encodedChunks.push(chunk);
+                }
             },
             recordError,
         );
+
+        if (useStreamingMux) {
+            streamingMuxSession = await this.startStreamingMuxSession(demuxed, encodeMeta);
+        }
 
         if (encodeMeta.width !== videoMeta.width || encodeMeta.height !== videoMeta.height) {
             canvas.width = encodeMeta.width;
@@ -264,13 +295,14 @@ export class VideoProcessor {
                 decoder.decode(chunk);
                 framesProcessed++;
 
-                onProgress?.({
-                    phase: 'processing',
-                    percent: Math.round((framesProcessed / totalFrames) * 100),
-                    framesProcessed,
-                    totalFrames,
-                });
+                reportProcessingProgress(framesProcessed);
+
+                if (isCodecQueuePressureHigh(decoder, encoder)) {
+                    await waitForCodecQueues(decoder, encoder, this.abortController.signal);
+                }
             }
+
+            reportProcessingProgress(framesProcessed, true);
 
             if (!this.abortController.signal.aborted && !processingError) {
                 await decoder.flush();
@@ -301,17 +333,29 @@ export class VideoProcessor {
             throw new ProcessingError('Processing was cancelled by the user');
         }
 
-        onProgress?.({ phase: 'muxing', percent: 0, framesProcessed, totalFrames });
+        reportMuxProgress(0, framesProcessed);
 
-        let blob = await this.muxMp4(
-            demuxed,
-            encodedChunks,
-            encoderDecoderConfig,
-            encodeMeta,
-        );
+        let blob: Blob;
+        if (useStreamingMux && streamingMuxSession) {
+            blob = await this.finalizeStreamingMux(
+                streamingMuxSession,
+                demuxed,
+                encoderDecoderConfig,
+                reportMuxProgress,
+                framesProcessed,
+            );
+        } else {
+            blob = await this.muxMp4(
+                demuxed,
+                encodedChunks,
+                encoderDecoderConfig,
+                encodeMeta,
+                (percent) => reportMuxProgress(percent, framesProcessed),
+            );
+        }
 
         if (this.options.useFfmpegMux) {
-            onProgress?.({ phase: 'muxing', percent: 0, framesProcessed, totalFrames });
+            reportMuxProgress(99, framesProcessed);
             try {
                 blob = await remuxWithFfmpeg(blob);
             } catch (error) {
@@ -342,6 +386,12 @@ export class VideoProcessor {
             throw new ProcessingError('Parser returned zero video samples');
         } catch (firstError) {
             console.warn('[demux] Direct parse failed, trying FFmpeg remux', firstError);
+        }
+
+        if (file.size >= FFMPEG_FALLBACK_MAX_FILE_SIZE_BYTES) {
+            throw new ProcessingError(
+                'Failed to parse the source container. Automatic FFmpeg repair is disabled for files larger than 1 GB to avoid browser freezes.',
+            );
         }
 
         // Second attempt: remux through FFmpeg (strips problematic metadata)
@@ -391,8 +441,9 @@ export class VideoProcessor {
             for await (const packet of videoSink.packets()) {
                 const timestampUs = Math.round(packet.timestamp * 1_000_000);
                 const durationUs = Math.max(1, Math.round(packet.duration * 1_000_000));
+                const data = toTightArrayBuffer(packet.data);
                 videoSamples.push({
-                    data: packet.data.slice().buffer,
+                    data,
                     duration: durationUs,
                     dts: timestampUs,
                     cts: timestampUs,
@@ -422,8 +473,9 @@ export class VideoProcessor {
                 for await (const packet of audioSink.packets()) {
                     const timestampUs = Math.round(packet.timestamp * 1_000_000);
                     const durationUs = Math.max(1, Math.round(packet.duration * 1_000_000));
+                    const data = toTightArrayBuffer(packet.data);
                     audioSamples.push({
-                        data: packet.data.slice().buffer,
+                        data,
                         duration: durationUs,
                         dts: timestampUs,
                         cts: timestampUs,
@@ -577,9 +629,10 @@ export class VideoProcessor {
 
     private async muxMp4(
         demuxed: DemuxedMedia,
-        encodedChunks: { chunk: EncodedVideoChunk; duration: number }[],
+        encodedChunks: EncodedVideoChunk[],
         decoderConfig: VideoDecoderConfig | undefined,
         meta: VideoMeta,
+        onMuxProgress?: (percent: number) => void,
     ): Promise<Blob> {
         const muxWithMode = async (includeAudio: boolean): Promise<Blob> => {
             const output = new Output({
@@ -600,9 +653,22 @@ export class VideoProcessor {
             }
 
             await output.start();
+            onMuxProgress?.(2);
+
+            const totalUnits = encodedChunks.length
+                + ((includeAudio && demuxed.audioSamples.length) ? demuxed.audioSamples.length : 0);
+            let doneUnits = 0;
+            const reportUnitProgress = (): void => {
+                if (totalUnits <= 0) {
+                    onMuxProgress?.(95);
+                    return;
+                }
+                const unitsPercent = Math.min(95, Math.round((doneUnits / totalUnits) * 95));
+                onMuxProgress?.(unitsPercent);
+            };
 
             let firstVideoPacket = true;
-            for (const { chunk } of encodedChunks) {
+            for (const chunk of encodedChunks) {
                 const packet = EncodedPacket.fromEncodedChunk(chunk);
                 if (firstVideoPacket) {
                     await videoSource.add(packet, {
@@ -612,6 +678,8 @@ export class VideoProcessor {
                 } else {
                     await videoSource.add(packet);
                 }
+                doneUnits += 1;
+                reportUnitProgress();
             }
 
             if (audioSource && demuxed.audioSamples.length) {
@@ -633,10 +701,14 @@ export class VideoProcessor {
                     } else {
                         await audioSource.add(packet);
                     }
+                    doneUnits += 1;
+                    reportUnitProgress();
                 }
             }
 
+            onMuxProgress?.(98);
             await output.finalize();
+            onMuxProgress?.(100);
 
             const buffer = output.target.buffer;
             if (!buffer || buffer.byteLength === 0) {
@@ -658,5 +730,217 @@ export class VideoProcessor {
             console.warn('[mux] Audio+video mux failed, retrying video-only output', error);
             return await muxWithMode(false);
         }
+    }
+
+    private async startStreamingMuxSession(
+        demuxed: DemuxedMedia,
+        meta: VideoMeta,
+    ): Promise<StreamingMuxSession> {
+        const output = new Output({
+            format: new Mp4OutputFormat(),
+            target: new BufferTarget(),
+        });
+
+        const videoSource = new EncodedVideoPacketSource(
+            toMediabunnyVideoCodec(demuxed.videoTrack.codec) as any,
+        );
+        output.addVideoTrack(videoSource, { frameRate: meta.fps });
+
+        let audioSource: EncodedAudioPacketSource | undefined;
+        if (demuxed.audioTrack) {
+            audioSource = new EncodedAudioPacketSource(
+                toMediabunnyAudioCodec(demuxed.audioTrack.codec) as any,
+            );
+            output.addAudioTrack(audioSource);
+        }
+
+        await output.start();
+
+        let isFirstVideoPacket = true;
+        let queue: Promise<void> = Promise.resolve();
+        let queueError: unknown;
+
+        const enqueueVideoChunk = (chunk: EncodedVideoChunk, decoderConfig?: VideoDecoderConfig): void => {
+            if (queueError) return;
+
+            queue = queue
+                .then(async () => {
+                    const packet = EncodedPacket.fromEncodedChunk(chunk);
+
+                    if (isFirstVideoPacket) {
+                        if (decoderConfig) {
+                            await videoSource.add(packet, { decoderConfig });
+                        } else {
+                            await videoSource.add(packet);
+                        }
+                        isFirstVideoPacket = false;
+                        return;
+                    }
+
+                    await videoSource.add(packet);
+                })
+                .catch((error) => {
+                    queueError = error;
+                    this.abortController.abort();
+                });
+        };
+
+        const flushVideoQueue = async (): Promise<void> => {
+            await queue;
+            if (queueError) {
+                throw new ProcessingError(
+                    `Streaming mux failed while writing video packets: ${queueError instanceof Error ? queueError.message : String(queueError)}`,
+                );
+            }
+        };
+
+        const finalize = async (
+            audioSamples: Mp4Sample[],
+            audioDecoderConfig?: AudioDecoderConfig,
+            onProgress?: (percent: number) => void,
+        ): Promise<Blob> => {
+            await flushVideoQueue();
+            onProgress?.(40);
+
+            if (audioSource && audioSamples.length) {
+                let firstAudioPacket = true;
+                let doneAudioPackets = 0;
+                for (const sample of audioSamples) {
+                    const chunk = new EncodedAudioChunk({
+                        type: sample.is_rap ? 'key' : 'delta',
+                        timestamp: sample.cts,
+                        duration: sample.duration,
+                        data: new Uint8Array(sample.data),
+                    });
+                    const packet = EncodedPacket.fromEncodedChunk(chunk);
+
+                    if (firstAudioPacket) {
+                        await audioSource.add(packet, {
+                            decoderConfig: audioDecoderConfig,
+                        });
+                        firstAudioPacket = false;
+                    } else {
+                        await audioSource.add(packet);
+                    }
+
+                    doneAudioPackets += 1;
+                    const audioProgress = 40 + Math.round((doneAudioPackets / audioSamples.length) * 50);
+                    onProgress?.(Math.min(90, audioProgress));
+                }
+            }
+
+            onProgress?.(95);
+            await output.finalize();
+            onProgress?.(100);
+
+            const buffer = output.target.buffer;
+            if (!buffer || buffer.byteLength === 0) {
+                throw new ProcessingError('Mediabunny mux produced empty output');
+            }
+
+            return new Blob([buffer], { type: 'video/mp4' });
+        };
+
+        return {
+            enqueueVideoChunk,
+            flushVideoQueue,
+            finalize,
+        };
+    }
+
+    private async finalizeStreamingMux(
+        session: StreamingMuxSession,
+        demuxed: DemuxedMedia,
+        decoderConfig: VideoDecoderConfig | undefined,
+        onMuxProgress: (percent: number, framesProcessed: number) => void,
+        framesProcessed: number,
+    ): Promise<Blob> {
+        await session.flushVideoQueue();
+        return session.finalize(
+            demuxed.audioSamples,
+            demuxed.audioTrack?.decoderConfig ?? decoderConfig,
+            (percent) => onMuxProgress(percent, framesProcessed),
+        );
+    }
+}
+
+function toTightArrayBuffer(data: Uint8Array): ArrayBuffer {
+    if (data.byteOffset === 0 && data.byteLength === data.buffer.byteLength) {
+        return data.buffer;
+    }
+
+    return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+}
+
+function createProcessingProgressReporter(
+    onProgress: VideoProcessorOptions['onProgress'],
+    totalFrames: number,
+): (framesProcessed: number, force?: boolean) => void {
+    let lastReportedFrames = -1;
+    let lastReportAt = 0;
+
+    return (framesProcessed: number, force = false): void => {
+        if (!onProgress) return;
+
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        const percent = totalFrames > 0
+            ? Math.round((framesProcessed / totalFrames) * 100)
+            : 0;
+
+        const shouldReport = force
+            || framesProcessed === totalFrames
+            || framesProcessed === 0
+            || now - lastReportAt >= PROGRESS_UPDATE_MIN_INTERVAL_MS;
+
+        if (!shouldReport) return;
+
+        lastReportedFrames = framesProcessed;
+        lastReportAt = now;
+
+        onProgress({
+            phase: 'processing',
+            percent,
+            framesProcessed,
+            totalFrames,
+        });
+    };
+}
+
+function createMuxProgressReporter(
+    onProgress: VideoProcessorOptions['onProgress'],
+    totalFrames: number,
+): (percent: number, framesProcessed: number) => void {
+    return (percent: number, framesProcessed: number): void => {
+        if (!onProgress) return;
+
+        const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
+        onProgress({
+            phase: 'muxing',
+            percent: safePercent,
+            framesProcessed,
+            totalFrames,
+        });
+    };
+}
+
+function isCodecQueuePressureHigh(decoder: VideoDecoder, encoder: VideoEncoder): boolean {
+    return decoder.decodeQueueSize > CODEC_QUEUE_HIGH_WATERMARK
+        || encoder.encodeQueueSize > CODEC_QUEUE_HIGH_WATERMARK;
+}
+
+async function waitForCodecQueues(
+    decoder: VideoDecoder,
+    encoder: VideoEncoder,
+    signal: AbortSignal,
+): Promise<void> {
+    let spin = 0;
+    while (!signal.aborted && isCodecQueuePressureHigh(decoder, encoder)) {
+        // Yield rarely to keep throughput high while still preventing queue runaway.
+        if (spin % 2 === 0) {
+            await Promise.resolve();
+        } else {
+            await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        }
+        spin += 1;
     }
 }

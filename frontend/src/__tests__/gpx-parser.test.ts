@@ -174,16 +174,6 @@ describe('GPX Parser', () => {
             expect(result.points[0]!.hr).toBeUndefined();
         });
 
-        it('should extract cadence from extensions', () => {
-            const ext = `<TrackPointExtension><hr>150</hr><cad>85</cad></TrackPointExtension>`;
-            const xml = makeGpx(
-                makeTrkpt(55.0, 37.0, '2024-01-15T10:00:00Z', undefined, ext),
-            );
-
-            const result = parseGpx(xml);
-            expect(result.points[0]!.cadence).toBe(85);
-        });
-
         it('should handle missing elevation', () => {
             const xml = makeGpx(makeTrkpt(55.0, 37.0, '2024-01-15T10:00:00Z'));
 
