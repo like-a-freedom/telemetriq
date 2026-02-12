@@ -71,6 +71,13 @@ describe('Pinia Stores', () => {
             expect(store.offsetSeconds).toBe(1800); // Max range
         });
 
+        it('should normalize non-finite manual offset to zero', () => {
+            const store = useSyncStore();
+            store.setManualOffset(Number.NaN);
+            expect(store.offsetSeconds).toBe(0);
+            expect(store.isAutoSynced).toBe(false);
+        });
+
         it('should reset state', () => {
             const store = useSyncStore();
             store.setManualOffset(100);
@@ -112,6 +119,17 @@ describe('Pinia Stores', () => {
 
             expect(store.offsetSeconds).toBe(120);
             expect(store.isAutoSynced).toBe(true);
+        });
+
+        it('should set error and reset config when auto-sync throws', async () => {
+            const store = useSyncStore();
+            store.setManualOffset(25);
+
+            await store.performAutoSync([], new Date('2024-01-15T10:00:00Z'), undefined, undefined, undefined, true);
+
+            expect(store.offsetSeconds).toBe(0);
+            expect(store.isAutoSynced).toBe(false);
+            expect(store.syncError).toBeTruthy();
         });
     });
 

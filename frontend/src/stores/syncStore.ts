@@ -3,12 +3,14 @@ import { ref, computed } from 'vue';
 import type { SyncConfig, TrackPoint } from '../core/types';
 import { autoSync, clampSyncOffset } from '../modules/sync-engine';
 
+const DEFAULT_SYNC_CONFIG: SyncConfig = {
+    offsetSeconds: 0,
+    autoSynced: false,
+};
+
 export const useSyncStore = defineStore('sync', () => {
     // State
-    const syncConfig = ref<SyncConfig>({
-        offsetSeconds: 0,
-        autoSynced: false,
-    });
+    const syncConfig = ref<SyncConfig>({ ...DEFAULT_SYNC_CONFIG });
     const isAutoSyncing = ref(false);
     const syncError = ref<string | null>(null);
     const syncWarning = ref<string | null>(null);
@@ -65,14 +67,14 @@ export const useSyncStore = defineStore('sync', () => {
             }
         } catch (err) {
             syncError.value = err instanceof Error ? err.message : 'Sync error';
-            syncConfig.value = { offsetSeconds: 0, autoSynced: false };
+            syncConfig.value = { ...DEFAULT_SYNC_CONFIG };
         } finally {
             isAutoSyncing.value = false;
         }
     }
 
     function reset(): void {
-        syncConfig.value = { offsetSeconds: 0, autoSynced: false };
+        syncConfig.value = { ...DEFAULT_SYNC_CONFIG };
         isAutoSyncing.value = false;
         syncError.value = null;
         syncWarning.value = null;
