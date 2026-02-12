@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ALL_FORMATS, BlobSource, EncodedPacketSink, Input } from 'mediabunny';
 import { VideoProcessor } from '../modules/video-processor';
+import { createKeyframeDetector } from '../modules/keyframe-detector';
 import type { VideoMeta, TelemetryFrame } from '../core/types';
 
 const DJI_FILE_PATH = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../test_data/DJI_20260211092425_0002_D.MP4');
@@ -134,10 +135,10 @@ describeWithFile('DJI Osmo Pocket 3 — Mediabunny integration', () => {
         const processor = createTestProcessor(file);
         const parsed = await (processor as any).demuxSamples(file);
 
-        const detector = (processor as any).createKeyframeDetector(
+        const detector = createKeyframeDetector(
             parsed.videoTrack.codec,
             parsed.videoTrack.description,
-        ) as (sample: any) => boolean;
+        );
 
         const hasKeyframe = parsed.videoSamples.some((sample: any) => detector(sample));
         expect(hasKeyframe).toBe(true);
@@ -166,10 +167,10 @@ describeWithFile('DJI Osmo Pocket 3 — Mediabunny load tests', () => {
     it('should run keyframe detection across all samples quickly', async () => {
         const processor = createTestProcessor(file);
         const parsed = await (processor as any).demuxSamples(file);
-        const detector = (processor as any).createKeyframeDetector(
+        const detector = createKeyframeDetector(
             parsed.videoTrack.codec,
             parsed.videoTrack.description,
-        ) as (sample: any) => boolean;
+        );
 
         const start = performance.now();
         let keyframeCount = 0;

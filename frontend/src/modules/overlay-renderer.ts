@@ -1,6 +1,8 @@
 import type { TelemetryFrame, OverlayConfig } from '../core/types';
 import { formatPace } from './telemetry-core';
 
+type OverlayContext2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
 type CachedOverlay = {
     canvas: OffscreenCanvas | HTMLCanvasElement;
 };
@@ -24,7 +26,7 @@ export const DEFAULT_OVERLAY_CONFIG: OverlayConfig = {
  * This function draws the telemetry data as a semi-transparent overlay.
  */
 export function renderOverlay(
-    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    ctx: OverlayContext2D,
     frame: TelemetryFrame,
     videoWidth: number,
     videoHeight: number,
@@ -37,41 +39,16 @@ export function renderOverlay(
         return;
     }
 
-    const overlayCanvas = typeof OffscreenCanvas !== 'undefined'
-        ? new OffscreenCanvas(videoWidth, videoHeight)
-        : document.createElement('canvas');
-
-    overlayCanvas.width = videoWidth;
-    overlayCanvas.height = videoHeight;
-
-    const overlayCtx = (overlayCanvas as OffscreenCanvas).getContext
-        ? (overlayCanvas as OffscreenCanvas).getContext('2d')
-        : (overlayCanvas as HTMLCanvasElement).getContext('2d');
-
-    if (!overlayCtx) return;
+    const overlayTarget = createOverlayTarget(videoWidth, videoHeight);
+    if (!overlayTarget) return;
+    const { canvas: overlayCanvas, ctx: overlayCtx } = overlayTarget;
 
     const fontSize = Math.round(videoHeight * (config.fontSizePercent / 100));
     const lineHeight = fontSize * 1.5;
     const padding = fontSize * 0.6;
     const borderRadius = Math.round(videoHeight * 0.005);
 
-    // Build text lines
-    const lines: string[] = [];
-    if (config.showHr && frame.hr !== undefined) {
-        lines.push(`❤️ ${frame.hr} BPM`);
-    }
-    if (config.showPace && frame.paceSecondsPerKm !== undefined) {
-        const paceStr = formatPace(frame.paceSecondsPerKm);
-        if (paceStr) {
-            lines.push(`🏃 ${paceStr} /km`);
-        }
-    }
-    if (config.showDistance) {
-        lines.push(`📏 ${frame.distanceKm.toFixed(2)} km`);
-    }
-    if (config.showTime) {
-        lines.push(`⏱️ ${frame.elapsedTime}`);
-    }
+    const lines = buildOverlayLines(frame, config);
 
     if (lines.length === 0) return;
 
@@ -135,7 +112,7 @@ export function renderOverlay(
 
     overlayCtx.restore();
 
-    cacheOverlay(cacheKey, overlayCanvas);
+    cacheOverlay(cacheKey, overlayCanvas, videoWidth, videoHeight);
     ctx.drawImage(overlayCanvas as CanvasImageSource, 0, 0);
 }
 
@@ -190,11 +167,69 @@ function buildCacheKey(frame: TelemetryFrame, config: OverlayConfig, width: numb
 function cacheOverlay(
     key: string,
     sourceCanvas: OffscreenCanvas | HTMLCanvasElement,
+    width: number,
+    height: number,
 ): void {
     if (overlayCache.size >= MAX_CACHE_ENTRIES) {
         const firstKey = overlayCache.keys().next().value as string | undefined;
         if (firstKey) overlayCache.delete(firstKey);
     }
 
-    overlayCache.set(key, { canvas: sourceCanvas });
+    const cacheCanvas = typeof OffscreenCanvas !== 'undefined'
+        ? new OffscreenCanvas(width, height)
+        : document.createElement('canvas');
+
+    cacheCanvas.width = width;
+    cacheCanvas.height = height;
+
+    const cacheCtx = (cacheCanvas as OffscreenCanvas).getContext
+        ? (cacheCanvas as OffscreenCanvas).getContext('2d')
+        : (cacheCanvas as HTMLCanvasElement).getContext('2d');
+
+    if (!cacheCtx) return;
+
+    cacheCtx.drawImage(sourceCanvas as CanvasImageSource, 0, 0);
+    overlayCache.set(key, { canvas: cacheCanvas });
+}
+
+function buildOverlayLines(frame: TelemetryFrame, config: OverlayConfig): string[] {
+    const lines: string[] = [];
+
+    if (config.showHr && frame.hr !== undefined) {
+        lines.push(`❤️ ${frame.hr} BPM`);
+    }
+    if (config.showPace && frame.paceSecondsPerKm !== undefined) {
+        const paceStr = formatPace(frame.paceSecondsPerKm);
+        if (paceStr) lines.push(`🏃 ${paceStr} /km`);
+    }
+    if (config.showDistance) {
+        lines.push(`📏 ${frame.distanceKm.toFixed(2)} km`);
+    }
+    if (config.showTime) {
+        lines.push(`⏱️ ${frame.elapsedTime}`);
+    }
+
+    return lines;
+}
+
+function createOverlayTarget(
+    width: number,
+    height: number,
+): { canvas: OffscreenCanvas | HTMLCanvasElement; ctx: OverlayContext2D } | null {
+    const canvas = typeof OffscreenCanvas !== 'undefined'
+        ? new OffscreenCanvas(width, height)
+        : document.createElement('canvas');
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = (canvas as OffscreenCanvas).getContext
+        ? (canvas as OffscreenCanvas).getContext('2d')
+        : (canvas as HTMLCanvasElement).getContext('2d');
+
+    if (!ctx) return null;
+    return {
+        canvas,
+        ctx,
+    };
 }

@@ -14,8 +14,22 @@ import {
     Mp4OutputFormat,
     Output,
 } from 'mediabunny';
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { toBlobURL } from '@ffmpeg/util';
+import {
+    getCodecCandidates,
+    scaleToMaxArea,
+    estimateTargetBitrate,
+    toMediabunnyVideoCodec,
+    toMediabunnyAudioCodec,
+} from './codec-utils';
+import {
+    remuxWithFfmpeg,
+    transcodeWithForcedKeyframes,
+} from './ffmpeg-utils';
+import {
+    createKeyframeDetector,
+    detectSourceGopSize,
+    type Mp4Sample,
+} from './keyframe-detector';
 
 export interface VideoProcessorOptions {
     videoFile: File;
@@ -26,15 +40,6 @@ export interface VideoProcessorOptions {
     onProgress?: (progress: ProcessingProgress) => void;
     useFfmpegMux?: boolean;
 }
-
-type Mp4Sample = {
-    data: ArrayBuffer;
-    duration: number;
-    dts: number;
-    cts: number;
-    timescale: number;
-    is_rap: boolean;
-};
 
 type DemuxedMedia = {
     videoTrack: {
@@ -96,7 +101,21 @@ export class VideoProcessor {
 
         if (!canDecodeSourceTrack) {
             onProgress?.({ phase: 'encoding', percent: 0, framesProcessed: 0, totalFrames: 0 });
-            const transcodedForCompatibility = await this.transcodeWithForcedKeyframes(sourceFile, videoMeta, onProgress);
+            const transcodedForCompatibility = await transcodeWithForcedKeyframes(
+                sourceFile,
+                { fps: videoMeta.fps, duration: videoMeta.duration },
+                {
+                    gopSize: Math.max(1, Math.round(videoMeta.fps)),
+                    onProgress: (percent, _time) => {
+                        onProgress?.({
+                            phase: 'encoding',
+                            percent,
+                            framesProcessed: 0,
+                            totalFrames: 0,
+                        });
+                    },
+                },
+            );
             sourceFile = transcodedForCompatibility;
             demuxed = await this.demuxSamplesWithFallback(sourceFile, onProgress);
 
@@ -111,7 +130,7 @@ export class VideoProcessor {
             }
         }
 
-        let keyframeDetector = this.createKeyframeDetector(
+        let keyframeDetector = createKeyframeDetector(
             demuxed.videoTrack.codec,
             demuxed.videoTrack.description,
         );
@@ -122,9 +141,23 @@ export class VideoProcessor {
 
         if (firstKeyframeIndex === -1) {
             onProgress?.({ phase: 'encoding', percent: 0, framesProcessed: 0, totalFrames: 0 });
-            const transcodedFile = await this.transcodeWithForcedKeyframes(sourceFile, videoMeta, onProgress);
+            const transcodedFile = await transcodeWithForcedKeyframes(
+                sourceFile,
+                { fps: videoMeta.fps, duration: videoMeta.duration },
+                {
+                    gopSize: Math.max(1, Math.round(videoMeta.fps)),
+                    onProgress: (percent, _time) => {
+                        onProgress?.({
+                            phase: 'encoding',
+                            percent,
+                            framesProcessed: 0,
+                            totalFrames: 0,
+                        });
+                    },
+                },
+            );
             demuxed = await this.demuxSamplesWithFallback(transcodedFile, onProgress);
-            keyframeDetector = this.createKeyframeDetector(
+            keyframeDetector = createKeyframeDetector(
                 demuxed.videoTrack.codec,
                 demuxed.videoTrack.description,
             );
@@ -139,7 +172,7 @@ export class VideoProcessor {
 
         const videoSamples = demuxed.videoSamples.slice(firstKeyframeIndex);
         const totalFrames = videoSamples.length;
-        const gopFrames = this.detectSourceLikeGopSize(videoSamples, videoMeta.fps);
+        const gopFrames = detectSourceGopSize(videoSamples, videoMeta.fps);
 
         onProgress?.({ phase: 'processing', percent: 0, framesProcessed: 0, totalFrames });
 
@@ -280,7 +313,7 @@ export class VideoProcessor {
         if (this.options.useFfmpegMux) {
             onProgress?.({ phase: 'muxing', percent: 0, framesProcessed, totalFrames });
             try {
-                blob = await this.remuxWithFfmpeg(blob);
+                blob = await remuxWithFfmpeg(blob);
             } catch (error) {
                 console.warn('[mux] FFmpeg remux failed, using Mediabunny output as-is', error);
             }
@@ -314,8 +347,10 @@ export class VideoProcessor {
         // Second attempt: remux through FFmpeg (strips problematic metadata)
         try {
             onProgress?.({ phase: 'demuxing', percent: 0, framesProcessed: 0, totalFrames: 0 });
-            const remuxed = await this.remuxInputWithFfmpeg(file);
-            return await this.demuxSamples(remuxed);
+            const remuxedBlob = await remuxWithFfmpeg(file);
+            const fileName = file.name.replace(/\.[^/.]+$/, '') + '.mp4';
+            const remuxedFile = new File([remuxedBlob], fileName, { type: 'video/mp4' });
+            return await this.demuxSamples(remuxedFile);
         } catch (secondError) {
             throw new ProcessingError(
                 'Failed to parse the video file. The file may contain unsupported metadata '
@@ -492,7 +527,7 @@ export class VideoProcessor {
             codecCandidates: string[],
             targetMeta: VideoMeta,
         ): Promise<VideoEncoderConfig | undefined> => {
-            const targetBitrate = this.estimateTargetBitrate(meta, targetMeta, this.options.videoFile);
+            const targetBitrate = estimateTargetBitrate(meta, targetMeta, this.options.videoFile.size);
             const baseConfig: VideoEncoderConfig = {
                 codec: codecCandidates[0] ?? 'avc1.640028',
                 width: targetMeta.width,
@@ -522,13 +557,13 @@ export class VideoProcessor {
             return undefined;
         };
 
-        const codecCandidates = this.getCodecCandidates(meta, sourceCodec);
+        const codecCandidates = getCodecCandidates(meta, sourceCodec);
         let supportedConfig = await configureWithCandidates(codecCandidates, encodeMeta);
 
         if (!supportedConfig) {
-            const fallbackMeta = this.scaleToMaxArea(meta, 2_097_152);
+            const fallbackMeta = scaleToMaxArea(meta, 2_097_152);
             encodeMeta = fallbackMeta;
-            const fallbackCandidates = this.getCodecCandidates(encodeMeta, sourceCodec);
+            const fallbackCandidates = getCodecCandidates(encodeMeta, sourceCodec);
             supportedConfig = await configureWithCandidates(fallbackCandidates, encodeMeta);
         }
 
@@ -540,78 +575,12 @@ export class VideoProcessor {
         return { encoder, encodeMeta };
     }
 
-    private getCodecCandidates(meta: VideoMeta, sourceCodec: string): string[] {
-        const sourceCodecLower = sourceCodec.toLowerCase();
-        const avcCandidates = this.getAvcCodecCandidates(meta);
-
-        if (sourceCodecLower.startsWith('hvc1') || sourceCodecLower.startsWith('hev1')) {
-            return [
-                'hvc1.1.6.L153.B0',
-                'hev1.1.6.L153.B0',
-                'hvc1.1.6.L123.B0',
-                'hev1.1.6.L123.B0',
-                ...avcCandidates,
-            ];
-        }
-
-        if (sourceCodecLower.startsWith('av01')) {
-            return ['av01.0.12M.08', ...avcCandidates];
-        }
-
-        if (sourceCodecLower.startsWith('vp09')) {
-            return ['vp09.00.41.08', ...avcCandidates];
-        }
-
-        return avcCandidates;
-    }
-
-    private getAvcCodecCandidates(meta: VideoMeta): string[] {
-        const pixels = meta.width * meta.height;
-        if (pixels > 4096 * 2304) {
-            return ['avc1.640034', 'avc1.640033', 'avc1.640032', 'avc1.64002A', 'avc1.640029', 'avc1.640028'];
-        }
-        if (pixels > 1920 * 1080) {
-            return ['avc1.640033', 'avc1.640032', 'avc1.64002A', 'avc1.640029', 'avc1.640028'];
-        }
-        return ['avc1.640029', 'avc1.640028'];
-    }
-
-    private scaleToMaxArea(meta: VideoMeta, maxArea: number): VideoMeta {
-        const area = meta.width * meta.height;
-        if (area <= maxArea) return { ...meta };
-
-        const scale = Math.sqrt(maxArea / area);
-        const width = Math.max(2, Math.floor(meta.width * scale));
-        const height = Math.max(2, Math.floor(meta.height * scale));
-
-        return { ...meta, width, height };
-    }
-
     private async muxMp4(
         demuxed: DemuxedMedia,
         encodedChunks: { chunk: EncodedVideoChunk; duration: number }[],
         decoderConfig: VideoDecoderConfig | undefined,
         meta: VideoMeta,
     ): Promise<Blob> {
-        const toMediabunnyVideoCodec = (codec: string): string => {
-            const normalized = codec.toLowerCase();
-            if (normalized.startsWith('avc1') || normalized.startsWith('avc3')) return 'avc';
-            if (normalized.startsWith('hvc1') || normalized.startsWith('hev1')) return 'hevc';
-            if (normalized.startsWith('vp09')) return 'vp9';
-            if (normalized.startsWith('vp08')) return 'vp8';
-            if (normalized.startsWith('av01')) return 'av1';
-            return 'avc';
-        };
-
-        const toMediabunnyAudioCodec = (codec: string): string => {
-            const normalized = codec.toLowerCase();
-            if (normalized.startsWith('mp4a')) return 'aac';
-            if (normalized.startsWith('opus')) return 'opus';
-            if (normalized.startsWith('mp3')) return 'mp3';
-            if (normalized.startsWith('flac')) return 'flac';
-            return 'aac';
-        };
-
         const muxWithMode = async (includeAudio: boolean): Promise<Blob> => {
             const output = new Output({
                 format: new Mp4OutputFormat(),
@@ -689,500 +658,5 @@ export class VideoProcessor {
             console.warn('[mux] Audio+video mux failed, retrying video-only output', error);
             return await muxWithMode(false);
         }
-    }
-
-    private async remuxWithFfmpeg(inputBlob: Blob): Promise<Blob> {
-        const ffmpeg = new FFmpeg();
-        const logBuffer: string[] = [];
-
-        ffmpeg.on('log', ({ message }) => {
-            console.debug('[ffmpeg remux log]', message);
-            logBuffer.push(message);
-            if (logBuffer.length > 50) logBuffer.shift();
-        });
-
-        ffmpeg.on('progress', ({ progress, time }) => {
-            console.debug('[ffmpeg remux progress]', { progress, time });
-        });
-
-        const coreCandidates = [
-            'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm',
-            'https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm',
-        ];
-
-        try {
-            console.info('[ffmpeg remux] loading core (with retries)');
-            const loadError = await this.loadFfmpegCore(ffmpeg, coreCandidates, logBuffer);
-            if (loadError) throw loadError;
-            console.info('[ffmpeg remux] core loaded');
-
-            const inputData = new Uint8Array(await inputBlob.arrayBuffer());
-            await ffmpeg.writeFile('input.mp4', inputData);
-            console.info('[ffmpeg remux] input written');
-
-            // -map_metadata -1 strips metadata and rewrites container atoms.
-            await ffmpeg.exec(['-i', 'input.mp4', '-c', 'copy', '-map_metadata', '-1', 'output.mp4']);
-            console.info('[ffmpeg remux] remux succeeded');
-
-            const output = await ffmpeg.readFile('output.mp4');
-            const outputData = output instanceof Uint8Array
-                ? output
-                : new Uint8Array(output as unknown as ArrayBuffer);
-            const outputBuffer = outputData.slice().buffer;
-            return new Blob([outputBuffer], { type: 'video/mp4' });
-        } catch (error) {
-            console.error('[ffmpeg remux] failed', error);
-            if (logBuffer.length) console.error('[ffmpeg remux logs]', logBuffer.join('\n'));
-            throw error;
-        }
-    }
-
-    private async remuxInputWithFfmpeg(file: File): Promise<File> {
-        const remuxedBlob = await this.remuxWithFfmpeg(file);
-        const fileName = file.name.replace(/\.[^/.]+$/, '') + '.mp4';
-        return new File([remuxedBlob], fileName, { type: 'video/mp4' });
-    }
-
-    private async transcodeWithForcedKeyframes(
-        file: File,
-        meta: VideoMeta,
-        onProgress?: (progress: ProcessingProgress) => void,
-    ): Promise<File> {
-        const ffmpeg = new FFmpeg();
-        const logBuffer: string[] = [];
-        const attemptLogs: string[] = [];
-
-        ffmpeg.on('log', ({ message }) => {
-            // make FFmpeg internals visible in DevTools for debugging
-            console.debug('[ffmpeg transcode log]', message);
-            logBuffer.push(message);
-            if (logBuffer.length > 50) {
-                logBuffer.shift();
-            }
-        });
-
-        ffmpeg.on('progress', ({ progress, time }) => {
-            const percent = Number.isFinite(progress) ? Math.round(progress * 100) : 0;
-            const remaining = Number.isFinite(time) && meta.duration > 0
-                ? Math.max(0, meta.duration - time)
-                : undefined;
-            console.debug('[ffmpeg transcode progress]', { percent, time, remaining });
-            onProgress?.({
-                phase: 'encoding',
-                percent,
-                framesProcessed: 0,
-                totalFrames: 0,
-                estimatedRemainingSeconds: remaining,
-            });
-        });
-
-        try {
-            const gopSize = Math.max(1, Math.round(meta.fps));
-            const forceKeyframesExpr = 'expr:gte(t,n_forced*1)';
-            const x264Params = `keyint=${gopSize}:min-keyint=${gopSize}:scenecut=0:open-gop=0`;
-            const speedPreset = 'ultrafast';
-            const speedCrf = '23';
-
-            const coreCandidates = [
-                'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm',
-                'https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm',
-            ];
-
-            console.info('[ffmpeg transcode] loading core (with retries)');
-            const loadError = await this.loadFfmpegCore(ffmpeg, coreCandidates, logBuffer);
-            if (loadError) throw loadError;
-            console.info('[ffmpeg transcode] core loaded');
-
-            const inputData = new Uint8Array(await file.arrayBuffer());
-            await ffmpeg.writeFile('input.mp4', inputData);
-            console.info('[ffmpeg transcode] input written');
-
-            const runTranscode = async (args: string[], label: string): Promise<void> => {
-                logBuffer.length = 0;
-                try {
-                    console.info(`[ffmpeg transcode] running ${label} ${args.join(' ')}`);
-                    await ffmpeg.exec(args);
-                    console.info(`[ffmpeg transcode] ${label} succeeded`);
-                } catch (error) {
-                    if (logBuffer.length > 0) {
-                        attemptLogs.push(`[${label}]\n${logBuffer.join('\n')}`);
-                    }
-                    console.warn(`[ffmpeg transcode] ${label} failed`);
-                    throw error;
-                }
-            };
-
-            try {
-                console.info('[ffmpeg transcode] attempt audio-copy (fast repair)');
-                await runTranscode([
-                    '-i', 'input.mp4',
-                    '-c:v', 'libx264',
-                    '-preset', speedPreset,
-                    '-crf', speedCrf,
-                    '-tune', 'zerolatency',
-                    '-pix_fmt', 'yuv420p',
-                    '-g', `${gopSize}`,
-                    '-keyint_min', `${gopSize}`,
-                    '-sc_threshold', '0',
-                    '-bf', '0',
-                    '-refs', '1',
-                    '-x264-params', x264Params,
-                    '-force_key_frames', forceKeyframesExpr,
-                    '-movflags', '+faststart',
-                    '-c:a', 'copy',
-                    'output.mp4',
-                ], 'audio-copy');
-            } catch (firstError) {
-                console.warn('[ffmpeg transcode] audio-copy failed, retrying with audio re-encode', firstError);
-                try {
-                    console.info('[ffmpeg transcode] attempt audio-aac (fast repair)');
-                    await runTranscode([
-                        '-i', 'input.mp4',
-                        '-c:v', 'libx264',
-                        '-preset', speedPreset,
-                        '-crf', speedCrf,
-                        '-tune', 'zerolatency',
-                        '-pix_fmt', 'yuv420p',
-                        '-g', `${gopSize}`,
-                        '-keyint_min', `${gopSize}`,
-                        '-sc_threshold', '0',
-                        '-bf', '0',
-                        '-refs', '1',
-                        '-x264-params', x264Params,
-                        '-force_key_frames', forceKeyframesExpr,
-                        '-movflags', '+faststart',
-                        '-c:a', 'aac',
-                        '-b:a', '256k',
-                        'output.mp4',
-                    ], 'audio-aac');
-                } catch (secondError) {
-                    console.error('[ffmpeg transcode] both attempts failed', { firstError, secondError, attemptLogs });
-                    throw secondError;
-                }
-            }
-
-            const output = await ffmpeg.readFile('output.mp4');
-            const outputData = output instanceof Uint8Array
-                ? output
-                : new Uint8Array(output as unknown as ArrayBuffer);
-            const outputBuffer = outputData.slice().buffer;
-            const fileName = file.name.replace(/\.[^/.]+$/, '') + '.keyframes.mp4';
-            return new File([outputBuffer], fileName, { type: 'video/mp4' });
-        } catch (error) {
-            const details = attemptLogs.length > 0
-                ? attemptLogs.join('\n\n')
-                : (logBuffer.length > 0 ? logBuffer.join('\n') : (error instanceof Error ? error.message : undefined));
-            const message = error instanceof Error
-                ? error.message
-                : 'FFmpeg failed to transcode the video.';
-
-            // Debug output for developers: print logs and attempts to DevTools
-            console.error('[ffmpeg transcode] failed', { message, details, attemptLogs, error });
-            if (details) console.error('[ffmpeg transcode logs]\n' + details);
-
-            throw new ProcessingError(`FFmpeg transcode failed: ${message}`, details ? { details } : undefined);
-        }
-    }
-
-    private estimateBitrateBaseline(meta: VideoMeta): number {
-        const pixels = meta.width * meta.height;
-        if (pixels >= 3840 * 2160) return 35_000_000; // 4K: 35 Mbps
-        if (pixels >= 1920 * 1080) return 15_000_000; // 1080p: 15 Mbps
-        if (pixels >= 1280 * 720) return 8_000_000;   // 720p: 8 Mbps
-        return 5_000_000;                              // Default: 5 Mbps
-    }
-
-    private detectSourceLikeGopSize(samples: Mp4Sample[], fps: number): number {
-        const rapIndexes: number[] = [];
-        for (let i = 0; i < samples.length; i += 1) {
-            if (samples[i]?.is_rap) rapIndexes.push(i);
-            if (rapIndexes.length >= 16) break;
-        }
-
-        if (rapIndexes.length >= 3) {
-            const deltas: number[] = [];
-            for (let i = 1; i < rapIndexes.length; i += 1) {
-                const delta = rapIndexes[i]! - rapIndexes[i - 1]!;
-                if (delta > 0) deltas.push(delta);
-            }
-            if (deltas.length > 0) {
-                const average = Math.round(deltas.reduce((sum, v) => sum + v, 0) / deltas.length);
-                return Math.max(1, Math.min(300, average));
-            }
-        }
-
-        const fallback = Math.max(1, Math.round(fps / 2));
-        return Math.min(300, fallback);
-    }
-
-    private estimateTargetBitrate(sourceMeta: VideoMeta, targetMeta: VideoMeta, sourceFile: File): number {
-        const sourceDuration = Math.max(1, sourceMeta.duration || 1);
-        const sourceBitrate = Math.round((sourceFile.size * 8) / sourceDuration);
-
-        const sourcePixels = Math.max(1, sourceMeta.width * sourceMeta.height);
-        const targetPixels = Math.max(1, targetMeta.width * targetMeta.height);
-        const pixelScale = targetPixels / sourcePixels;
-
-        const scaledSourceBitrate = Math.round(sourceBitrate * Math.min(1, pixelScale));
-        const baseline = this.estimateBitrateBaseline(targetMeta);
-        const target = Math.max(scaledSourceBitrate, baseline);
-
-        // Keep bitrate sane for browser encoders while preserving source quality intent.
-        return Math.min(140_000_000, Math.max(5_000_000, target));
-    }
-
-    /**
-     * Try loading ffmpeg core from multiple CDN candidates. Returns an Error if
-     * loading fails for all candidates (with collected diagnostics), otherwise
-     * returns undefined.
-     */
-    private async loadFfmpegCore(
-        ffmpeg: FFmpeg,
-        candidates: string[],
-        logBuffer: string[],
-    ): Promise<Error | undefined> {
-        const attemptErrors: string[] = [];
-
-        // Prefer a local same-origin fallback first (serving from public/vendor/ffmpeg)
-        const augmentedCandidates = ['/vendor/ffmpeg', ...candidates];
-
-        for (const baseURL of augmentedCandidates) {
-            let candidateDiagnostics: string[] = [];
-            try {
-                console.info(`[ffmpeg core] trying ${baseURL}`);
-
-                // Probe urls first to expose network/CORS errors in DevTools and collect diagnostics
-
-                try {
-                    const probeResp = await fetch(`${baseURL}/ffmpeg-core.js`, { method: 'GET', mode: 'cors' });
-                    candidateDiagnostics.push(`ffmpeg-core.js -> ${probeResp.status} ${probeResp.statusText}`);
-                    candidateDiagnostics.push(`content-type: ${probeResp.headers.get('content-type')}`);
-                    candidateDiagnostics.push(`access-control-allow-origin: ${probeResp.headers.get('access-control-allow-origin')}`);
-
-                    // Try to read a small snippet of the JS to detect obvious issues
-                    try {
-                        const text = await probeResp.text();
-                        candidateDiagnostics.push(`snippet: ${text.slice(0, 1024).replace(/\s+/g, ' ').slice(0, 512)}`);
-
-                        // As a separate dynamic-import test, create a blob URL and attempt to import it directly to capture import-time errors
-                        try {
-                            const blob = new Blob([text], { type: 'text/javascript' });
-                            const blobUrl = URL.createObjectURL(blob);
-                            try {
-                                // eslint-disable-next-line no-await-in-loop
-                                await import(/* webpackIgnore: true */ /* @vite-ignore */ blobUrl);
-                                candidateDiagnostics.push('dynamic import(blob) succeeded');
-                                URL.revokeObjectURL(blobUrl);
-                            } catch (importErr) {
-                                candidateDiagnostics.push(`dynamic import(blob) failed: ${importErr instanceof Error ? importErr.message : String(importErr)}`);
-                                URL.revokeObjectURL(blobUrl);
-                            }
-                        } catch (blobErr) {
-                            candidateDiagnostics.push(`blob import check failed: ${blobErr instanceof Error ? blobErr.message : String(blobErr)}`);
-                        }
-                    } catch (textErr) {
-                        candidateDiagnostics.push(`reading js text failed: ${textErr instanceof Error ? textErr.message : String(textErr)}`);
-                    }
-                } catch (probeErr) {
-                    candidateDiagnostics.push(`probe failed: ${probeErr instanceof Error ? probeErr.message : String(probeErr)}`);
-                }
-
-                try {
-                    const wasmProbe = await fetch(`${baseURL}/ffmpeg-core.wasm`, { method: 'GET', mode: 'cors' });
-                    candidateDiagnostics.push(`ffmpeg-core.wasm -> ${wasmProbe.status} ${wasmProbe.statusText}`);
-                    candidateDiagnostics.push(`wasm content-type: ${wasmProbe.headers.get('content-type')}`);
-                    candidateDiagnostics.push(`wasm access-control-allow-origin: ${wasmProbe.headers.get('access-control-allow-origin')}`);
-                } catch (probeErr) {
-                    candidateDiagnostics.push(`wasm probe failed: ${probeErr instanceof Error ? probeErr.message : String(probeErr)}`);
-                }
-
-                const directCoreUrl = `${baseURL}/ffmpeg-core.js`;
-                const directWasmUrl = `${baseURL}/ffmpeg-core.wasm`;
-
-                // First, try direct URLs for remote CDNs only (Vite dev server rejects /public module imports)
-                if (baseURL.startsWith('http')) {
-                    try {
-                        await ffmpeg.load({ coreURL: directCoreUrl, wasmURL: directWasmUrl });
-                        console.info(`[ffmpeg core] loaded from ${baseURL} (direct URLs)`);
-                        if (candidateDiagnostics.length) console.debug(`[ffmpeg core diagnostics] ${baseURL}\n` + candidateDiagnostics.join('\n'));
-                        return undefined;
-                    } catch (directErr) {
-                        candidateDiagnostics.push(`direct load failed: ${directErr instanceof Error ? directErr.message : String(directErr)}`);
-                    }
-                }
-
-                // If direct load fails, fallback to toBlobURL and try again
-                const coreUrl = await toBlobURL(directCoreUrl, 'text/javascript');
-                const wasmUrl = await toBlobURL(directWasmUrl, 'application/wasm');
-
-                // Attempt to load into ffmpeg; this is the step that often throws "failed to import ffmpeg-core.js"
-                await ffmpeg.load({ coreURL: coreUrl, wasmURL: wasmUrl });
-
-                console.info(`[ffmpeg core] loaded from ${baseURL} (blob URLs)`);
-                if (candidateDiagnostics.length) console.debug(`[ffmpeg core diagnostics] ${baseURL}\n` + candidateDiagnostics.join('\n'));
-                return undefined;
-            } catch (err) {
-                console.warn(`[ffmpeg core] failed to load from ${baseURL}`);
-                // If we collected per-candidate diagnostics, include them in logs for visibility
-                if (candidateDiagnostics && candidateDiagnostics.length) {
-                    console.warn(`[ffmpeg core diagnostics] ${baseURL}\n` + candidateDiagnostics.join('\n'));
-                    attemptErrors.push(`[${baseURL}] diagnostics:\n${candidateDiagnostics.join('\n')}`);
-                }
-                if (logBuffer.length) attemptErrors.push(`[${baseURL}] logs:\n${logBuffer.join('\n')}`);
-                attemptErrors.push(`[${baseURL}] error: ${err instanceof Error ? err.message : String(err)}`);
-            }
-        }
-
-        return new Error('Failed to load ffmpeg core from all candidates: ' + attemptErrors.join('\n---\n'));
-    }
-
-    private createKeyframeDetector(
-        codec: string,
-        description?: AllowSharedBufferSource,
-    ): (sample: Mp4Sample) => boolean {
-        const codecLower = codec.toLowerCase();
-        const isH264 = codecLower.startsWith('avc1') || codecLower.startsWith('avc3');
-        const isH265 = codecLower.startsWith('hvc1') || codecLower.startsWith('hev1');
-        const nalLengthSize = this.getNalLengthSize(codecLower, description);
-        let detectedNalLengthSize: number | undefined = nalLengthSize;
-
-        return (sample: Mp4Sample): boolean => {
-            if (sample.is_rap) return true;
-            const data = new Uint8Array(sample.data);
-            if (data.length < 5) return false;
-
-            if (!detectedNalLengthSize) {
-                detectedNalLengthSize = this.detectNalLengthSizeFromSample(data);
-            }
-
-            if (detectedNalLengthSize) {
-                return this.containsKeyframeNal(data, detectedNalLengthSize, isH264, isH265);
-            }
-
-            return this.containsAnnexBKeyframe(data, isH264, isH265);
-        };
-    }
-
-    private getNalLengthSize(codecLower: string, description?: AllowSharedBufferSource): number | undefined {
-        if (!description) return undefined;
-        const buffer = this.normalizeToArrayBuffer(description);
-        const view = new DataView(buffer);
-
-        if ((codecLower.startsWith('avc1') || codecLower.startsWith('avc3')) && view.byteLength >= 5) {
-            const lengthSizeMinusOne = view.getUint8(4) & 0x03;
-            return lengthSizeMinusOne + 1;
-        }
-
-        if ((codecLower.startsWith('hvc1') || codecLower.startsWith('hev1')) && view.byteLength >= 22) {
-            const lengthSizeMinusOne = view.getUint8(21) & 0x03;
-            return lengthSizeMinusOne + 1;
-        }
-
-        return undefined;
-    }
-
-    private normalizeToArrayBuffer(source: AllowSharedBufferSource): ArrayBuffer {
-        if (source instanceof ArrayBuffer) {
-            return source;
-        }
-
-        if (ArrayBuffer.isView(source)) {
-            const bytes = new Uint8Array(source.buffer, source.byteOffset, source.byteLength);
-            return bytes.slice().buffer;
-        }
-
-        return new Uint8Array(source as SharedArrayBuffer).slice().buffer;
-    }
-
-    private detectNalLengthSizeFromSample(data: Uint8Array): number | undefined {
-        if (data.length < 5) return undefined;
-        const candidateSizes = [4, 3, 2, 1];
-
-        for (const size of candidateSizes) {
-            if (data.length <= size) continue;
-            let nalSize = 0;
-            for (let i = 0; i < size; i += 1) {
-                const byte = data[i];
-                if (byte === undefined) return undefined;
-                nalSize = (nalSize << 8) | byte;
-            }
-
-            if (nalSize <= 0 || size + nalSize > data.length) continue;
-
-            const nextOffset = size + nalSize;
-            if (nextOffset + size <= data.length) {
-                let nextSize = 0;
-                for (let i = 0; i < size; i += 1) {
-                    const byte = data[nextOffset + i];
-                    if (byte === undefined) return size;
-                    nextSize = (nextSize << 8) | byte;
-                }
-                if (nextSize > 0 && nextOffset + size + nextSize <= data.length) {
-                    return size;
-                }
-            } else {
-                return size;
-            }
-        }
-
-        return undefined;
-    }
-
-    private containsKeyframeNal(
-        data: Uint8Array,
-        nalLengthSize: number,
-        isH264: boolean,
-        isH265: boolean,
-    ): boolean {
-        let offset = 0;
-        while (offset + nalLengthSize <= data.length) {
-            let nalSize = 0;
-            for (let i = 0; i < nalLengthSize; i += 1) {
-                const byte = data[offset + i];
-                if (byte === undefined) return false;
-                nalSize = (nalSize << 8) | byte;
-            }
-            offset += nalLengthSize;
-            if (nalSize <= 0 || offset + nalSize > data.length) break;
-
-            const nalHeader = data[offset];
-            if (nalHeader !== undefined && this.isNalKeyframe(nalHeader, isH264, isH265)) return true;
-
-            offset += nalSize;
-        }
-        return false;
-    }
-
-    private containsAnnexBKeyframe(data: Uint8Array, isH264: boolean, isH265: boolean): boolean {
-        let i = 0;
-        while (i + 3 < data.length) {
-            const isStartCode3 = data[i] === 0x00 && data[i + 1] === 0x00 && data[i + 2] === 0x01;
-            const isStartCode4 = i + 4 < data.length
-                && data[i] === 0x00 && data[i + 1] === 0x00 && data[i + 2] === 0x00 && data[i + 3] === 0x01;
-            if (isStartCode3 || isStartCode4) {
-                const nalHeaderIndex = i + (isStartCode4 ? 4 : 3);
-                if (nalHeaderIndex < data.length) {
-                    const nalHeader = data[nalHeaderIndex];
-                    if (nalHeader !== undefined && this.isNalKeyframe(nalHeader, isH264, isH265)) return true;
-                }
-                i = nalHeaderIndex;
-            } else {
-                i += 1;
-            }
-        }
-        return false;
-    }
-
-    private isNalKeyframe(nalHeader: number, isH264: boolean, isH265: boolean): boolean {
-        if (isH264) {
-            const nalType = nalHeader & 0x1f;
-            return nalType === 5;
-        }
-        if (isH265) {
-            const nalType = (nalHeader >> 1) & 0x3f;
-            // Treat all IRAP types as random access (BLA 16-18, IDR 19-20, CRA 21)
-            return nalType >= 16 && nalType <= 21;
-        }
-        return false;
     }
 }
