@@ -74,6 +74,8 @@ type StreamingMuxSession = {
  */
 const FFMPEG_FALLBACK_MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1024; // 1 GB
 const STREAMING_MUX_FILE_SIZE_BYTES = 512 * 1024 * 1024; // 512 MB
+const PROGRESS_UPDATE_MIN_INTERVAL_MS = 120;
+const CODEC_QUEUE_HIGH_WATERMARK = 24;
 
 /**
  * Process a video file by decoding each frame, overlaying telemetry data,
@@ -186,6 +188,7 @@ export class VideoProcessor {
         const videoSamples = demuxed.videoSamples.slice(firstKeyframeIndex);
         const totalFrames = videoSamples.length;
         const gopFrames = detectSourceGopSize(videoSamples, videoMeta.fps);
+        const reportProcessingProgress = createProcessingProgressReporter(onProgress, totalFrames);
 
         onProgress?.({ phase: 'processing', percent: 0, framesProcessed: 0, totalFrames });
 
@@ -287,13 +290,14 @@ export class VideoProcessor {
                 decoder.decode(chunk);
                 framesProcessed++;
 
-                onProgress?.({
-                    phase: 'processing',
-                    percent: Math.round((framesProcessed / totalFrames) * 100),
-                    framesProcessed,
-                    totalFrames,
-                });
+                reportProcessingProgress(framesProcessed);
+
+                if (isCodecQueuePressureHigh(decoder, encoder)) {
+                    await waitForCodecQueues(decoder, encoder, this.abortController.signal);
+                }
             }
+
+            reportProcessingProgress(framesProcessed, true);
 
             if (!this.abortController.signal.aborted && !processingError) {
                 await decoder.flush();
@@ -820,4 +824,60 @@ function toTightArrayBuffer(data: Uint8Array): ArrayBuffer {
     }
 
     return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+}
+
+function createProcessingProgressReporter(
+    onProgress: VideoProcessorOptions['onProgress'],
+    totalFrames: number,
+): (framesProcessed: number, force?: boolean) => void {
+    let lastReportedFrames = -1;
+    let lastReportAt = 0;
+
+    return (framesProcessed: number, force = false): void => {
+        if (!onProgress) return;
+
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        const percent = totalFrames > 0
+            ? Math.round((framesProcessed / totalFrames) * 100)
+            : 0;
+
+        const shouldReport = force
+            || framesProcessed === totalFrames
+            || framesProcessed === 0
+            || now - lastReportAt >= PROGRESS_UPDATE_MIN_INTERVAL_MS;
+
+        if (!shouldReport) return;
+
+        lastReportedFrames = framesProcessed;
+        lastReportAt = now;
+
+        onProgress({
+            phase: 'processing',
+            percent,
+            framesProcessed,
+            totalFrames,
+        });
+    };
+}
+
+function isCodecQueuePressureHigh(decoder: VideoDecoder, encoder: VideoEncoder): boolean {
+    return decoder.decodeQueueSize > CODEC_QUEUE_HIGH_WATERMARK
+        || encoder.encodeQueueSize > CODEC_QUEUE_HIGH_WATERMARK;
+}
+
+async function waitForCodecQueues(
+    decoder: VideoDecoder,
+    encoder: VideoEncoder,
+    signal: AbortSignal,
+): Promise<void> {
+    let spin = 0;
+    while (!signal.aborted && isCodecQueuePressureHigh(decoder, encoder)) {
+        // Yield rarely to keep throughput high while still preventing queue runaway.
+        if (spin % 2 === 0) {
+            await Promise.resolve();
+        } else {
+            await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        }
+        spin += 1;
+    }
 }
