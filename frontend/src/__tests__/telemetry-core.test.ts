@@ -21,6 +21,22 @@ function makePoint(lat: number, lon: number, timeStr: string, hr?: number): Trac
     };
 }
 
+function makePointWithElevation(
+    lat: number,
+    lon: number,
+    timeStr: string,
+    ele: number,
+    hr?: number,
+): TrackPoint {
+    return {
+        lat,
+        lon,
+        time: new Date(timeStr),
+        hr,
+        ele,
+    };
+}
+
 describe('Telemetry Core', () => {
     describe('haversineDistance', () => {
         it('should return 0 for the same point', () => {
@@ -265,6 +281,17 @@ describe('Telemetry Core', () => {
             expect(timeline[1]!.movingTimeSeconds).toBe(0); // Stationary
             expect(timeline[2]!.movingTimeSeconds).toBeGreaterThan(0); // Moving
         });
+
+        it('should propagate elevation from GPX points into telemetry frames', () => {
+            const points = [
+                makePointWithElevation(55.7558, 37.6173, '2024-01-15T10:00:00Z', 120, 140),
+                makePointWithElevation(55.7567, 37.6173, '2024-01-15T10:00:30Z', 125, 145),
+            ];
+
+            const timeline = buildTelemetryTimeline(points);
+            expect(timeline[0]!.elevationM).toBe(120);
+            expect(timeline[1]!.elevationM).toBe(125);
+        });
     });
 
     describe('getTelemetryAtTime', () => {
@@ -297,6 +324,17 @@ describe('Telemetry Core', () => {
             const result = getTelemetryAtTime(frames, 15, 0); // Midpoint between 0 and 30
             expect(result).not.toBeNull();
             expect(result!.hr).toBe(145); // Midpoint of 140 and 150
+        });
+
+        it('should interpolate elevation between frames when available', () => {
+            const elevationFrames = buildTelemetryTimeline([
+                makePointWithElevation(55.7558, 37.6173, '2024-01-15T10:00:00Z', 100, 140),
+                makePointWithElevation(55.7567, 37.6173, '2024-01-15T10:00:30Z', 130, 150),
+            ]);
+
+            const result = getTelemetryAtTime(elevationFrames, 15, 0);
+            expect(result).not.toBeNull();
+            expect(result!.elevationM).toBeCloseTo(115, 5);
         });
 
         it('should apply sync offset correctly', () => {

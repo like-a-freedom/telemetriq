@@ -17,7 +17,13 @@
           />
           <div v-if="isSelected(template.id)" class="template-card__badge">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M2 6L5 9L10 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path
+                d="M2 6L5 9L10 3"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
             </svg>
           </div>
         </div>
@@ -31,14 +37,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, nextTick, watch } from 'vue';
-import { useSettingsStore } from '../stores/settingsStore';
-import type { TemplateId, TelemetryFrame } from '../core/types';
+import { onMounted, nextTick, watch } from "vue";
+import { useSettingsStore } from "../stores/settingsStore";
+import type { TemplateId, TelemetryFrame } from "../core/types";
 import {
   getTemplateConfig,
   getAllTemplateMetadata,
-} from '../modules/template-configs';
-import { renderOverlay } from '../modules/overlay-renderer';
+} from "../modules/template-configs";
+import { renderOverlay } from "../modules/overlay-renderer";
 
 const templates = getAllTemplateMetadata();
 const settingsStore = useSettingsStore();
@@ -50,7 +56,7 @@ const sampleFrame: TelemetryFrame = {
   hr: 164,
   paceSecondsPerKm: 272,
   distanceKm: 12.4,
-  elapsedTime: '00:42:00',
+  elapsedTime: "00:42:00",
   movingTimeSeconds: 2520,
 };
 
@@ -71,18 +77,18 @@ function renderPreviews(): void {
     const canvas = canvasRefs.get(tmpl.id);
     if (!canvas) continue;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) continue;
 
     // Dark cinematic background
     const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    bgGrad.addColorStop(0, '#1a1a2e');
-    bgGrad.addColorStop(1, '#16213e');
+    bgGrad.addColorStop(0, "#1a1a2e");
+    bgGrad.addColorStop(1, "#16213e");
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Subtle grid for depth
-    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.strokeStyle = "rgba(255,255,255,0.03)";
     ctx.lineWidth = 0.5;
     for (let x = 0; x < canvas.width; x += 20) {
       ctx.beginPath();
@@ -108,9 +114,13 @@ onMounted(async () => {
   renderPreviews();
 });
 
-watch(() => settingsStore.overlayConfig, () => {
-  nextTick(renderPreviews);
-}, { deep: true });
+watch(
+  () => settingsStore.overlayConfig,
+  () => {
+    nextTick(renderPreviews);
+  },
+  { deep: true }
+);
 </script>
 
 <style scoped>
@@ -143,15 +153,12 @@ watch(() => settingsStore.overlayConfig, () => {
 .template-card:hover {
   border-color: rgba(255, 255, 255, 0.15);
   transform: translateY(-1px);
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.2),
-    0 0 0 1px rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
 .template-card--active {
   border-color: var(--color-primary, #646cff);
-  box-shadow:
-    0 0 0 1px var(--color-primary, #646cff),
+  box-shadow: 0 0 0 1px var(--color-primary, #646cff),
     0 4px 16px rgba(100, 108, 255, 0.15);
 }
 

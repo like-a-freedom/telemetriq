@@ -28,9 +28,7 @@ export const DEFAULT_OVERLAY_CONFIG: ExtendedOverlayConfig = {
     showHr: true,
     showPace: true,
     showDistance: true,
-    showTime: false,
-    showElevation: true,
-    showCadence: false,
+    showTime: true,
     fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     textColor: '#FFFFFF',
     backgroundColor: '#000000',
@@ -118,7 +116,7 @@ function renderHorizonLayout(
     h: number,
     config: ExtendedOverlayConfig,
 ): void {
-    const barHeight = h * 0.14;
+    const barHeight = h * 0.16;
     const barY = h - barHeight;
 
     // Gradient background: transparent → dark
@@ -137,9 +135,7 @@ function renderHorizonLayout(
     // Layout metrics horizontally
     const fontFamily = config.fontFamily || 'Inter, sans-serif';
     const baseFontSize = Math.round(h * (config.fontSizePercent || 2.4) / 100);
-    const valueSize = Math.round(baseFontSize * (config.valueSizeMultiplier || 2.5));
-    const labelSize = Math.round(baseFontSize * (config.labelSizeMultiplier || 0.4));
-    const unitSize = Math.round(valueSize * 0.45);
+    const labelSize = Math.max(8, Math.round(baseFontSize * (config.labelSizeMultiplier || 0.4)));
 
     const padding = w * 0.04;
     const metricCount = metrics.length;
@@ -153,14 +149,31 @@ function renderHorizonLayout(
         const metric = metrics[i]!;
         const colX = padding + columnWidth * i;
         const centerX = colX + columnWidth / 2;
-        const baselineY = h - barHeight * 0.25;
+        const baselineY = h - barHeight * 0.22;
+
+        let valueSize = Math.min(
+            Math.round(baseFontSize * (config.valueSizeMultiplier || 2.5)),
+            Math.round(barHeight * 0.43),
+        );
+        const minValueSize = Math.max(12, Math.round(barHeight * 0.22));
+        while (valueSize > minValueSize) {
+            const unitSizeTry = Math.max(8, Math.round(valueSize * 0.42));
+            const weightTry = fontWeightValue(config.valueFontWeight || 'bold');
+            ctx.font = `${weightTry} ${valueSize}px ${fontFamily}`;
+            const valueWidth = ctx.measureText(metric.value).width;
+            ctx.font = `300 ${unitSizeTry}px ${fontFamily}`;
+            const unitWidthTry = metric.unit ? ctx.measureText(metric.unit).width + unitSizeTry * 0.35 : 0;
+            if (valueWidth + unitWidthTry <= columnWidth * 0.82) break;
+            valueSize -= 1;
+        }
+        const unitSize = Math.max(8, Math.round(valueSize * 0.42));
 
         // Separator line (except first)
         if (i > 0) {
             ctx.strokeStyle = 'rgba(255,255,255,0.1)';
             ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.moveTo(colX, baselineY - valueSize * 0.8);
+            ctx.moveTo(colX, baselineY - valueSize * 0.95);
             ctx.lineTo(colX, baselineY + labelSize * 0.5);
             ctx.stroke();
         }
@@ -228,9 +241,6 @@ function renderMarginLayout(
 
     const fontFamily = config.fontFamily || 'Inter, sans-serif';
     const baseFontSize = Math.round(h * (config.fontSizePercent || 2.0) / 100);
-    const valueSize = Math.round(baseFontSize * (config.valueSizeMultiplier || 3.5));
-    const labelSize = Math.round(baseFontSize * (config.labelSizeMultiplier || 0.35));
-    const unitSize = Math.round(valueSize * 0.2);
 
     // Split metrics into left and right columns
     const half = Math.ceil(metrics.length / 2);
@@ -238,16 +248,25 @@ function renderMarginLayout(
     const rightMetrics = metrics.slice(half);
 
     const marginX = w * 0.045;
-    const verticalSpacing = h * 0.2;
+    const leftSlots = Math.max(1, leftMetrics.length);
+    const rightSlots = Math.max(1, rightMetrics.length);
+    const leftSlotHeight = (h * 0.72) / leftSlots;
+    const rightSlotHeight = (h * 0.72) / rightSlots;
 
     ctx.save();
     applyTextShadow(ctx, config);
 
     // Left side metrics (aligned left)
-    const leftStartY = h * 0.35;
+    const leftStartY = h * 0.18;
     for (let i = 0; i < leftMetrics.length; i++) {
         const metric = leftMetrics[i]!;
-        const metricY = leftStartY + i * verticalSpacing;
+        const metricY = leftStartY + i * leftSlotHeight;
+        const valueSize = Math.max(14, Math.min(
+            Math.round(baseFontSize * (config.valueSizeMultiplier || 3.5)),
+            Math.round(leftSlotHeight * 0.42),
+        ));
+        const labelSize = Math.max(8, Math.round(valueSize * 0.2));
+        const unitSize = Math.max(8, Math.round(valueSize * 0.22));
 
         // Vertical label (rotated)
         ctx.save();
@@ -273,11 +292,16 @@ function renderMarginLayout(
     }
 
     // Right side metrics (aligned right)
-    const rightStartY = h * 0.3;
+    const rightStartY = h * 0.18;
     for (let i = 0; i < rightMetrics.length; i++) {
         const metric = rightMetrics[i]!;
-        const metricY = rightStartY + i * verticalSpacing;
+        const metricY = rightStartY + i * rightSlotHeight;
         const rightX = w - marginX;
+        const valueSize = Math.max(14, Math.min(
+            Math.round(baseFontSize * (config.valueSizeMultiplier || 3.5)),
+            Math.round(rightSlotHeight * 0.42),
+        ));
+        const unitSize = Math.max(8, Math.round(valueSize * 0.22));
 
         // Value
         const weight = fontWeightValue(config.valueFontWeight || 'light');
@@ -312,7 +336,7 @@ function renderMarginLayout(
 function renderLFrameLayout(
     ctx: OverlayContext2D,
     metrics: MetricItem[],
-    frame: TelemetryFrame,
+    _frame: TelemetryFrame,
     w: number,
     h: number,
     config: ExtendedOverlayConfig,
@@ -326,13 +350,11 @@ function renderLFrameLayout(
 
     const fontFamily = config.fontFamily || 'Inter, sans-serif';
     const baseFontSize = Math.round(h * (config.fontSizePercent || 2.0) / 100);
-    const valueSize = Math.round(baseFontSize * (config.valueSizeMultiplier || 3.0));
-    const labelSize = Math.round(baseFontSize * (config.labelSizeMultiplier || 0.4));
-    const unitSize = Math.round(valueSize * 0.3);
+    const valueSizeBase = Math.round(baseFontSize * (config.valueSizeMultiplier || 3.0));
 
     const margin = w * 0.04;
     const bottomMargin = h * 0.05;
-    const frameX = margin + valueSize * 0.2;
+    const frameX = margin + valueSizeBase * 0.2;
     const frameBottom = h - bottomMargin;
 
     ctx.save();
@@ -342,7 +364,7 @@ function renderLFrameLayout(
     const lineColor = 'rgba(255,255,255,0.5)';
     const lineW = Math.max(1, Math.round(h * 0.001));
     const verticalLineHeight = h * 0.18;
-    const horizontalLineWidth = w * 0.75;
+    const horizontalLineWidth = w * 0.84;
 
     // Vertical line of L
     ctx.strokeStyle = lineColor;
@@ -366,55 +388,41 @@ function renderLFrameLayout(
     ctx.fill();
 
     // Metrics along horizontal line
-    const metricsStartX = frameX + margin * 0.5;
-    const metricGap = w * 0.14;
+    const metricsStartX = frameX + margin * 0.45;
+    const metricsAreaWidth = horizontalLineWidth - margin * 0.9;
+    const metricGap = metricsAreaWidth / Math.max(1, metrics.length);
     const metricsY = frameBottom - margin * 0.3;
 
     for (let i = 0; i < metrics.length; i++) {
         const metric = metrics[i]!;
-        const mx = metricsStartX + i * metricGap;
+        const mx = metricsStartX + i * metricGap + metricGap / 2;
+        const valueSize = Math.max(14, Math.min(valueSizeBase, Math.round(h * 0.09)));
+        const labelSize = Math.max(8, Math.round(valueSize * 0.2));
+        const unitSize = Math.max(8, Math.round(valueSize * 0.28));
 
         // Label
         ctx.fillStyle = 'rgba(255,255,255,0.6)';
         ctx.font = `300 ${labelSize}px ${fontFamily}`;
-        ctx.textAlign = 'left';
+        ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        drawTrackedText(ctx, metric.label.toUpperCase(), mx, metricsY - valueSize - labelSize * 0.2, config.labelLetterSpacing || 0.15, labelSize);
+        const labelStartX = mx - (ctx.measureText(metric.label.toUpperCase()).width / 2);
+        drawTrackedText(ctx, metric.label.toUpperCase(), labelStartX, metricsY - valueSize - labelSize * 0.2, config.labelLetterSpacing || 0.15, labelSize);
 
         // Value
         const weight = fontWeightValue(config.valueFontWeight || 'light');
         ctx.fillStyle = config.textColor || '#FFFFFF';
         ctx.font = `${weight} ${valueSize}px ${fontFamily}`;
-        ctx.textAlign = 'left';
+        ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
-        const vm = ctx.measureText(metric.value);
         ctx.fillText(metric.value, mx, metricsY);
 
         // Unit
         if (metric.unit) {
             ctx.fillStyle = 'rgba(255,255,255,0.5)';
             ctx.font = `300 ${unitSize}px ${fontFamily}`;
-            ctx.textAlign = 'left';
-            ctx.fillText(metric.unit, mx + vm.width + unitSize * 0.3, metricsY);
+            ctx.textAlign = 'center';
+            ctx.fillText(metric.unit, mx, metricsY + unitSize * 1.25);
         }
-    }
-
-    // Time in top-right corner
-    if (frame.elapsedTime) {
-        const timeSize = Math.round(valueSize * 0.5);
-        const timeLabelSize = Math.round(labelSize * 0.9);
-
-        ctx.fillStyle = 'rgba(255,255,255,0.5)';
-        ctx.font = `300 ${timeLabelSize}px ${fontFamily}`;
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'bottom';
-        drawTrackedText(ctx, 'TIME', w - margin, margin + timeLabelSize, 0.15, timeLabelSize);
-
-        ctx.fillStyle = 'rgba(255,255,255,0.75)';
-        ctx.font = `300 ${timeSize}px ${fontFamily}`;
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'top';
-        ctx.fillText(frame.elapsedTime, w - margin, margin + timeLabelSize + timeLabelSize * 0.5);
     }
 
     // Progress bar at very bottom
@@ -571,12 +579,6 @@ function buildMetrics(frame: TelemetryFrame, config: ExtendedOverlayConfig): Met
     if (config.showDistance) {
         items.push({ label: 'Distance', value: frame.distanceKm.toFixed(1), unit: 'km' });
     }
-    if (config.showElevation) {
-        items.push({ label: 'Elevation', value: '—', unit: 'm' });
-    }
-    if (config.showCadence) {
-        items.push({ label: 'Cadence', value: '—', unit: 'spm' });
-    }
     if (config.showTime) {
         items.push({ label: 'Time', value: frame.elapsedTime, unit: '' });
     }
@@ -597,8 +599,6 @@ function metricIcon(label: string): string {
         case 'pace': return '🏃';
         case 'distance': return '📏';
         case 'time': return '⏱️';
-        case 'elevation': return '⛰️';
-        case 'cadence': return '👟';
         default: return '';
     }
 }
@@ -641,8 +641,6 @@ function buildCacheKey(frame: TelemetryFrame, config: ExtendedOverlayConfig, wid
         showPace: config.showPace,
         showDistance: config.showDistance,
         showTime: config.showTime,
-        showElevation: config.showElevation,
-        showCadence: config.showCadence,
         templateId: config.templateId,
         layoutMode: config.layoutMode,
         fontFamily: config.fontFamily,
