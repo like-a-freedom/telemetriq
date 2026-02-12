@@ -1,0 +1,32 @@
+# Minimal Caddyfile for the frontend app
+# Purpose: serve SPA static assets with SPA fallback and minimal security headers required by WebCodecs / SharedArrayBuffer
+
+:80 {
+    # Avoid automatic TLS provisioning in containerized/local environments
+    auto_https off
+
+    # Minimal headers required by the app
+    header {
+        Cross-Origin-Opener-Policy "same-origin"
+        Cross-Origin-Embedder-Policy "require-corp"
+        X-Content-Type-Options "nosniff"
+    }
+
+
+
+
+
+    # Health check (simple OK response)
+    handle_path /health {
+        respond "OK" 200
+    }
+
+    # Serve frontend static files (SPA fallback)
+    root * /usr/share/caddy
+    file_server
+    try_files {path} /index.html
+
+    # Cache static assets aggressively
+    @staticFiles path_regexp static .*\.(js|css|png|jpg|jpeg|gif|ico|svg|wasm)$
+    header @staticFiles Cache-Control "public, max-age=31536000, immutable"
+}
