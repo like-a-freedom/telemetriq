@@ -108,6 +108,7 @@ function syncByTime(
  * Clamp manual sync offset to allowed range.
  */
 export function clampSyncOffset(offsetSeconds: number): number {
+    if (!Number.isFinite(offsetSeconds)) return 0;
     return Math.max(
         -MANUAL_SYNC_RANGE_SECONDS,
         Math.min(MANUAL_SYNC_RANGE_SECONDS, offsetSeconds),

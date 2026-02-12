@@ -77,6 +77,42 @@ describe('Pinia Stores', () => {
             store.reset();
             expect(store.offsetSeconds).toBe(0);
         });
+
+        it('should keep manual offset when auto-sync runs without override', async () => {
+            const store = useSyncStore();
+            store.setManualOffset(12.5);
+
+            await store.performAutoSync(
+                [
+                    { lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:00:00Z') },
+                    { lat: 55.76, lon: 37.62, time: new Date('2024-01-15T10:00:30Z') },
+                ],
+                new Date('2024-01-15T11:00:00Z'),
+            );
+
+            expect(store.offsetSeconds).toBe(12.5);
+            expect(store.isAutoSynced).toBe(false);
+        });
+
+        it('should allow explicit auto-sync override after manual offset', async () => {
+            const store = useSyncStore();
+            store.setManualOffset(12.5);
+
+            await store.performAutoSync(
+                [
+                    { lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:00:00Z') },
+                    { lat: 55.76, lon: 37.62, time: new Date('2024-01-15T10:10:00Z') },
+                ],
+                new Date('2024-01-15T10:02:00Z'),
+                undefined,
+                undefined,
+                undefined,
+                true,
+            );
+
+            expect(store.offsetSeconds).toBe(120);
+            expect(store.isAutoSynced).toBe(true);
+        });
     });
 
     describe('processingStore', () => {

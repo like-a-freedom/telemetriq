@@ -12,6 +12,7 @@ export const useSyncStore = defineStore('sync', () => {
     const isAutoSyncing = ref(false);
     const syncError = ref<string | null>(null);
     const syncWarning = ref<string | null>(null);
+    const manualOverrideActive = ref(false);
 
     // Computed
     const offsetSeconds = computed(() => syncConfig.value.offsetSeconds);
@@ -19,10 +20,12 @@ export const useSyncStore = defineStore('sync', () => {
 
     // Actions
     function setManualOffset(seconds: number): void {
+        const safeSeconds = Number.isFinite(seconds) ? seconds : 0;
         syncConfig.value = {
-            offsetSeconds: clampSyncOffset(seconds),
+            offsetSeconds: clampSyncOffset(safeSeconds),
             autoSynced: false,
         };
+        manualOverrideActive.value = true;
         syncError.value = null;
     }
 
@@ -32,7 +35,12 @@ export const useSyncStore = defineStore('sync', () => {
         videoStartLat?: number,
         videoStartLon?: number,
         videoTimezoneOffsetMinutes?: number,
+        allowOverrideManual = false,
     ): Promise<void> {
+        if (manualOverrideActive.value && !allowOverrideManual) {
+            return;
+        }
+
         isAutoSyncing.value = true;
         syncError.value = null;
         syncWarning.value = null;
@@ -46,6 +54,7 @@ export const useSyncStore = defineStore('sync', () => {
                 videoTimezoneOffsetMinutes,
             );
             syncConfig.value = result;
+            manualOverrideActive.value = false;
 
             if (result.warning) {
                 syncWarning.value = result.warning;
@@ -67,6 +76,7 @@ export const useSyncStore = defineStore('sync', () => {
         isAutoSyncing.value = false;
         syncError.value = null;
         syncWarning.value = null;
+        manualOverrideActive.value = false;
     }
 
     return {

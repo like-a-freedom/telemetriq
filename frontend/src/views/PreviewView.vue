@@ -201,7 +201,8 @@ function applyManualTime(): void {
     localTime,
     undefined,
     undefined,
-    localTime.getTimezoneOffset()
+    localTime.getTimezoneOffset(),
+    true
   );
 }
 </script>

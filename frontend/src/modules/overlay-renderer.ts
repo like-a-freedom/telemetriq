@@ -3,8 +3,6 @@ import { formatPace } from './telemetry-core';
 
 type CachedOverlay = {
     canvas: OffscreenCanvas | HTMLCanvasElement;
-    width: number;
-    height: number;
 };
 
 const overlayCache = new Map<string, CachedOverlay>();
@@ -39,6 +37,19 @@ export function renderOverlay(
         return;
     }
 
+    const overlayCanvas = typeof OffscreenCanvas !== 'undefined'
+        ? new OffscreenCanvas(videoWidth, videoHeight)
+        : document.createElement('canvas');
+
+    overlayCanvas.width = videoWidth;
+    overlayCanvas.height = videoHeight;
+
+    const overlayCtx = (overlayCanvas as OffscreenCanvas).getContext
+        ? (overlayCanvas as OffscreenCanvas).getContext('2d')
+        : (overlayCanvas as HTMLCanvasElement).getContext('2d');
+
+    if (!overlayCtx) return;
+
     const fontSize = Math.round(videoHeight * (config.fontSizePercent / 100));
     const lineHeight = fontSize * 1.5;
     const padding = fontSize * 0.6;
@@ -65,10 +76,10 @@ export function renderOverlay(
     if (lines.length === 0) return;
 
     // Measure text
-    ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    overlayCtx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
     let maxWidth = 0;
     for (const line of lines) {
-        const metrics = ctx.measureText(line);
+        const metrics = overlayCtx.measureText(line);
         if (metrics.width > maxWidth) {
             maxWidth = metrics.width;
         }
@@ -103,28 +114,29 @@ export function renderOverlay(
     }
 
     // Draw background with rounded corners
-    ctx.save();
-    ctx.fillStyle = `rgba(0, 0, 0, ${config.backgroundOpacity})`;
-    ctx.beginPath();
-    ctx.roundRect(x, y, bgWidth, bgHeight, borderRadius);
-    ctx.fill();
+    overlayCtx.save();
+    overlayCtx.fillStyle = `rgba(0, 0, 0, ${config.backgroundOpacity})`;
+    overlayCtx.beginPath();
+    overlayCtx.roundRect(x, y, bgWidth, bgHeight, borderRadius);
+    overlayCtx.fill();
 
     // Draw text
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-    ctx.textBaseline = 'top';
+    overlayCtx.fillStyle = '#FFFFFF';
+    overlayCtx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    overlayCtx.textBaseline = 'top';
 
     for (let i = 0; i < lines.length; i++) {
-        ctx.fillText(
+        overlayCtx.fillText(
             lines[i]!,
             x + padding,
             y + padding + i * lineHeight,
         );
     }
 
-    ctx.restore();
+    overlayCtx.restore();
 
-    cacheOverlay(cacheKey, videoWidth, videoHeight, ctx);
+    cacheOverlay(cacheKey, overlayCanvas);
+    ctx.drawImage(overlayCanvas as CanvasImageSource, 0, 0);
 }
 
 /**
@@ -177,28 +189,12 @@ function buildCacheKey(frame: TelemetryFrame, config: OverlayConfig, width: numb
 
 function cacheOverlay(
     key: string,
-    width: number,
-    height: number,
-    sourceCtx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    sourceCanvas: OffscreenCanvas | HTMLCanvasElement,
 ): void {
     if (overlayCache.size >= MAX_CACHE_ENTRIES) {
         const firstKey = overlayCache.keys().next().value as string | undefined;
         if (firstKey) overlayCache.delete(firstKey);
     }
 
-    const canvas = typeof OffscreenCanvas !== 'undefined'
-        ? new OffscreenCanvas(width, height)
-        : document.createElement('canvas');
-
-    canvas.width = width;
-    canvas.height = height;
-
-    const ctx = (canvas as OffscreenCanvas).getContext
-        ? (canvas as OffscreenCanvas).getContext('2d')
-        : (canvas as HTMLCanvasElement).getContext('2d');
-
-    if (!ctx) return;
-    ctx.drawImage(sourceCtx.canvas as CanvasImageSource, 0, 0);
-
-    overlayCache.set(key, { canvas, width, height });
+    overlayCache.set(key, { canvas: sourceCanvas });
 }
