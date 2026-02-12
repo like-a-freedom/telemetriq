@@ -62,11 +62,18 @@ type DemuxedMedia = {
     audioSamples: Mp4Sample[];
 };
 
+type StreamingMuxSession = {
+    enqueueVideoChunk: (chunk: EncodedVideoChunk, decoderConfig?: VideoDecoderConfig) => void;
+    flushVideoQueue: () => Promise<void>;
+    finalize: (audioSamples: Mp4Sample[], audioDecoderConfig?: AudioDecoderConfig) => Promise<Blob>;
+};
+
 /**
  * FFmpeg.wasm fallback reads the whole file into memory.
  * For very large files this can freeze/crash the tab, so skip fallback.
  */
 const FFMPEG_FALLBACK_MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1024; // 1 GB
+const STREAMING_MUX_FILE_SIZE_BYTES = 512 * 1024 * 1024; // 512 MB
 
 /**
  * Process a video file by decoding each frame, overlaying telemetry data,
@@ -185,10 +192,12 @@ export class VideoProcessor {
         const canvas = new OffscreenCanvas(videoMeta.width, videoMeta.height);
         const ctx = canvas.getContext('2d')!;
 
+        const useStreamingMux = sourceFile.size >= STREAMING_MUX_FILE_SIZE_BYTES;
         const encodedChunks: EncodedVideoChunk[] = [];
         let encodedFrameCount = 0;
         let encoderDecoderConfig: VideoDecoderConfig | undefined;
         let processingError: ProcessingError | undefined;
+        let streamingMuxSession: StreamingMuxSession | undefined;
 
         const recordError = (message: string): void => {
             if (!processingError) {
@@ -204,10 +213,18 @@ export class VideoProcessor {
                 if (metadata?.decoderConfig) {
                     encoderDecoderConfig = metadata.decoderConfig;
                 }
-                encodedChunks.push(chunk);
+                if (useStreamingMux && streamingMuxSession) {
+                    streamingMuxSession.enqueueVideoChunk(chunk, metadata?.decoderConfig ?? encoderDecoderConfig);
+                } else {
+                    encodedChunks.push(chunk);
+                }
             },
             recordError,
         );
+
+        if (useStreamingMux) {
+            streamingMuxSession = await this.startStreamingMuxSession(demuxed, encodeMeta);
+        }
 
         if (encodeMeta.width !== videoMeta.width || encodeMeta.height !== videoMeta.height) {
             canvas.width = encodeMeta.width;
@@ -309,12 +326,21 @@ export class VideoProcessor {
 
         onProgress?.({ phase: 'muxing', percent: 0, framesProcessed, totalFrames });
 
-        let blob = await this.muxMp4(
-            demuxed,
-            encodedChunks,
-            encoderDecoderConfig,
-            encodeMeta,
-        );
+        let blob: Blob;
+        if (useStreamingMux && streamingMuxSession) {
+            blob = await this.finalizeStreamingMux(
+                streamingMuxSession,
+                demuxed,
+                encoderDecoderConfig,
+            );
+        } else {
+            blob = await this.muxMp4(
+                demuxed,
+                encodedChunks,
+                encoderDecoderConfig,
+                encodeMeta,
+            );
+        }
 
         if (this.options.useFfmpegMux) {
             onProgress?.({ phase: 'muxing', percent: 0, framesProcessed, totalFrames });
@@ -672,6 +698,119 @@ export class VideoProcessor {
             console.warn('[mux] Audio+video mux failed, retrying video-only output', error);
             return await muxWithMode(false);
         }
+    }
+
+    private async startStreamingMuxSession(
+        demuxed: DemuxedMedia,
+        meta: VideoMeta,
+    ): Promise<StreamingMuxSession> {
+        const output = new Output({
+            format: new Mp4OutputFormat(),
+            target: new BufferTarget(),
+        });
+
+        const videoSource = new EncodedVideoPacketSource(
+            toMediabunnyVideoCodec(demuxed.videoTrack.codec) as any,
+        );
+        output.addVideoTrack(videoSource, { frameRate: meta.fps });
+
+        let audioSource: EncodedAudioPacketSource | undefined;
+        if (demuxed.audioTrack) {
+            audioSource = new EncodedAudioPacketSource(
+                toMediabunnyAudioCodec(demuxed.audioTrack.codec) as any,
+            );
+            output.addAudioTrack(audioSource);
+        }
+
+        await output.start();
+
+        let isFirstVideoPacket = true;
+        let queue: Promise<void> = Promise.resolve();
+        let queueError: unknown;
+
+        const enqueueVideoChunk = (chunk: EncodedVideoChunk, decoderConfig?: VideoDecoderConfig): void => {
+            if (queueError) return;
+
+            queue = queue
+                .then(async () => {
+                    const packet = EncodedPacket.fromEncodedChunk(chunk);
+
+                    if (isFirstVideoPacket) {
+                        if (decoderConfig) {
+                            await videoSource.add(packet, { decoderConfig });
+                        } else {
+                            await videoSource.add(packet);
+                        }
+                        isFirstVideoPacket = false;
+                        return;
+                    }
+
+                    await videoSource.add(packet);
+                })
+                .catch((error) => {
+                    queueError = error;
+                    this.abortController.abort();
+                });
+        };
+
+        const flushVideoQueue = async (): Promise<void> => {
+            await queue;
+            if (queueError) {
+                throw new ProcessingError(
+                    `Streaming mux failed while writing video packets: ${queueError instanceof Error ? queueError.message : String(queueError)}`,
+                );
+            }
+        };
+
+        const finalize = async (audioSamples: Mp4Sample[], audioDecoderConfig?: AudioDecoderConfig): Promise<Blob> => {
+            await flushVideoQueue();
+
+            if (audioSource && audioSamples.length) {
+                let firstAudioPacket = true;
+                for (const sample of audioSamples) {
+                    const chunk = new EncodedAudioChunk({
+                        type: sample.is_rap ? 'key' : 'delta',
+                        timestamp: sample.cts,
+                        duration: sample.duration,
+                        data: new Uint8Array(sample.data),
+                    });
+                    const packet = EncodedPacket.fromEncodedChunk(chunk);
+
+                    if (firstAudioPacket) {
+                        await audioSource.add(packet, {
+                            decoderConfig: audioDecoderConfig,
+                        });
+                        firstAudioPacket = false;
+                    } else {
+                        await audioSource.add(packet);
+                    }
+                }
+            }
+
+            await output.finalize();
+
+            const buffer = output.target.buffer;
+            if (!buffer || buffer.byteLength === 0) {
+                throw new ProcessingError('Mediabunny mux produced empty output');
+            }
+
+            return new Blob([buffer], { type: 'video/mp4' });
+        };
+
+        return {
+            enqueueVideoChunk,
+            flushVideoQueue,
+            finalize,
+        };
+    }
+
+    private async finalizeStreamingMux(
+        session: StreamingMuxSession,
+        demuxed: DemuxedMedia,
+        decoderConfig: VideoDecoderConfig | undefined,
+    ): Promise<Blob> {
+        await session.flushVideoQueue();
+        return session.finalize(demuxed.audioSamples, demuxed.audioTrack?.decoderConfig ?? decoderConfig);
     }
 }
 
