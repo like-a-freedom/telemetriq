@@ -158,7 +158,67 @@ describe('Pinia Stores', () => {
                 framesProcessed: 500,
                 totalFrames: 1000,
             });
-            expect(store.progressPercent).toBe(50);
+            expect(store.progressPercent).toBe(49);
+        });
+
+        it('should not report 100% before complete phase', () => {
+            const store = useProcessingStore();
+            store.startProcessing(12660);
+
+            store.updateProgress({
+                phase: 'processing',
+                percent: 100,
+                framesProcessed: 12660,
+                totalFrames: 12660,
+            });
+            expect(store.progressPercent).toBe(92);
+            expect(store.isComplete).toBe(false);
+
+            store.updateProgress({
+                phase: 'muxing',
+                percent: 0,
+                framesProcessed: 12660,
+                totalFrames: 12660,
+            });
+            expect(store.progressPercent).toBe(92);
+            expect(store.isComplete).toBe(false);
+
+            store.updateProgress({
+                phase: 'muxing',
+                percent: 100,
+                framesProcessed: 12660,
+                totalFrames: 12660,
+            });
+            expect(store.progressPercent).toBe(99);
+            expect(store.isComplete).toBe(false);
+
+            store.setResult(new Blob(['done'], { type: 'video/mp4' }));
+            expect(store.progressPercent).toBe(100);
+            expect(store.isComplete).toBe(true);
+        });
+
+        it('should keep progress monotonic across phase transitions', () => {
+            const store = useProcessingStore();
+            store.startProcessing(1000);
+
+            store.updateProgress({
+                phase: 'processing',
+                percent: 90,
+                framesProcessed: 900,
+                totalFrames: 1000,
+            });
+            const beforeMux = store.progressPercent;
+
+            store.updateProgress({
+                phase: 'muxing',
+                percent: 0,
+                framesProcessed: 1000,
+                totalFrames: 1000,
+            });
+            const muxStart = store.progressPercent;
+
+            expect(muxStart).toBeGreaterThanOrEqual(beforeMux);
+            expect(muxStart).toBeLessThan(100);
         });
 
         it('should set result', () => {

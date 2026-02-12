@@ -2,6 +2,27 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { ProcessingProgress } from '../core/types';
 
+const PHASE_PERCENT_RANGES: Record<ProcessingProgress['phase'], { min: number; max: number }> = {
+    demuxing: { min: 0, max: 5 },
+    encoding: { min: 5, max: 85 },
+    processing: { min: 5, max: 92 },
+    muxing: { min: 92, max: 99 },
+    complete: { min: 100, max: 100 },
+};
+
+function clampPercent(value: number): number {
+    if (!Number.isFinite(value)) return 0;
+    return Math.max(0, Math.min(100, value));
+}
+
+function mapPhasePercent(phase: ProcessingProgress['phase'], rawPercent: number): number {
+    if (phase === 'complete') return 100;
+
+    const { min, max } = PHASE_PERCENT_RANGES[phase];
+    const normalized = clampPercent(rawPercent) / 100;
+    return Math.round(min + (max - min) * normalized);
+}
+
 export const useProcessingStore = defineStore('processing', () => {
     // State
     const isProcessing = ref(false);
@@ -38,7 +59,16 @@ export const useProcessingStore = defineStore('processing', () => {
     }
 
     function updateProgress(update: ProcessingProgress): void {
-        progress.value = update;
+        const mappedPercent = mapPhasePercent(update.phase, update.percent);
+        const previousPercent = progress.value.percent;
+        const safePercent = update.phase === 'complete'
+            ? 100
+            : Math.min(99, Math.max(previousPercent, mappedPercent));
+
+        progress.value = {
+            ...update,
+            percent: safePercent,
+        };
     }
 
     function setResult(blob: Blob): void {
