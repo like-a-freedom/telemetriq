@@ -157,4 +157,26 @@ describe('Overlay Renderer', () => {
         expect((ctx2 as unknown as StubContext).drawImage).toHaveBeenCalledTimes(1);
         expect(offscreenCreateCount).toBe(createdAfterFirstRender);
     });
+
+    it('should bypass cache for high-resolution renders', () => {
+        const frame: TelemetryFrame = {
+            timeOffset: 120,
+            hr: 147,
+            paceSecondsPerKm: 320,
+            distanceKm: 3.42,
+            elapsedTime: '00:02:00',
+            movingTimeSeconds: 120,
+        };
+
+        const ctx1 = createStubContext({ id: 'dest-hires-first' }) as unknown as CanvasRenderingContext2D;
+        const ctx2 = createStubContext({ id: 'dest-hires-second' }) as unknown as CanvasRenderingContext2D;
+
+        renderOverlay(ctx1, frame, 1920, 1080, DEFAULT_OVERLAY_CONFIG);
+        const createdAfterFirstRender = offscreenCreateCount;
+
+        renderOverlay(ctx2, frame, 1920, 1080, DEFAULT_OVERLAY_CONFIG);
+
+        expect((ctx2 as unknown as StubContext).drawImage).toHaveBeenCalledTimes(1);
+        expect(offscreenCreateCount).toBeGreaterThan(createdAfterFirstRender);
+    });
 });

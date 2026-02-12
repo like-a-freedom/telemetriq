@@ -2,7 +2,11 @@
  * Unit tests for extractVideoMeta.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { extractVideoMeta, MAX_VIDEO_DURATION_SECONDS } from '../modules/file-validation';
+import {
+    extractVideoMeta,
+    MAX_VIDEO_DURATION_SECONDS,
+    FAST_METADATA_THRESHOLD_BYTES,
+} from '../modules/file-validation';
 
 vi.mock('mediabunny', () => {
     const state = {
@@ -177,5 +181,30 @@ describe('extractVideoMeta', () => {
         const file = new File([new Uint8Array([1])], 'clip.mp4', { type: 'video/mp4' });
 
         await expect(extractVideoMeta(file)).rejects.toThrow('Failed to determine video resolution');
+    });
+
+    it('should skip deep mp4 parsing for very large files', async () => {
+        const mediabunny = await import('mediabunny') as any;
+        mediabunny.__setMockMp4Meta({
+            codec: 'hvc1.1.6.L120.B0',
+            fps: 120,
+            date: new Date('2020-01-01T00:00:00Z'),
+            raw: { location: '+00.0000+000.0000/' },
+        });
+
+        vi.spyOn(document, 'createElement').mockReturnValue(
+            createMockVideoElement({ width: 3840, height: 2160, duration: 180, trigger: 'loaded' }),
+        );
+
+        const file = new File([new Uint8Array([1, 2, 3])], 'huge.mp4', { type: 'video/mp4' });
+        Object.defineProperty(file, 'size', { value: FAST_METADATA_THRESHOLD_BYTES + 1 });
+
+        const meta = await extractVideoMeta(file);
+
+        expect(meta.width).toBe(3840);
+        expect(meta.height).toBe(2160);
+        expect(meta.codec).toBe('unknown');
+        expect(meta.fps).toBe(30);
+        expect(meta.gps).toBeUndefined();
     });
 });

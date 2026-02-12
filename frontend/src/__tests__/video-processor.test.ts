@@ -204,6 +204,25 @@ describe('VideoProcessor', () => {
             .rejects.toBeInstanceOf(ProcessingError);
     });
 
+    it('demuxSamplesWithFallback should skip FFmpeg fallback for very large files', async () => {
+        const hugeFile = new File([new Uint8Array([1])], 'huge.mp4', { type: 'video/mp4' });
+        Object.defineProperty(hugeFile, 'size', { value: (1024 * 1024 * 1024) + 1 });
+
+        const processor = new VideoProcessor({
+            videoFile: hugeFile,
+            videoMeta: createMockVideoMeta(),
+            telemetryFrames: [],
+            syncOffsetSeconds: 0,
+        });
+
+        const demuxSpy = vi.spyOn(processor as any, 'demuxSamples').mockRejectedValue(new Error('parse failed'));
+
+        await expect((processor as any).demuxSamplesWithFallback(hugeFile))
+            .rejects.toThrow(/disabled for files larger than 1 GB/i);
+
+        expect(demuxSpy).toHaveBeenCalledTimes(1);
+    });
+
     it('createEncoder should throw when no codec configuration is supported', async () => {
         vi.stubGlobal('VideoEncoder', class {
             static isConfigSupported = vi.fn().mockResolvedValue({ supported: false });
