@@ -61,6 +61,51 @@ export interface OverlayConfig {
     showTime: boolean;
 }
 
+/** Extended overlay configuration with template properties */
+export interface ExtendedOverlayConfig extends OverlayConfig {
+    /** Template identifier */
+    templateId: string;
+    /** Font family selection */
+    fontFamily?: string;
+    /** Text color in hex/rgb format */
+    textColor?: string;
+    /** Background color in hex/rgb format */
+    backgroundColor?: string;
+    /** Border width in pixels */
+    borderWidth?: number;
+    /** Border color in hex/rgb format */
+    borderColor?: string;
+    /** Corner radius as percentage of overlay height */
+    cornerRadius?: number;
+    /** Enable/disable text shadow */
+    textShadow?: boolean;
+    /** Text shadow color */
+    textShadowColor?: string;
+    /** Text shadow blur radius */
+    textShadowBlur?: number;
+    /** Spacing multiplier between lines */
+    lineSpacing?: number;
+    /** Layout direction of telemetry items */
+    layout?: 'vertical' | 'horizontal';
+    /** Style of metric icons */
+    iconStyle?: 'none' | 'filled' | 'outline';
+    /** Enable gradient background */
+    gradientBackground?: boolean;
+    /** Gradient start color */
+    gradientStartColor?: string;
+    /** Gradient end color */
+    gradientEndColor?: string;
+}
+
+/** Available template IDs */
+export type TemplateId = 
+    | 'minimalist'
+    | 'sporty'
+    | 'professional'
+    | 'modern'
+    | 'high-contrast'
+    | 'custom';
+
 /** Sync configuration */
 export interface SyncConfig {
     /** Manual offset in seconds (positive = GPX ahead of video) */

@@ -64,6 +64,17 @@
       <!-- Settings sidebar -->
       <aside class="preview-view__sidebar">
         <div class="preview-view__card">
+          <h3>Template</h3>
+          <p class="preview-view__desc">
+            Choose a design template for your telemetry overlay.
+          </p>
+          
+          <TemplateSelector />
+          
+          <div class="preview-view__divider"></div>
+        </div>
+        
+        <div class="preview-view__card">
           <h3>Overlay settings</h3>
           <p class="preview-view__desc">
             Configure what appears on the video. Changes apply in real-time.
@@ -138,6 +149,8 @@ import type { TelemetryFrame } from "../core/types";
 import VideoPlayer from "../components/VideoPlayer.vue";
 // @ts-expect-error Vue SFC default export typing handled by Vite/Vue tooling
 import SyncSlider from "../components/SyncSlider.vue";
+// @ts-expect-error Vue SFC default export typing handled by Vite/Vue tooling
+import TemplateSelector from "../components/TemplateSelector.vue";
 
 const router = useRouter();
 const filesStore = useFilesStore();
