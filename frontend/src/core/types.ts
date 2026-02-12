@@ -65,6 +65,8 @@ export interface OverlayConfig {
 export interface ExtendedOverlayConfig extends OverlayConfig {
     /** Template identifier */
     templateId: string;
+    /** Visual layout mode determining overlay shape/position */
+    layoutMode?: OverlayLayoutMode;
     /** Font family selection */
     fontFamily?: string;
     /** Text color in hex/rgb format */
@@ -95,16 +97,38 @@ export interface ExtendedOverlayConfig extends OverlayConfig {
     gradientStartColor?: string;
     /** Gradient end color */
     gradientEndColor?: string;
+    /** Show elevation metric */
+    showElevation?: boolean;
+    /** Show cadence metric */
+    showCadence?: boolean;
+    /** Label style: 'uppercase' for small caps labels, 'hidden' for no labels */
+    labelStyle?: 'uppercase' | 'hidden';
+    /** Value font weight: 'light' (300), 'normal' (400), 'bold' (700) */
+    valueFontWeight?: 'light' | 'normal' | 'bold';
+    /** Value font size multiplier relative to fontSizePercent */
+    valueSizeMultiplier?: number;
+    /** Label font size multiplier relative to fontSizePercent */
+    labelSizeMultiplier?: number;
+    /** Letter spacing for labels in em units */
+    labelLetterSpacing?: number;
+    /** Accent color for progress/highlight elements */
+    accentColor?: string;
 }
 
 /** Available template IDs */
 export type TemplateId = 
-    | 'minimalist'
-    | 'sporty'
-    | 'professional'
-    | 'modern'
-    | 'high-contrast'
+    | 'horizon'
+    | 'margin'
+    | 'l-frame'
+    | 'classic'
     | 'custom';
+
+/** Visual layout mode for the overlay */
+export type OverlayLayoutMode = 
+    | 'bottom-bar'     // Horizon: full-width gradient bar at bottom
+    | 'side-margins'   // Margin: metrics on left/right margins
+    | 'corner-frame'   // L-Frame: L-shaped frame at corner
+    | 'box';           // Classic: positioned rounded rectangle
 
 /** Sync configuration */
 export interface SyncConfig {

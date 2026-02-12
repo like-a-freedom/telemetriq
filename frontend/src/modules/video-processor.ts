@@ -1,4 +1,4 @@
-import type { TelemetryFrame, OverlayConfig, ProcessingProgress, VideoMeta } from '../core/types';
+import type { TelemetryFrame, ExtendedOverlayConfig, ProcessingProgress, VideoMeta } from '../core/types';
 import { ProcessingError } from '../core/errors';
 import { getTelemetryAtTime } from './telemetry-core';
 import { renderOverlay, DEFAULT_OVERLAY_CONFIG } from './overlay-renderer';
@@ -36,7 +36,7 @@ export interface VideoProcessorOptions {
     videoMeta: VideoMeta;
     telemetryFrames: TelemetryFrame[];
     syncOffsetSeconds: number;
-    overlayConfig?: OverlayConfig;
+    overlayConfig?: ExtendedOverlayConfig;
     onProgress?: (progress: ProcessingProgress) => void;
     useFfmpegMux?: boolean;
 }

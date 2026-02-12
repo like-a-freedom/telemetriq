@@ -5,8 +5,15 @@ import type { TelemetryFrame } from '../core/types';
 type StubContext = {
     canvas: unknown;
     font: string;
-    fillStyle: string;
+    fillStyle: string | CanvasGradient;
+    strokeStyle: string;
     textBaseline: CanvasTextBaseline;
+    textAlign: string;
+    lineWidth: number;
+    shadowColor: string;
+    shadowBlur: number;
+    shadowOffsetX: number;
+    shadowOffsetY: number;
     measureText: ReturnType<typeof vi.fn>;
     beginPath: ReturnType<typeof vi.fn>;
     roundRect: ReturnType<typeof vi.fn>;
@@ -14,18 +21,37 @@ type StubContext = {
     save: ReturnType<typeof vi.fn>;
     restore: ReturnType<typeof vi.fn>;
     fillText: ReturnType<typeof vi.fn>;
+    fillRect: ReturnType<typeof vi.fn>;
     drawImage: ReturnType<typeof vi.fn>;
+    stroke: ReturnType<typeof vi.fn>;
+    moveTo: ReturnType<typeof vi.fn>;
+    lineTo: ReturnType<typeof vi.fn>;
+    arc: ReturnType<typeof vi.fn>;
+    createLinearGradient: ReturnType<typeof vi.fn>;
+    translate: ReturnType<typeof vi.fn>;
+    rotate: ReturnType<typeof vi.fn>;
 };
 
 let offscreenCreateCount = 0;
 const originalOffscreenCanvas = (globalThis as { OffscreenCanvas?: unknown }).OffscreenCanvas;
+
+const fakeGradient = {
+    addColorStop: vi.fn(),
+};
 
 function createStubContext(canvasRef: unknown): StubContext {
     return {
         canvas: canvasRef,
         font: '',
         fillStyle: '',
+        strokeStyle: '',
         textBaseline: 'top',
+        textAlign: 'left',
+        lineWidth: 1,
+        shadowColor: '',
+        shadowBlur: 0,
+        shadowOffsetX: 0,
+        shadowOffsetY: 0,
         measureText: vi.fn((text: string) => ({ width: text.length * 8 })),
         beginPath: vi.fn(),
         roundRect: vi.fn(),
@@ -33,7 +59,15 @@ function createStubContext(canvasRef: unknown): StubContext {
         save: vi.fn(),
         restore: vi.fn(),
         fillText: vi.fn(),
+        fillRect: vi.fn(),
         drawImage: vi.fn(),
+        stroke: vi.fn(),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        arc: vi.fn(),
+        createLinearGradient: vi.fn(() => fakeGradient),
+        translate: vi.fn(),
+        rotate: vi.fn(),
     };
 }
 
@@ -80,6 +114,8 @@ describe('Overlay Renderer', () => {
             showPace: false,
             showDistance: false,
             showTime: false,
+            showElevation: false,
+            showCadence: false,
         });
 
         const drawCalls = (destinationCtx as unknown as StubContext).drawImage;
