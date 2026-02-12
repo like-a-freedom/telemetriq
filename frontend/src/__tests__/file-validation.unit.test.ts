@@ -1,8 +1,13 @@
 /**
  * Unit tests for file validation module.
  */
-import { describe, it, expect } from 'vitest';
-import { validateVideoFile } from '../modules/file-validation';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import {
+    validateVideoFile,
+    isWebCodecsSupported,
+    isSharedArrayBufferSupported,
+    checkBrowserCapabilities,
+} from '../modules/file-validation';
 
 function createFileWithSize(size: number, name = 'test.mp4', type = 'video/mp4'): File {
     const file = new File([new ArrayBuffer(1)], name, { type });
@@ -74,6 +79,64 @@ describe('file-validation', () => {
             const result = validateVideoFile(file);
 
             expect(result.valid).toBe(true);
+        });
+    });
+
+    describe('browser capabilities', () => {
+        afterEach(() => {
+            vi.unstubAllGlobals();
+        });
+
+        it('isWebCodecsSupported should return true when all APIs exist', () => {
+            vi.stubGlobal('VideoDecoder', class {});
+            vi.stubGlobal('VideoEncoder', class {});
+            vi.stubGlobal('VideoFrame', class {});
+
+            expect(isWebCodecsSupported()).toBe(true);
+        });
+
+        it('isWebCodecsSupported should return false when one API is missing', () => {
+            vi.stubGlobal('VideoDecoder', class {});
+            vi.stubGlobal('VideoEncoder', class {});
+            vi.stubGlobal('VideoFrame', undefined);
+
+            expect(isWebCodecsSupported()).toBe(false);
+        });
+
+        it('isSharedArrayBufferSupported should reflect runtime', () => {
+            vi.stubGlobal('SharedArrayBuffer', class {});
+            expect(isSharedArrayBufferSupported()).toBe(true);
+
+            vi.stubGlobal('SharedArrayBuffer', undefined);
+            expect(isSharedArrayBufferSupported()).toBe(false);
+        });
+
+        it('checkBrowserCapabilities should report all missing features', () => {
+            vi.stubGlobal('VideoDecoder', undefined);
+            vi.stubGlobal('VideoEncoder', undefined);
+            vi.stubGlobal('VideoFrame', undefined);
+            vi.stubGlobal('SharedArrayBuffer', undefined);
+            vi.stubGlobal('OffscreenCanvas', undefined);
+
+            const result = checkBrowserCapabilities();
+
+            expect(result.supported).toBe(false);
+            expect(result.missing).toContain('WebCodecs API');
+            expect(result.missing).toContain('SharedArrayBuffer');
+            expect(result.missing).toContain('OffscreenCanvas');
+        });
+
+        it('checkBrowserCapabilities should pass when all features exist', () => {
+            vi.stubGlobal('VideoDecoder', class {});
+            vi.stubGlobal('VideoEncoder', class {});
+            vi.stubGlobal('VideoFrame', class {});
+            vi.stubGlobal('SharedArrayBuffer', class {});
+            vi.stubGlobal('OffscreenCanvas', class {});
+
+            const result = checkBrowserCapabilities();
+
+            expect(result.supported).toBe(true);
+            expect(result.missing).toHaveLength(0);
         });
     });
 });

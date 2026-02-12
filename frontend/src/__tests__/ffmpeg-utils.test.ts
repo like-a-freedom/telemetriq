@@ -170,4 +170,53 @@ describe('ffmpeg-utils', () => {
         expect(output.name.endsWith('.keyframes.mp4')).toBe(true);
         expect(ffmpeg.exec).toHaveBeenCalledTimes(2);
     });
+
+    it('remuxWithFfmpeg should throw when core loading fails', async () => {
+        const ffmpeg = createFfmpegMock();
+        ffmpeg.load.mockRejectedValue(new Error('load failed'));
+
+        const inputBlob = new Blob([new Uint8Array([1])], { type: 'video/mp4' });
+
+        await expect(remuxWithFfmpeg(inputBlob, {
+            ffmpegFactory: () => ffmpeg as unknown as any,
+            coreDeps: {
+                fetchFn: vi.fn().mockRejectedValue(new Error('offline')) as unknown as typeof fetch,
+                toBlobUrlFn: vi.fn().mockRejectedValue(new Error('blob fail')) as unknown as typeof import('@ffmpeg/util').toBlobURL,
+            },
+        })).rejects.toBeInstanceOf(Error);
+    });
+
+    it('transcodeWithForcedKeyframes should throw ProcessingError when both attempts fail', async () => {
+        const ffmpeg = createFfmpegMock();
+        ffmpeg.load.mockResolvedValue(undefined);
+        ffmpeg.writeFile.mockResolvedValue(undefined);
+        ffmpeg.exec
+            .mockRejectedValueOnce(new Error('audio copy failed'))
+            .mockRejectedValueOnce(new Error('audio aac failed'));
+
+        const progressCb = vi.fn();
+        const file = new File([new Uint8Array([1, 2])], 'clip.mp4', { type: 'video/mp4' });
+
+        await expect(transcodeWithForcedKeyframes(
+            file,
+            { fps: 30, duration: 10 },
+            { gopSize: 30, onProgress: progressCb },
+            {
+                ffmpegFactory: () => ffmpeg as unknown as any,
+                coreDeps: {
+                    fetchFn: vi.fn().mockResolvedValue({
+                        status: 200,
+                        statusText: 'OK',
+                        headers: createHeaders({
+                            'content-type': 'application/octet-stream',
+                            'access-control-allow-origin': '*',
+                        }),
+                    }) as unknown as typeof fetch,
+                    toBlobUrlFn: vi.fn()
+                        .mockResolvedValueOnce('blob:core')
+                        .mockResolvedValueOnce('blob:wasm') as unknown as typeof import('@ffmpeg/util').toBlobURL,
+                },
+            },
+        )).rejects.toBeInstanceOf(Error);
+    });
 });
