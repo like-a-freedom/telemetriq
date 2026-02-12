@@ -306,4 +306,76 @@ describe('VideoProcessor', () => {
         expect((processor as any).demuxSamplesWithFallback).toHaveBeenCalled();
         expect((processor as any).muxMp4).toHaveBeenCalled();
     });
+
+    it('process should use streaming mux for large files', async () => {
+        const largeFile = new File([new Uint8Array([1, 2, 3])], 'large.mp4', { type: 'video/mp4' });
+        Object.defineProperty(largeFile, 'size', { value: (512 * 1024 * 1024) + 1 });
+
+        const processor = new VideoProcessor({
+            videoFile: largeFile,
+            videoMeta: createMockVideoMeta(),
+            telemetryFrames: [],
+            syncOffsetSeconds: 0,
+            onProgress: vi.fn(),
+        });
+
+        const demuxed = {
+            videoTrack: { id: 1, codec: 'avc1.640028', codecName: 'avc1', timescale: 1_000_000 },
+            audioTrack: {
+                id: 2,
+                codec: 'mp4a.40.2',
+                codecName: 'aac',
+                timescale: 1_000_000,
+                decoderConfig: undefined,
+            },
+            videoSamples: [
+                {
+                    data: new Uint8Array([1, 2, 3]).buffer,
+                    duration: 1_000,
+                    dts: 0,
+                    cts: 0,
+                    timescale: 1_000_000,
+                    is_rap: true,
+                },
+            ],
+            audioSamples: [],
+        };
+
+        vi.spyOn(processor as any, 'demuxSamplesWithFallback').mockResolvedValue(demuxed);
+        vi.spyOn(processor as any, 'isVideoTrackDecodable').mockResolvedValue(true);
+
+        const encoder = {
+            state: 'configured',
+            encode: vi.fn(),
+            flush: vi.fn().mockResolvedValue(undefined),
+            close: vi.fn(),
+        };
+        encoder.close.mockImplementation(() => { encoder.state = 'closed'; });
+        vi.spyOn(processor as any, 'createEncoder').mockResolvedValue({
+            encoder,
+            encodeMeta: createMockVideoMeta(),
+        });
+
+        const decoder = {
+            state: 'configured',
+            decode: vi.fn(),
+            flush: vi.fn().mockResolvedValue(undefined),
+            close: vi.fn(),
+        };
+        decoder.close.mockImplementation(() => { decoder.state = 'closed'; });
+        vi.spyOn(processor as any, 'createDecoder').mockReturnValue(decoder);
+
+        const startStreamingMuxSessionSpy = vi.spyOn(processor as any, 'startStreamingMuxSession').mockResolvedValue({
+            enqueueVideoChunk: vi.fn(),
+            flushVideoQueue: vi.fn().mockResolvedValue(undefined),
+            finalize: vi.fn().mockResolvedValue(new Blob([new Uint8Array([8])], { type: 'video/mp4' })),
+        });
+        const muxMp4Spy = vi.spyOn(processor as any, 'muxMp4');
+
+        const result = await processor.process();
+
+        expect(result).toBeInstanceOf(Blob);
+        expect(startStreamingMuxSessionSpy).toHaveBeenCalledTimes(1);
+        expect(muxMp4Spy).not.toHaveBeenCalled();
+    });
 });
