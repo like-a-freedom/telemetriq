@@ -18,6 +18,12 @@ interface MetricItem {
     unit: string;
 }
 
+type ResolutionTuning = {
+    textScale: number;
+    spacingScale: number;
+    labelTrackingScale: number;
+};
+
 /** Default overlay configuration */
 export const DEFAULT_OVERLAY_CONFIG: ExtendedOverlayConfig = {
     templateId: 'horizon',
@@ -116,6 +122,7 @@ function renderHorizonLayout(
     h: number,
     config: ExtendedOverlayConfig,
 ): void {
+    const tuning = getResolutionTuning(w, h);
     const barHeight = h * 0.16;
     const barY = h - barHeight;
 
@@ -134,10 +141,10 @@ function renderHorizonLayout(
 
     // Layout metrics horizontally
     const fontFamily = config.fontFamily || 'Inter, sans-serif';
-    const baseFontSize = Math.round(h * (config.fontSizePercent || 2.4) / 100);
+    const baseFontSize = Math.round(h * (config.fontSizePercent || 2.4) / 100 * tuning.textScale);
     const labelSize = Math.max(8, Math.round(baseFontSize * (config.labelSizeMultiplier || 0.4)));
 
-    const padding = w * 0.04;
+    const padding = w * 0.04 * tuning.spacingScale;
     const metricCount = metrics.length;
     const availableWidth = w - padding * 2;
     const columnWidth = availableWidth / metricCount;
@@ -152,12 +159,12 @@ function renderHorizonLayout(
         const baselineY = h - barHeight * 0.22;
 
         let valueSize = Math.min(
-            Math.round(baseFontSize * (config.valueSizeMultiplier || 2.5)),
+            Math.round(baseFontSize * (config.valueSizeMultiplier || 2.5) * tuning.textScale),
             Math.round(barHeight * 0.43),
         );
         const minValueSize = Math.max(12, Math.round(barHeight * 0.22));
         while (valueSize > minValueSize) {
-            const unitSizeTry = Math.max(8, Math.round(valueSize * 0.42));
+            const unitSizeTry = Math.max(8, Math.round(valueSize * 0.42 * tuning.textScale));
             const weightTry = fontWeightValue(config.valueFontWeight || 'bold');
             ctx.font = `${weightTry} ${valueSize}px ${fontFamily}`;
             const valueWidth = ctx.measureText(metric.value).width;
@@ -166,7 +173,7 @@ function renderHorizonLayout(
             if (valueWidth + unitWidthTry <= columnWidth * 0.82) break;
             valueSize -= 1;
         }
-        const unitSize = Math.max(8, Math.round(valueSize * 0.42));
+        const unitSize = Math.max(8, Math.round(valueSize * 0.42 * tuning.textScale));
 
         // Separator line (except first)
         if (i > 0) {
@@ -222,6 +229,7 @@ function renderMarginLayout(
     h: number,
     config: ExtendedOverlayConfig,
 ): void {
+    const tuning = getResolutionTuning(w, h);
     // Subtle edge gradients
     const leftGrad = ctx.createLinearGradient(0, 0, w * 0.15, 0);
     leftGrad.addColorStop(0, `rgba(0,0,0,${config.backgroundOpacity * 0.7})`);
@@ -236,14 +244,14 @@ function renderMarginLayout(
     ctx.fillRect(w * 0.85, 0, w * 0.15, h);
 
     const fontFamily = config.fontFamily || 'Inter, sans-serif';
-    const baseFontSize = Math.round(h * (config.fontSizePercent || 2.0) / 100);
+    const baseFontSize = Math.round(h * (config.fontSizePercent || 2.0) / 100 * tuning.textScale);
 
     // Split metrics into left and right columns
     const half = Math.ceil(metrics.length / 2);
     const leftMetrics = metrics.slice(0, half);
     const rightMetrics = metrics.slice(half);
 
-    const marginX = w * 0.045;
+    const marginX = w * 0.045 * tuning.spacingScale;
     const leftSlots = Math.max(1, leftMetrics.length);
     const rightSlots = Math.max(1, rightMetrics.length);
     const leftSlotHeight = (h * 0.72) / leftSlots;
@@ -258,11 +266,11 @@ function renderMarginLayout(
         const metric = leftMetrics[i]!;
         const metricY = leftStartY + i * leftSlotHeight;
         const valueSize = Math.max(14, Math.min(
-            Math.round(baseFontSize * (config.valueSizeMultiplier || 3.5)),
+            Math.round(baseFontSize * (config.valueSizeMultiplier || 3.5) * tuning.textScale),
             Math.round(leftSlotHeight * 0.42),
         ));
-        const labelSize = Math.max(8, Math.round(valueSize * 0.2));
-        const unitSize = Math.max(8, Math.round(valueSize * 0.22));
+        const labelSize = Math.max(8, Math.round(valueSize * 0.2 * tuning.textScale));
+        const unitSize = Math.max(8, Math.round(valueSize * 0.22 * tuning.textScale));
 
         // Vertical label (rotated, compact abbreviation to avoid overflow)
         ctx.save();
@@ -296,10 +304,10 @@ function renderMarginLayout(
         const metricY = rightStartY + i * rightSlotHeight;
         const rightX = w - marginX;
         const valueSize = Math.max(14, Math.min(
-            Math.round(baseFontSize * (config.valueSizeMultiplier || 3.5)),
+            Math.round(baseFontSize * (config.valueSizeMultiplier || 3.5) * tuning.textScale),
             Math.round(rightSlotHeight * 0.42),
         ));
-        const unitSize = Math.max(8, Math.round(valueSize * 0.22));
+        const unitSize = Math.max(8, Math.round(valueSize * 0.22 * tuning.textScale));
 
         // Value
         const weight = fontWeightValue(config.valueFontWeight || 'light');
@@ -339,6 +347,7 @@ function renderLFrameLayout(
     h: number,
     config: ExtendedOverlayConfig,
 ): void {
+    const tuning = getResolutionTuning(w, h);
     // Subtle bottom gradient
     const grad = ctx.createLinearGradient(0, h * 0.7, 0, h);
     grad.addColorStop(0, 'rgba(0,0,0,0)');
@@ -347,10 +356,10 @@ function renderLFrameLayout(
     ctx.fillRect(0, h * 0.7, w, h * 0.3);
 
     const fontFamily = config.fontFamily || 'Inter, sans-serif';
-    const baseFontSize = Math.round(h * (config.fontSizePercent || 2.0) / 100);
-    const valueSizeBase = Math.round(baseFontSize * (config.valueSizeMultiplier || 3.0));
+    const baseFontSize = Math.round(h * (config.fontSizePercent || 2.0) / 100 * tuning.textScale);
+    const valueSizeBase = Math.round(baseFontSize * (config.valueSizeMultiplier || 3.0) * tuning.textScale);
 
-    const margin = w * 0.04;
+    const margin = w * 0.04 * tuning.spacingScale;
     const bottomMargin = h * 0.05;
     const frameX = margin + valueSizeBase * 0.2;
     const frameBottom = h - bottomMargin;
@@ -395,8 +404,8 @@ function renderLFrameLayout(
         const metric = metrics[i]!;
         const mx = metricsStartX + i * metricGap + metricGap / 2;
         const valueSize = Math.max(14, Math.min(valueSizeBase, Math.round(h * 0.09)));
-        const labelSize = Math.max(8, Math.round(valueSize * 0.2));
-        const unitSize = Math.max(8, Math.round(valueSize * 0.28));
+        const labelSize = Math.max(8, Math.round(valueSize * 0.2 * tuning.textScale));
+        const unitSize = Math.max(8, Math.round(valueSize * 0.28 * tuning.textScale));
 
         // Label
         ctx.fillStyle = 'rgba(255,255,255,0.6)';
@@ -404,7 +413,14 @@ function renderLFrameLayout(
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
         const labelStartX = mx - (ctx.measureText(metric.label.toUpperCase()).width / 2);
-        drawTrackedText(ctx, metric.label.toUpperCase(), labelStartX, metricsY - valueSize - labelSize * 0.2, config.labelLetterSpacing || 0.15, labelSize);
+        drawTrackedText(
+            ctx,
+            metric.label.toUpperCase(),
+            labelStartX,
+            metricsY - valueSize - labelSize * 0.2,
+            (config.labelLetterSpacing || 0.15) * tuning.labelTrackingScale,
+            labelSize,
+        );
 
         // Value
         const weight = fontWeightValue(config.valueFontWeight || 'light');
@@ -444,9 +460,10 @@ function renderClassicLayout(
     h: number,
     config: ExtendedOverlayConfig,
 ): void {
-    const fontSize = Math.round(h * (config.fontSizePercent / 100));
+    const tuning = getResolutionTuning(w, h);
+    const fontSize = Math.round(h * (config.fontSizePercent / 100) * tuning.textScale);
     const lineHeight = fontSize * (config.lineSpacing || 1.5);
-    const padding = fontSize * 0.6;
+    const padding = fontSize * 0.6 * tuning.spacingScale;
     const borderRadius = config.cornerRadius !== undefined
         ? Math.round(h * (config.cornerRadius / 100))
         : Math.round(h * 0.005);
@@ -547,6 +564,22 @@ function drawTrackedText(
         ctx.fillText(char, curX, y);
         curX += ctx.measureText(char).width + spacing;
     }
+}
+
+function clamp(value: number, min: number, max: number): number {
+    return Math.min(max, Math.max(min, value));
+}
+
+function getResolutionTuning(width: number, height: number): ResolutionTuning {
+    const shortSide = Math.min(width, height);
+    const textScale = clamp(shortSide / 1080, 0.86, 1.18);
+    const spacingScale = clamp(shortSide / 1080, 0.92, 1.1);
+    const labelTrackingScale = shortSide < 900 ? 0.82 : 1;
+    return {
+        textScale,
+        spacingScale,
+        labelTrackingScale,
+    };
 }
 
 function fontWeightValue(weight: string): number {
