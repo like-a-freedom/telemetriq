@@ -4,6 +4,12 @@
 import { describe, it, expect } from 'vitest';
 import { validateVideoFile } from '../modules/file-validation';
 
+function createFileWithSize(size: number, name = 'test.mp4', type = 'video/mp4'): File {
+    const file = new File([new ArrayBuffer(1)], name, { type });
+    Object.defineProperty(file, 'size', { value: size });
+    return file;
+}
+
 describe('file-validation', () => {
     describe('validateVideoFile', () => {
         it('should accept valid MP4 file', () => {
@@ -31,7 +37,7 @@ describe('file-validation', () => {
 
         it('should reject oversized file', () => {
             const largeSize = 5 * 1024 * 1024 * 1024; // 5 GB
-            const file = new File([new ArrayBuffer(largeSize)], 'test.mp4', { type: 'video/mp4' });
+            const file = createFileWithSize(largeSize);
             const result = validateVideoFile(file);
 
             expect(result.valid).toBe(false);
@@ -64,7 +70,7 @@ describe('file-validation', () => {
 
         it('should accept file at exactly 4GB limit', () => {
             const maxSize = 4 * 1024 * 1024 * 1024; // 4 GB
-            const file = new File([new ArrayBuffer(maxSize)], 'test.mp4', { type: 'video/mp4' });
+            const file = createFileWithSize(maxSize);
             const result = validateVideoFile(file);
 
             expect(result.valid).toBe(true);

@@ -7,6 +7,18 @@ import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { toBlobURL } from '@ffmpeg/util';
 import { ProcessingError } from '../core/errors';
 
+type FfmpegFactory = () => FFmpeg;
+
+type CoreDeps = {
+    fetchFn?: typeof fetch;
+    toBlobUrlFn?: typeof toBlobURL;
+};
+
+type RuntimeDeps = {
+    ffmpegFactory?: FfmpegFactory;
+    coreDeps?: CoreDeps;
+};
+
 /** Default CDN candidates for FFmpeg core */
 const DEFAULT_CORE_CANDIDATES = [
     'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm',
@@ -23,12 +35,15 @@ const LOCAL_VENDOR_PATH = '/vendor/ffmpeg';
 export async function loadFfmpegCore(
     ffmpeg: FFmpeg,
     candidates: string[] = DEFAULT_CORE_CANDIDATES,
+    deps: CoreDeps = {},
 ): Promise<Error | undefined> {
+    const fetchFn = deps.fetchFn ?? fetch;
+    const toBlobUrlFn = deps.toBlobUrlFn ?? toBlobURL;
     const attemptErrors: string[] = [];
     const augmentedCandidates = [LOCAL_VENDOR_PATH, ...candidates];
 
     for (const baseURL of augmentedCandidates) {
-        const diagnostics = await probeFfmpegCore(baseURL);
+        const diagnostics = await probeFfmpegCore(baseURL, fetchFn);
 
         try {
             // Try direct URLs for remote CDNs only
@@ -46,8 +61,8 @@ export async function loadFfmpegCore(
             }
 
             // Fallback to blob URLs
-            const coreUrl = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
-            const wasmUrl = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
+            const coreUrl = await toBlobUrlFn(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
+            const wasmUrl = await toBlobUrlFn(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
             await ffmpeg.load({ coreURL: coreUrl, wasmURL: wasmUrl });
 
             console.info(`[ffmpeg core] loaded from ${baseURL} (blob URLs)`);
@@ -68,11 +83,11 @@ export async function loadFfmpegCore(
 /**
  * Probe FFmpeg core URLs for diagnostics.
  */
-async function probeFfmpegCore(baseURL: string): Promise<string[]> {
+export async function probeFfmpegCore(baseURL: string, fetchFn: typeof fetch = fetch): Promise<string[]> {
     const diagnostics: string[] = [];
 
     try {
-        const probeResp = await fetch(`${baseURL}/ffmpeg-core.js`, { method: 'GET', mode: 'cors' });
+        const probeResp = await fetchFn(`${baseURL}/ffmpeg-core.js`, { method: 'GET', mode: 'cors' });
         diagnostics.push(`ffmpeg-core.js -> ${probeResp.status} ${probeResp.statusText}`);
         diagnostics.push(`content-type: ${probeResp.headers.get('content-type')}`);
         diagnostics.push(`access-control-allow-origin: ${probeResp.headers.get('access-control-allow-origin')}`);
@@ -81,7 +96,7 @@ async function probeFfmpegCore(baseURL: string): Promise<string[]> {
     }
 
     try {
-        const wasmProbe = await fetch(`${baseURL}/ffmpeg-core.wasm`, { method: 'GET', mode: 'cors' });
+        const wasmProbe = await fetchFn(`${baseURL}/ffmpeg-core.wasm`, { method: 'GET', mode: 'cors' });
         diagnostics.push(`ffmpeg-core.wasm -> ${wasmProbe.status} ${wasmProbe.statusText}`);
         diagnostics.push(`wasm content-type: ${wasmProbe.headers.get('content-type')}`);
     } catch (probeErr) {
@@ -94,8 +109,8 @@ async function probeFfmpegCore(baseURL: string): Promise<string[]> {
 /**
  * Create and configure FFmpeg instance with logging.
  */
-export function createFfmpegInstance(): FFmpeg {
-    const ffmpeg = new FFmpeg();
+export function createFfmpegInstance(factory: FfmpegFactory = () => new FFmpeg()): FFmpeg {
+    const ffmpeg = factory();
     const logBuffer: string[] = [];
 
     ffmpeg.on('log', ({ message }) => {
@@ -114,10 +129,10 @@ export function createFfmpegInstance(): FFmpeg {
 /**
  * Remux a video file through FFmpeg (strips problematic metadata).
  */
-export async function remuxWithFfmpeg(inputBlob: Blob): Promise<Blob> {
-    const ffmpeg = createFfmpegInstance();
+export async function remuxWithFfmpeg(inputBlob: Blob, deps: RuntimeDeps = {}): Promise<Blob> {
+    const ffmpeg = createFfmpegInstance(deps.ffmpegFactory);
 
-    const loadError = await loadFfmpegCore(ffmpeg);
+    const loadError = await loadFfmpegCore(ffmpeg, DEFAULT_CORE_CANDIDATES, deps.coreDeps);
     if (loadError) throw loadError;
 
     const inputData = new Uint8Array(await inputBlob.arrayBuffer());
@@ -147,9 +162,10 @@ export async function transcodeWithForcedKeyframes(
     file: File,
     _meta: { fps: number; duration: number },
     options: TranscodeOptions,
+    deps: RuntimeDeps = {},
 ): Promise<File> {
     const { gopSize, onProgress } = options;
-    const ffmpeg = createFfmpegInstance();
+    const ffmpeg = createFfmpegInstance(deps.ffmpegFactory);
     const logBuffer: string[] = [];
     const attemptLogs: string[] = [];
 
@@ -165,7 +181,7 @@ export async function transcodeWithForcedKeyframes(
         onProgress?.(percent, time);
     });
 
-    const loadError = await loadFfmpegCore(ffmpeg);
+    const loadError = await loadFfmpegCore(ffmpeg, DEFAULT_CORE_CANDIDATES, deps.coreDeps);
     if (loadError) throw loadError;
 
     const inputData = new Uint8Array(await file.arrayBuffer());
