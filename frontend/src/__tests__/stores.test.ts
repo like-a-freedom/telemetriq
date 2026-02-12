@@ -216,12 +216,19 @@ describe('Pinia Stores', () => {
             expect(store.isUploadScreen).toBe(false);
         });
 
-        it('should update overlay config partially', () => {
+        it('should update overlay config partially and keep fixed-template position locked', () => {
             const store = useSettingsStore();
             store.updateOverlayConfig({ position: 'bottom-right', showHr: false });
-            expect(store.overlayConfig.position).toBe('bottom-right');
+            expect(store.overlayConfig.position).toBe('bottom-left');
             expect(store.overlayConfig.showHr).toBe(false);
             expect(store.overlayConfig.showPace).toBe(true); // Unchanged
+        });
+
+        it('should allow position changes for classic template', () => {
+            const store = useSettingsStore();
+            store.selectTemplate('classic');
+            store.updateOverlayConfig({ position: 'bottom-right' });
+            expect(store.overlayConfig.position).toBe('bottom-right');
         });
 
         it('should reset overlay config', () => {

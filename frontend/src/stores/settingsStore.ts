@@ -23,7 +23,14 @@ export const useSettingsStore = defineStore('settings', () => {
     }
 
     function updateOverlayConfig(updates: Partial<ExtendedOverlayConfig>): void {
-        overlayConfig.value = { ...overlayConfig.value, ...updates };
+        const next = { ...updates };
+        if (
+            next.position !== undefined
+            && overlayConfig.value.templateId !== 'classic'
+        ) {
+            delete next.position;
+        }
+        overlayConfig.value = { ...overlayConfig.value, ...next };
     }
 
     function resetOverlayConfig(): void {
@@ -36,10 +43,15 @@ export const useSettingsStore = defineStore('settings', () => {
         const userOverrides: Partial<ExtendedOverlayConfig> = {};
 
         // Check if the current config is a custom one to preserve changes
-        if (overlayConfig.value.templateId === 'custom') {
+        if (overlayConfig.value.templateId === 'custom' && templateId === 'classic') {
             // Save any custom changes before applying new template
             // This preserves user modifications when switching templates
             userOverrides.position = overlayConfig.value.position;
+            userOverrides.showHr = overlayConfig.value.showHr;
+            userOverrides.showPace = overlayConfig.value.showPace;
+            userOverrides.showDistance = overlayConfig.value.showDistance;
+            userOverrides.showTime = overlayConfig.value.showTime;
+        } else if (overlayConfig.value.templateId === 'custom') {
             userOverrides.showHr = overlayConfig.value.showHr;
             userOverrides.showPace = overlayConfig.value.showPace;
             userOverrides.showDistance = overlayConfig.value.showDistance;
