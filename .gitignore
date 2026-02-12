@@ -5,7 +5,7 @@ test-results/
 .last-run.json
 docs/
 .agent/
-desing-references/
+design-references/
 
 # Dependencies
 node_modules/
