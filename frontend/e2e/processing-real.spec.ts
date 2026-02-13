@@ -18,7 +18,7 @@ test.describe('Real processing flow', () => {
 
         test.setTimeout(240_000);
 
-        await page.goto('/', { timeout: 60000 });
+        await page.goto('/', { waitUntil: 'domcontentloaded' });
 
         await page.getByTestId('video-upload').locator('input[type="file"]').setInputFiles(VIDEO_PATH);
         await page.getByTestId('gpx-upload').locator('input[type="file"]').setInputFiles(GPX_PATH);
@@ -68,7 +68,7 @@ test.describe('Real processing flow', () => {
 
         test.setTimeout(90_000);
 
-        await page.goto('/', { timeout: 60000 });
+        await page.goto('/', { waitUntil: 'domcontentloaded' });
 
         await page.getByTestId('video-upload').locator('input[type="file"]').setInputFiles(VIDEO_PATH);
         await page.getByTestId('gpx-upload').locator('input[type="file"]').setInputFiles(GPX_PATH);
