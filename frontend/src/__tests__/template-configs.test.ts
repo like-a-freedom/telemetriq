@@ -11,6 +11,29 @@ import {
 import type { TemplateId } from '../core/types';
 
 describe('template-configs', () => {
+    const allTemplateIds: TemplateId[] = [
+        'horizon',
+        'margin',
+        'l-frame',
+        'classic',
+        'floating-pills',
+        'arc-gauge',
+        'hero-number',
+        'dashboard-hud',
+        'cinematic-bar',
+        'split-edges',
+        'stacked-serif',
+        'editorial',
+        'ticker-tape',
+        'whisper',
+        'two-tone',
+        'condensed-strip',
+        'soft-rounded',
+        'thin-line',
+        'swiss-grid',
+        'custom',
+    ];
+
     describe('getTemplateConfig', () => {
         it('should return config for horizon template', () => {
             const config = getTemplateConfig('horizon');
@@ -47,6 +70,13 @@ describe('template-configs', () => {
             const config2 = getTemplateConfig('horizon');
             expect(config1).not.toBe(config2);
         });
+
+        it('should return config for every known template', () => {
+            allTemplateIds.forEach((id) => {
+                const config = getTemplateConfig(id);
+                expect(config.templateId).toBe(id);
+            });
+        });
     });
 
     describe('getAvailableTemplates', () => {
@@ -62,7 +92,7 @@ describe('template-configs', () => {
         it('should return array of TemplateId type', () => {
             const templates = getAvailableTemplates();
             templates.forEach((id) => {
-                expect(['horizon', 'margin', 'l-frame', 'classic', 'custom']).toContain(id);
+                expect(allTemplateIds).toContain(id);
             });
         });
     });
@@ -77,8 +107,7 @@ describe('template-configs', () => {
         });
 
         it('should return metadata for all templates', () => {
-            const templates: TemplateId[] = ['horizon', 'margin', 'l-frame', 'classic', 'custom'];
-            templates.forEach((id) => {
+            allTemplateIds.forEach((id) => {
                 const meta = getTemplateMetadata(id);
                 expect(meta.id).toBe(id);
                 expect(meta.name).toBeDefined();
@@ -90,17 +119,32 @@ describe('template-configs', () => {
     describe('getAllTemplateMetadata', () => {
         it('should return all template metadata except custom', () => {
             const templates = getAllTemplateMetadata();
-            expect(templates.length).toBe(4);
+            expect(templates.length).toBe(allTemplateIds.length - 1);
             expect(templates.find(t => t.id === 'custom')).toBeUndefined();
         });
 
-        it('should include horizon, margin, l-frame, classic', () => {
+        it('should include core and newly added templates', () => {
             const templates = getAllTemplateMetadata();
             const ids = templates.map(t => t.id);
             expect(ids).toContain('horizon');
             expect(ids).toContain('margin');
             expect(ids).toContain('l-frame');
             expect(ids).toContain('classic');
+            expect(ids).toContain('floating-pills');
+            expect(ids).toContain('arc-gauge');
+            expect(ids).toContain('hero-number');
+            expect(ids).toContain('dashboard-hud');
+            expect(ids).toContain('cinematic-bar');
+            expect(ids).toContain('split-edges');
+            expect(ids).toContain('stacked-serif');
+            expect(ids).toContain('editorial');
+            expect(ids).toContain('ticker-tape');
+            expect(ids).toContain('whisper');
+            expect(ids).toContain('two-tone');
+            expect(ids).toContain('condensed-strip');
+            expect(ids).toContain('soft-rounded');
+            expect(ids).toContain('thin-line');
+            expect(ids).toContain('swiss-grid');
         });
 
         it('should have preview colors for each template', () => {

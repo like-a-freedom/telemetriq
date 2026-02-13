@@ -6,6 +6,7 @@ import { renderHorizonLayout } from './layouts/horizon-layout';
 import { renderMarginLayout } from './layouts/margin-layout';
 import { renderLFrameLayout } from './layouts/lframe-layout';
 import { renderClassicLayout } from './layouts/classic-layout';
+import { renderExtendedLayout } from './layouts/extended-layouts';
 
 type CachedOverlay = {
     canvas: OffscreenCanvas | HTMLCanvasElement;
@@ -127,6 +128,25 @@ function renderLayout(
             renderLFrameLayout(ctx, metrics, frame, w, h, config);
             break;
         case 'box':
+            renderClassicLayout(ctx, metrics, w, h, config);
+            break;
+        case 'floating-pills':
+        case 'arc-gauge':
+        case 'hero-number':
+        case 'dashboard-hud':
+        case 'cinematic-bar':
+        case 'split-edges':
+        case 'stacked-serif':
+        case 'editorial':
+        case 'ticker-tape':
+        case 'whisper':
+        case 'two-tone':
+        case 'condensed-strip':
+        case 'soft-rounded':
+        case 'thin-line':
+        case 'swiss-grid':
+            renderExtendedLayout(ctx, metrics, w, h, config, layoutMode);
+            break;
         default:
             renderClassicLayout(ctx, metrics, w, h, config);
             break;
