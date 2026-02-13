@@ -1,8 +1,12 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
+async function gotoE2E(page: Page, url: string): Promise<void> {
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+}
 
 test.describe('Upload Page', () => {
     test.beforeEach(async ({ page }) => {
-        await page.goto('/?e2e=1', { timeout: 60000 });
+        await gotoE2E(page, '/?e2e=1');
     });
 
     test('should display the main title and description', async ({ page }) => {
@@ -136,12 +140,12 @@ test.describe('Upload Page', () => {
 
 test.describe('Navigation', () => {
     test('should redirect to upload when accessing preview without files', async ({ page }) => {
-        await page.goto('/preview?e2e=1', { timeout: 60000 });
+        await gotoE2E(page, '/preview?e2e=1');
         await expect(page).toHaveURL(/\/(\?e2e=1)?$/);
     });
 
     test('should redirect to upload when accessing result without processing', async ({ page }) => {
-        await page.goto('/result?e2e=1', { timeout: 60000 });
+        await gotoE2E(page, '/result?e2e=1');
         await expect(page).toHaveURL(/\/(\?e2e=1)?$/);
     });
 });
