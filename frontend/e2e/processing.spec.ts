@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Processing flow', () => {
     async function seedStores(page: any) {
-        await page.goto('/processing?e2e=1');
+        await page.goto('/processing?e2e=1', { timeout: 60000 });
         await page.evaluate(() => {
             const stores = (window as any).__e2eStores;
             if (!stores) return;

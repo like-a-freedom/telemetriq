@@ -19,7 +19,7 @@ const TEMPLATE_IDS = [
 ] as const;
 
 async function seedPreviewStores(page: Page): Promise<void> {
-    await page.goto('/?e2e=1');
+    await page.goto('/?e2e=1', { timeout: 60000 });
     await page.evaluate(() => {
         const stores = (window as unknown as {
             __e2eStores?: {

@@ -1,7 +1,7 @@
 <template>
   <div class="upload-view">
     <header class="upload-view__header">
-      <h1 class="upload-view__title">🏃 Sports Telemetry Overlay</h1>
+      <h1 class="upload-view__title">🏃 Telemetriq</h1>
       <p class="upload-view__description">
         Overlay telemetry from GPX onto your sports video. All processing
         happens in your browser — your data never leaves your device.

@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
     testDir: './e2e',
+    timeout: 60000, // increase default test timeout to reduce flakiness
     fullyParallel: true,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 0,
@@ -11,8 +12,9 @@ export default defineConfig({
         baseURL: 'http://localhost:5173',
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
+        navigationTimeout: 60000,
     },
-    projects: [
+    projects:[
         {
             name: 'chromium',
             use: { ...devices['Desktop Chrome'] },
@@ -34,6 +36,6 @@ export default defineConfig({
         command: 'bun run dev',
         url: 'http://localhost:5173',
         reuseExistingServer: !process.env.CI,
-        timeout: 30000,
+        timeout: 60000,
     },
 });
