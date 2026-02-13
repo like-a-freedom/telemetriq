@@ -72,7 +72,7 @@ function scheduleFrameCallback(): void {
   });
 }
 
-function drawOverlay(): void {
+async function drawOverlay(): Promise<void> {
   const canvas = overlayCanvas.value;
   if (!canvas) return;
 
@@ -88,7 +88,7 @@ function drawOverlay(): void {
   );
 
   if (frame) {
-    renderOverlay(
+    await renderOverlay(
       ctx,
       frame,
       videoWidth.value,

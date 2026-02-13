@@ -13,12 +13,15 @@
     "test:e2e": "playwright test",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
-    "fetch-ffmpeg-core": "mkdir -p public/vendor/ffmpeg && curl -fL https://cdn.jsdelivr.net/npm/@ffmpeg/core@latest/dist/esm/ffmpeg-core.js -o public/vendor/ffmpeg/ffmpeg-core.js && curl -fL https://cdn.jsdelivr.net/npm/@ffmpeg/core@latest/dist/esm/ffmpeg-core.wasm -o public/vendor/ffmpeg/ffmpeg-core.wasm"
+    "fetch-ffmpeg-core": "mkdir -p public/vendor/ffmpeg && curl -fL https://cdn.jsdelivr.net/npm/@ffmpeg/core@latest/dist/esm/ffmpeg-core.js -o public/vendor/ffmpeg/ffmpeg-core.js && curl -fL https://cdn.jsdelivr.net/npm/@ffmpeg/core@latest/dist/esm/ffmpeg-core.wasm -o public/vendor/ffmpeg/ffmpeg-core.wasm",
+    "benchmark:webgpu": "vitest run src/__tests__/webgpu-benchmark.test.ts",
+    "benchmark:performance": "node scripts/benchmark.js"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@vueuse/core": "^14.2.1",
+    "@webgpu/types": "^0.1.69",
     "mediabunny": "^1.34.2",
     "pinia": "^3.0.4",
     "vue": "^3.5.28",

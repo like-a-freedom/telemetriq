@@ -217,6 +217,25 @@ export class VideoProcessor {
         const canvas = new OffscreenCanvas(videoMeta.width, videoMeta.height);
         const ctx = canvas.getContext('2d')!;
 
+        // Try to initialize WebGPU adapter for faster rendering
+        let webgpuEnabled = false;
+        if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
+            try {
+                const { WebGPUAdapter } = await import('./webgpu/webgpu-adapter');
+                if (WebGPUAdapter.isSupported()) {
+                    const adapter = WebGPUAdapter.getInstance();
+                    webgpuEnabled = adapter.isEnabled();
+                    console.log(`[VideoProcessor] WebGPU ${webgpuEnabled ? 'enabled' : 'disabled'} (supported: ${WebGPUAdapter.isSupported()})`);
+                } else {
+                    console.log('[VideoProcessor] WebGPU not supported, using CPU rendering');
+                }
+            } catch (error) {
+                console.warn('[VideoProcessor] Failed to load WebGPU adapter:', error);
+            }
+        } else {
+            console.log('[VideoProcessor] WebGPU not available in this environment');
+        }
+
         const useStreamingMux = this.options.videoFile.size >= STREAMING_MUX_FILE_SIZE_BYTES;
         const encodedChunks: EncodedVideoChunk[] = [];
         let encodedFrameCount = 0;
@@ -256,28 +275,37 @@ export class VideoProcessor {
             canvas.height = encodeMeta.height;
         }
 
+        let frameProcessingQueue: Promise<void> = Promise.resolve();
+
         const decoder = this.codecManager.createDecoder(
             demuxed.videoTrack.codec,
             demuxed.videoTrack.description,
             (frame) => {
-                if (this.abortController.signal.aborted) {
-                    frame.close();
-                    return;
-                }
+                frameProcessingQueue = frameProcessingQueue
+                    .then(async () => {
+                        if (this.abortController.signal.aborted) {
+                            frame.close();
+                            return;
+                        }
 
-                this.renderAndEncodeFrame({
-                    frame,
-                    canvas,
-                    ctx,
-                    videoMeta: encodeMeta,
-                    telemetryFrames,
-                    safeSyncOffsetSeconds,
-                    config,
-                    encoder,
-                    gopFrames,
-                    encodedFrameCount,
-                });
-                encodedFrameCount += 1;
+                        await this.renderAndEncodeFrame({
+                            frame,
+                            canvas,
+                            ctx,
+                            videoMeta: encodeMeta,
+                            telemetryFrames,
+                            safeSyncOffsetSeconds,
+                            config,
+                            encoder,
+                            gopFrames,
+                            encodedFrameCount,
+                        });
+                        encodedFrameCount += 1;
+                    })
+                    .catch((error) => {
+                        frame.close();
+                        recordError(error instanceof Error ? error.message : 'Frame processing failed');
+                    });
             },
             recordError,
         );
@@ -302,6 +330,7 @@ export class VideoProcessor {
 
             if (!this.abortController.signal.aborted && !processingError) {
                 await decoder.flush();
+                await frameProcessingQueue;
                 await encoder.flush();
             }
         } finally {
@@ -341,7 +370,7 @@ export class VideoProcessor {
         return blob;
     }
 
-    private renderAndEncodeFrame(params: {
+    private async renderAndEncodeFrame(params: {
         frame: VideoFrame;
         canvas: OffscreenCanvas;
         ctx: OffscreenCanvasRenderingContext2D;
@@ -352,7 +381,7 @@ export class VideoProcessor {
         encoder: VideoEncoder;
         gopFrames: number;
         encodedFrameCount: number;
-    }): void {
+    }): Promise<void> {
         const {
             frame, canvas, ctx, videoMeta, telemetryFrames,
             safeSyncOffsetSeconds, config, encoder, gopFrames, encodedFrameCount,
@@ -363,7 +392,7 @@ export class VideoProcessor {
 
         ctx.drawImage(frame, 0, 0, videoMeta.width, videoMeta.height);
         if (telemetry) {
-            renderOverlay(ctx, telemetry, videoMeta.width, videoMeta.height, config);
+            await renderOverlay(ctx, telemetry, videoMeta.width, videoMeta.height, config);
         }
 
         const newFrame = new VideoFrame(canvas, {

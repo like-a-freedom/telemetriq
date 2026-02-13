@@ -5,7 +5,8 @@
     "types": [
       "vite/client",
       "dom-webcodecs",
-      "vue"
+      "vue",
+      "@webgpu/types"
     ],
     /* Linting */
     "strict": true,

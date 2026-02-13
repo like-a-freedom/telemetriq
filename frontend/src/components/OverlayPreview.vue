@@ -25,7 +25,7 @@ const canvasRef = ref<HTMLCanvasElement | null>(null);
 const canvasWidth = ref(props.videoWidth ?? 640);
 const canvasHeight = ref(props.videoHeight ?? 360);
 
-function draw(): void {
+async function draw(): Promise<void> {
   const canvas = canvasRef.value;
   if (!canvas) return;
 
@@ -53,7 +53,7 @@ function draw(): void {
   }
 
   // Render overlay
-  renderOverlay(
+  await renderOverlay(
     ctx,
     props.frame,
     canvasWidth.value,
