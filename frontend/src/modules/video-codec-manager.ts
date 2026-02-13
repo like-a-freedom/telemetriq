@@ -80,29 +80,40 @@ export function createVideoCodecManager(): VideoCodecManager {
                 targetMeta: VideoMeta,
             ): Promise<VideoEncoderConfig | undefined> => {
                 const targetBitrate = estimateTargetBitrate(meta, targetMeta, 0);
-                const baseConfig: VideoEncoderConfig = {
-                    codec: codecCandidates[0] ?? 'avc1.640028',
-                    width: targetMeta.width,
-                    height: targetMeta.height,
-                    bitrate: targetBitrate,
-                    framerate: targetMeta.fps,
-                    hardwareAcceleration: 'prefer-hardware',
+                const buildVariantConfigs = (codec: string): VideoEncoderConfig[] => {
+                    const common: Omit<VideoEncoderConfig, 'codec'> = {
+                        width: targetMeta.width,
+                        height: targetMeta.height,
+                        bitrate: targetBitrate,
+                        framerate: targetMeta.fps,
+                    };
+
+                    return [
+                        {
+                            ...common,
+                            codec,
+                            hardwareAcceleration: 'prefer-hardware',
+                        },
+                        {
+                            ...common,
+                            codec,
+                            hardwareAcceleration: 'no-preference',
+                        },
+                        {
+                            ...common,
+                            codec,
+                            hardwareAcceleration: 'prefer-software',
+                        },
+                    ];
                 };
 
                 for (const codec of codecCandidates) {
-                    const candidate: VideoEncoderConfig = { ...baseConfig, codec };
-                    const support = await VideoEncoder.isConfigSupported(candidate);
-                    if (support.supported) {
-                        return candidate;
-                    }
-
-                    const softwareCandidate: VideoEncoderConfig = {
-                        ...candidate,
-                        hardwareAcceleration: 'prefer-software',
-                    };
-                    const softwareSupport = await VideoEncoder.isConfigSupported(softwareCandidate);
-                    if (softwareSupport.supported) {
-                        return softwareCandidate;
+                    const variants = buildVariantConfigs(codec);
+                    for (const candidate of variants) {
+                        const support = await VideoEncoder.isConfigSupported(candidate);
+                        if (support.supported) {
+                            return candidate;
+                        }
                     }
                 }
 

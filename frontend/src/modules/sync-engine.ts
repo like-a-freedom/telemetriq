@@ -32,27 +32,17 @@ export function autoSync(
     videoStartLon?: number,
     videoTimezoneOffsetMinutes?: number,
 ): SyncConfig {
-    console.log('[DEBUG autoSync] Called with:', {
-        gpxPointsCount: gpxPoints.length,
-        videoStartTime: videoStartTime?.toISOString(),
-        videoStartLat,
-        videoStartLon,
-        videoTimezoneOffsetMinutes
-    });
-
     if (gpxPoints.length === 0) {
         throw new SyncError('No track points for synchronization');
     }
 
     // If we have video GPS coordinates, find nearest point
     if (videoStartLat !== undefined && videoStartLon !== undefined) {
-        console.log('[DEBUG autoSync] Using GPS coordinates');
         return syncByGpsCoordinates(gpxPoints, videoStartLat, videoStartLon);
     }
 
     // If we have video start time, sync by time
     if (videoStartTime) {
-        console.log('[DEBUG autoSync] Using time sync');
         return syncByTime(gpxPoints, videoStartTime, videoTimezoneOffsetMinutes);
     }
 
@@ -110,14 +100,6 @@ function syncByTime(
     // Calculate how far into the GPX track the video starts
     const offsetMs = videoMs - gpxStartMs;
     const offsetSeconds = offsetMs / 1000;
-
-    // DEBUG logging
-    console.log('[DEBUG syncByTime] videoTime:', videoTime.toISOString());
-    console.log('[DEBUG syncByTime] videoTimezoneOffsetMinutes (ignored):', _videoTimezoneOffsetMinutes);
-    console.log('[DEBUG syncByTime] videoMs (UTC):', new Date(videoMs).toISOString());
-    console.log('[DEBUG syncByTime] gpxStartMs:', new Date(gpxStartMs).toISOString());
-    console.log('[DEBUG syncByTime] offsetMs:', offsetMs);
-    console.log('[DEBUG syncByTime] offsetSeconds:', offsetSeconds);
 
     // Warn if the offset is too large, but still apply the offset
     // This allows users to sync even when devices were set to different times

@@ -25,6 +25,7 @@ export interface VideoProcessorOptions {
 }
 
 const STREAMING_MUX_FILE_SIZE_BYTES = 512 * 1024 * 1024; // 512 MB
+const MAX_IN_FLIGHT_FRAME_TASKS = 3;
 
 /**
  * Process a video file by decoding each frame, overlaying telemetry data,
@@ -225,15 +226,10 @@ export class VideoProcessor {
                 if (WebGPUAdapter.isSupported()) {
                     const adapter = WebGPUAdapter.getInstance();
                     webgpuEnabled = adapter.isEnabled();
-                    console.log(`[VideoProcessor] WebGPU ${webgpuEnabled ? 'enabled' : 'disabled'} (supported: ${WebGPUAdapter.isSupported()})`);
-                } else {
-                    console.log('[VideoProcessor] WebGPU not supported, using CPU rendering');
                 }
             } catch (error) {
                 console.warn('[VideoProcessor] Failed to load WebGPU adapter:', error);
             }
-        } else {
-            console.log('[VideoProcessor] WebGPU not available in this environment');
         }
 
         const useStreamingMux = this.options.videoFile.size >= STREAMING_MUX_FILE_SIZE_BYTES;
@@ -276,11 +272,13 @@ export class VideoProcessor {
         }
 
         let frameProcessingQueue: Promise<void> = Promise.resolve();
+        let inFlightFrameTasks = 0;
 
         const decoder = this.codecManager.createDecoder(
             demuxed.videoTrack.codec,
             demuxed.videoTrack.description,
             (frame) => {
+                inFlightFrameTasks += 1;
                 frameProcessingQueue = frameProcessingQueue
                     .then(async () => {
                         if (this.abortController.signal.aborted) {
@@ -302,6 +300,9 @@ export class VideoProcessor {
                         });
                         encodedFrameCount += 1;
                     })
+                    .finally(() => {
+                        inFlightFrameTasks = Math.max(0, inFlightFrameTasks - 1);
+                    })
                     .catch((error) => {
                         frame.close();
                         recordError(error instanceof Error ? error.message : 'Frame processing failed');
@@ -316,15 +317,14 @@ export class VideoProcessor {
             for (const sample of videoSamples) {
                 if (this.abortController.signal.aborted) break;
 
+                if (inFlightFrameTasks >= MAX_IN_FLIGHT_FRAME_TASKS) {
+                    await frameProcessingQueue;
+                }
+
                 const chunk = this.createVideoChunk(sample);
                 decoder.decode(chunk);
                 framesProcessed++;
                 reportProcessingProgress.report(framesProcessed);
-
-                // Periodically drain frame queue to prevent unbounded backlog and timing jitter.
-                if (framesProcessed % 8 === 0) {
-                    await frameProcessingQueue;
-                }
 
                 if (isCodecQueuePressureHigh(decoder, encoder)) {
                     await waitForCodecQueues(decoder, encoder, this.abortController.signal);
