@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { SyncConfig, TrackPoint } from '../core/types';
-import { autoSync, clampSyncOffset } from '../modules/sync-engine';
+import {
+    autoSync,
+} from '../modules/sync-engine';
 import { formatErrorMessage, safeNumber } from './store-utils';
 
 const DEFAULT_SYNC_CONFIG: SyncConfig = {
@@ -22,10 +24,10 @@ export const useSyncStore = defineStore('sync', () => {
     const isAutoSynced = computed(() => syncConfig.value.autoSynced);
 
     // Actions
-    function setManualOffset(seconds: number): void {
+    function setManualOffset(seconds: number, videoDurationSeconds?: number): void {
         const safeSeconds = safeNumber(seconds, 0);
         syncConfig.value = {
-            offsetSeconds: clampSyncOffset(safeSeconds),
+            offsetSeconds: safeSeconds,
             autoSynced: false,
         };
         manualOverrideActive.value = true;
@@ -39,6 +41,7 @@ export const useSyncStore = defineStore('sync', () => {
         videoStartLon?: number,
         videoTimezoneOffsetMinutes?: number,
         allowOverrideManual = false,
+        _videoDurationSeconds?: number,
     ): Promise<void> {
         if (manualOverrideActive.value && !allowOverrideManual) {
             return;

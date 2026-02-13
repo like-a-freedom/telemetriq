@@ -69,11 +69,12 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { MANUAL_SYNC_RANGE_SECONDS } from "../modules/sync-engine";
+import { getSyncRangeSeconds } from "../modules/sync-engine";
 
 const props = defineProps<{
   offsetSeconds: number;
   isAutoSynced: boolean;
+  videoDurationSeconds?: number;
   error?: string | null;
   warning?: string | null;
 }>();
@@ -82,7 +83,11 @@ const emit = defineEmits<{
   (e: "update:offsetSeconds", value: number): void;
 }>();
 
-const maxRange = MANUAL_SYNC_RANGE_SECONDS;
+const maxRange = computed(() => {
+  const base = getSyncRangeSeconds(props.videoDurationSeconds);
+  const current = Math.ceil(Math.abs(props.offsetSeconds)) + 1;
+  return Math.max(base, current);
+});
 
 const formattedOffset = computed(() => {
   const seconds = props.offsetSeconds;
