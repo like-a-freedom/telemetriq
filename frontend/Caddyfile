@@ -1,10 +1,12 @@
 # Minimal Caddyfile for the frontend app
 # Purpose: serve SPA static assets with SPA fallback and minimal security headers required by WebCodecs / SharedArrayBuffer
 
-:80 {
+{
     # Avoid automatic TLS provisioning in containerized/local environments
     auto_https off
+}
 
+:80 {
     # Minimal headers required by the app
     header {
         Cross-Origin-Opener-Policy "same-origin"
