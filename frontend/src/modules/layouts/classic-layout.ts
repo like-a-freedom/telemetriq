@@ -4,6 +4,7 @@ import type { OverlayContext2D } from '../overlay-utils';
 import {
     getResolutionTuning,
     applyTextShadow,
+    getStableMetricValue,
 } from '../overlay-utils';
 
 export function renderClassicLayout(
@@ -24,10 +25,12 @@ export function renderClassicLayout(
     const lines = buildOverlayLines(metrics);
     if (lines.length === 0) return;
 
+    const stableLines = buildStableOverlayLines(metrics);
+
     const fontFamily = config.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     ctx.font = `bold ${fontSize}px ${fontFamily}`;
 
-    const maxWidth = calculateMaxLineWidth(ctx, lines);
+    const maxWidth = calculateMaxLineWidth(ctx, stableLines);
     const bgWidth = maxWidth + padding * 2;
     const bgHeight = lines.length * lineHeight + padding * 2;
 
@@ -142,6 +145,14 @@ function buildOverlayLines(metrics: MetricItem[]): string[] {
     return metrics.map(m => {
         const icon = metricIcon(m.label);
         return `${icon} ${m.value} ${m.unit}`.trim();
+    });
+}
+
+function buildStableOverlayLines(metrics: MetricItem[]): string[] {
+    return metrics.map(m => {
+        const icon = metricIcon(m.label);
+        const stableValue = getStableMetricValue(m.label);
+        return `${icon} ${stableValue} ${m.unit}`.trim();
     });
 }
 

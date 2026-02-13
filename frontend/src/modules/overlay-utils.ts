@@ -82,3 +82,27 @@ export function getMarginLabel(label: string): string {
             return label.toUpperCase();
     }
 }
+
+/**
+ * Returns a stable placeholder value for width/fit calculations.
+ * Uses wide digits to avoid per-frame resize/jitter when real values change.
+ */
+export function getStableMetricValue(labelOrKey: string): string {
+    switch (labelOrKey.toLowerCase()) {
+        case 'pace':
+            return '88:88';
+        case 'heart rate':
+        case 'heartrate':
+        case 'heart':
+        case 'hr':
+            return '188';
+        case 'distance':
+        case 'dist':
+            return '88.8';
+        case 'time':
+        case 'elapsed':
+            return '88:88:88';
+        default:
+            return '888';
+    }
+}

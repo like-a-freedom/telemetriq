@@ -5,6 +5,7 @@ import {
     getResolutionTuning,
     fontWeightValue,
     applyTextShadow,
+    getStableMetricValue,
 } from '../overlay-utils';
 
 export function renderLFrameLayout(
@@ -120,7 +121,7 @@ function metricsFit(
 ): boolean {
     for (const metric of metrics) {
         ctx.font = `${weight} ${valueSize}px ${config.fontFamily}`;
-        const valueWidth = ctx.measureText(metric.value).width;
+        const valueWidth = ctx.measureText(getStableMetricValue(metric.label)).width;
         ctx.font = `300 ${unitSize}px ${config.fontFamily}`;
         const unitWidth = metric.unit ? ctx.measureText(metric.unit).width : 0;
         ctx.font = `300 ${labelSize}px ${config.fontFamily}`;

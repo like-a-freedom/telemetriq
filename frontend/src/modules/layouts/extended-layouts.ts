@@ -1,7 +1,7 @@
 import type { MetricItem } from '../overlay-renderer';
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlay-utils';
-import { applyTextShadow, fontWeightValue, getResolutionTuning } from '../overlay-utils';
+import { applyTextShadow, fontWeightValue, getResolutionTuning, getStableMetricValue } from '../overlay-utils';
 
 type MetricMap = {
     pace?: string;
@@ -412,7 +412,7 @@ function drawStackedSerif(
     const startY = h - orientation.safePad - rowH * (items.length - 0.2);
 
     ctx.font = `400 ${valueSize}px ${config.fontFamily}`;
-    const maxValueWidth = Math.max(...items.map((item) => ctx.measureText(item[1]).width));
+    const maxValueWidth = Math.max(...items.map((item) => ctx.measureText(getStableMetricValue(stackedSerifKeyToLabel(item[0]))).width));
     const labelX = x;
     const valueX = x + labelSize * 6;
     const unitX = valueX + maxValueWidth + Math.max(10, labelSize * 0.9);
@@ -513,29 +513,20 @@ function drawTickerTape(
     ].filter(Boolean) as string[];
     if (parts.length === 0) return;
 
-    let content = parts.join('  |  ');
+    const content = parts.join('  |  ');
+    const worstCaseContent = [
+        data.pace ? `PACE ${getStableMetricValue('pace')} min/km` : null,
+        data.heartRate ? `HR ${getStableMetricValue('heart rate')} bpm` : null,
+        data.distance ? `DIST ${getStableMetricValue('distance')} km` : null,
+        data.time ? `TIME ${getStableMetricValue('time')}` : null,
+    ].filter(Boolean).join('  |  ');
     const contentX = orientation.safePad + textSize * 4.4;
     const maxContentWidth = w - contentX - orientation.safePad;
 
     while (textSize > 7) {
         ctx.font = `500 ${textSize}px ${config.fontFamily}`;
-        if (ctx.measureText(content).width <= maxContentWidth) break;
+        if (ctx.measureText(worstCaseContent).width <= maxContentWidth) break;
         textSize -= 1;
-    }
-
-    if (ctx.measureText(content).width > maxContentWidth) {
-        const compactParts = [
-            data.pace ? `P ${data.pace}/km` : null,
-            data.heartRate ? `H ${data.heartRate}bpm` : null,
-            data.distance ? `D ${data.distance}km` : null,
-            data.time ? `T ${data.time}` : null,
-        ].filter(Boolean) as string[];
-        content = compactParts.join(' | ');
-        while (textSize > 6) {
-            ctx.font = `500 ${textSize}px ${config.fontFamily}`;
-            if (ctx.measureText(content).width <= maxContentWidth) break;
-            textSize -= 1;
-        }
     }
 
     ctx.fillStyle = 'rgba(255,255,255,0.84)';
@@ -654,7 +645,8 @@ function drawCondensedStrip(
         let allFit = true;
         ctx.font = `700 ${valueSize}px ${config.fontFamily}`;
         for (const item of items) {
-            if (ctx.measureText(item[1]).width > segW * 0.9) {
+            const stableValue = condensedStripStableValue(item[0]);
+            if (ctx.measureText(stableValue).width > segW * 0.9) {
                 allFit = false;
                 break;
             }
@@ -679,6 +671,36 @@ function drawCondensedStrip(
         ctx.fillStyle = '#111111';
         ctx.font = `700 ${valueSize}px ${config.fontFamily}`;
         ctx.fillText(items[i]![1]!, x, y + barH * 0.82);
+    }
+}
+
+function stackedSerifKeyToLabel(key: string): string {
+    switch (key) {
+        case 'pace':
+            return 'pace';
+        case 'heart':
+            return 'heart rate';
+        case 'dist':
+            return 'distance';
+        case 'time':
+            return 'time';
+        default:
+            return key;
+    }
+}
+
+function condensedStripStableValue(label: string): string {
+    switch (label.toUpperCase()) {
+        case 'PACE':
+            return `${getStableMetricValue('pace')} min/km`;
+        case 'HR':
+            return `${getStableMetricValue('heart rate')} bpm`;
+        case 'DIST':
+            return `${getStableMetricValue('distance')} km`;
+        case 'TIME':
+            return getStableMetricValue('time');
+        default:
+            return `${getStableMetricValue(label)} ${label}`;
     }
 }
 

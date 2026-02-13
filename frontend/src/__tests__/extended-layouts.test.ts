@@ -9,6 +9,7 @@ type FillTextEntry = {
     x: number;
     y: number;
     align: CanvasTextAlign;
+    font: string;
 };
 
 type StubContext = OverlayContext2D & {
@@ -17,6 +18,28 @@ type StubContext = OverlayContext2D & {
 
 function createStubContext(): StubContext {
     const fillTextEntries: FillTextEntry[] = [];
+    const charWidth: Record<string, number> = {
+        '0': 8,
+        '1': 5,
+        '2': 8,
+        '3': 8,
+        '4': 8,
+        '5': 8,
+        '6': 8,
+        '7': 8,
+        '8': 9,
+        '9': 8,
+        ':': 3,
+        '.': 3,
+        ' ': 4,
+    };
+    const measure = (text: string): number => {
+        let width = 0;
+        for (const char of text) {
+            width += charWidth[char] ?? 7;
+        }
+        return width;
+    };
 
     const ctx: Partial<OverlayContext2D> = {
         canvas: {} as HTMLCanvasElement,
@@ -41,13 +64,14 @@ function createStubContext(): StubContext {
         moveTo: vi.fn(),
         lineTo: vi.fn(),
         arc: vi.fn(),
-        measureText: vi.fn((text: string) => ({ width: text.length * 8 } as TextMetrics)),
+        measureText: vi.fn((text: string) => ({ width: measure(text) } as TextMetrics)),
         fillText: vi.fn((text: string, x: number, y: number) => {
             fillTextEntries.push({
                 text,
                 x,
                 y,
                 align: (ctx.textAlign ?? 'left') as CanvasTextAlign,
+                font: String(ctx.font ?? ''),
             });
         }),
         createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() } as unknown as CanvasGradient)),
@@ -163,5 +187,81 @@ describe('extended layouts renderer', () => {
         const leftInset = paceLabel!.x - sidePad;
         const rightInset = (width - sidePad) - timeLabel!.x;
         expect(Math.abs(leftInset - rightInset)).toBeLessThanOrEqual(1);
+    });
+
+    it('keeps stable font sizing in ticker-tape and condensed-strip for different metric glyph widths', () => {
+        const narrowMetrics: MetricItem[] = [
+            { label: 'Pace', value: '01:11', unit: 'min/km' },
+            { label: 'Heart Rate', value: '111', unit: 'bpm' },
+            { label: 'Distance', value: '11.1', unit: 'km' },
+            { label: 'Time', value: '01:11:11', unit: '' },
+        ];
+        const wideMetrics: MetricItem[] = [
+            { label: 'Pace', value: '08:88', unit: 'min/km' },
+            { label: 'Heart Rate', value: '188', unit: 'bpm' },
+            { label: 'Distance', value: '88.8', unit: 'km' },
+            { label: 'Time', value: '08:88:88', unit: '' },
+        ];
+
+        const tickerConfig = getTemplateConfig('ticker-tape');
+        const narrowTickerCtx = createStubContext();
+        const wideTickerCtx = createStubContext();
+
+        renderExtendedLayout(narrowTickerCtx, narrowMetrics, 1280, 720, tickerConfig, 'ticker-tape');
+        renderExtendedLayout(wideTickerCtx, wideMetrics, 1280, 720, tickerConfig, 'ticker-tape');
+
+        const narrowTickerEntry = narrowTickerCtx.__fillTextEntries
+            .find((entry) => entry.text.includes('PACE'));
+        const wideTickerEntry = wideTickerCtx.__fillTextEntries
+            .find((entry) => entry.text.includes('PACE'));
+
+        expect(narrowTickerEntry).toBeDefined();
+        expect(wideTickerEntry).toBeDefined();
+        expect(narrowTickerEntry?.font).toBe(wideTickerEntry?.font);
+
+        const stripConfig = getTemplateConfig('condensed-strip');
+        const narrowStripCtx = createStubContext();
+        const wideStripCtx = createStubContext();
+
+        renderExtendedLayout(narrowStripCtx, narrowMetrics, 1280, 720, stripConfig, 'condensed-strip');
+        renderExtendedLayout(wideStripCtx, wideMetrics, 1280, 720, stripConfig, 'condensed-strip');
+
+        const narrowPaceDraw = narrowStripCtx.__fillTextEntries
+            .find((entry) => entry.text.includes('min/km'));
+        const widePaceDraw = wideStripCtx.__fillTextEntries
+            .find((entry) => entry.text.includes('min/km'));
+
+        expect(narrowPaceDraw).toBeDefined();
+        expect(widePaceDraw).toBeDefined();
+        expect(narrowPaceDraw?.font).toBe(widePaceDraw?.font);
+    });
+
+    it('keeps stacked-serif unit anchor stable for narrow vs wide values', () => {
+        const config = getTemplateConfig('stacked-serif');
+        const narrowCtx = createStubContext();
+        const wideCtx = createStubContext();
+
+        const narrowMetrics: MetricItem[] = [
+            { label: 'Pace', value: '01:11', unit: 'min/km' },
+            { label: 'Heart Rate', value: '111', unit: 'bpm' },
+            { label: 'Distance', value: '11.1', unit: 'km' },
+            { label: 'Time', value: '01:11:11', unit: '' },
+        ];
+        const wideMetrics: MetricItem[] = [
+            { label: 'Pace', value: '08:88', unit: 'min/km' },
+            { label: 'Heart Rate', value: '188', unit: 'bpm' },
+            { label: 'Distance', value: '88.8', unit: 'km' },
+            { label: 'Time', value: '08:88:88', unit: '' },
+        ];
+
+        renderExtendedLayout(narrowCtx, narrowMetrics, 1280, 720, config, 'stacked-serif');
+        renderExtendedLayout(wideCtx, wideMetrics, 1280, 720, config, 'stacked-serif');
+
+        const narrowKm = narrowCtx.__fillTextEntries.find((entry) => entry.text === 'km');
+        const wideKm = wideCtx.__fillTextEntries.find((entry) => entry.text === 'km');
+
+        expect(narrowKm).toBeDefined();
+        expect(wideKm).toBeDefined();
+        expect(Math.abs((narrowKm?.x ?? 0) - (wideKm?.x ?? 0))).toBeLessThanOrEqual(0.01);
     });
 });
