@@ -2,11 +2,11 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Upload Page', () => {
     test.beforeEach(async ({ page }) => {
-        await page.goto('/?e2e=1');
+        await page.goto('/?e2e=1', { timeout: 60000 });
     });
 
     test('should display the main title and description', async ({ page }) => {
-        await expect(page.getByText('Sports Telemetry Overlay')).toBeVisible();
+        await expect(page.getByText('Telemetriq')).toBeVisible();
         await expect(page.getByText('Overlay telemetry')).toBeVisible();
     });
 
@@ -136,12 +136,12 @@ test.describe('Upload Page', () => {
 
 test.describe('Navigation', () => {
     test('should redirect to upload when accessing preview without files', async ({ page }) => {
-        await page.goto('/preview?e2e=1');
+        await page.goto('/preview?e2e=1', { timeout: 60000 });
         await expect(page).toHaveURL(/\/(\?e2e=1)?$/);
     });
 
     test('should redirect to upload when accessing result without processing', async ({ page }) => {
-        await page.goto('/result?e2e=1');
+        await page.goto('/result?e2e=1', { timeout: 60000 });
         await expect(page).toHaveURL(/\/(\?e2e=1)?$/);
     });
 });

@@ -5,7 +5,7 @@ export interface FileSystemInterface {
     listFiles(): Promise<string[]>;
 }
 
-const DB_NAME = 'sports-telemetry-overlay';
+const DB_NAME = 'telemetriq';
 const STORE_NAME = 'files';
 const DB_VERSION = 1;
 

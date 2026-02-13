@@ -1,6 +1,6 @@
 services:
   frontend:
-    container_name: running-telemetry-overlay
+    container_name: telemetriq
     build:
       context: ./frontend
       target: dev
