@@ -31,9 +31,10 @@
           <SyncSlider
             :offset-seconds="syncStore.offsetSeconds"
             :is-auto-synced="syncStore.isAutoSynced"
+            :video-duration-seconds="filesStore.videoMeta?.duration"
             :error="syncStore.syncError"
             :warning="syncStore.syncWarning"
-            @update:offset-seconds="syncStore.setManualOffset"
+            @update:offset-seconds="onManualOffsetChange"
           />
 
           <div class="preview-view__divider"></div>
@@ -254,7 +255,9 @@ onMounted(() => {
       filesStore.videoMeta?.startTime,
       filesStore.videoMeta?.gps?.lat,
       filesStore.videoMeta?.gps?.lon,
-      filesStore.videoMeta?.timezoneOffsetMinutes
+      filesStore.videoMeta?.timezoneOffsetMinutes,
+      false,
+      filesStore.videoMeta?.duration
     );
   }
 });
@@ -273,6 +276,10 @@ function goBack(): void {
 function startProcessing(): void {
   settingsStore.setScreen("processing");
   router.push("/processing");
+}
+
+function onManualOffsetChange(offsetSeconds: number): void {
+  syncStore.setManualOffset(offsetSeconds, filesStore.videoMeta?.duration);
 }
 
 function parseManualDateTimeWithTimezone(
@@ -322,7 +329,8 @@ function applyManualTime(): void {
     undefined,
     undefined,
     undefined,
-    true
+    true,
+    filesStore.videoMeta?.duration
   );
 }
 </script>

@@ -6,7 +6,6 @@ import {
     validateVideoFile,
     extractVideoMeta,
     WARN_DURATION_SECONDS,
-    FAST_METADATA_THRESHOLD_BYTES,
 } from '../modules/file-validation';
 import { formatErrorMessage } from './store-utils';
 
@@ -150,12 +149,6 @@ function enhanceVideoValidation(
     validation: FileValidation | null,
 ): FileValidation {
     const warnings = [...(validation?.warnings ?? [])];
-
-    if (meta.fileSize >= FAST_METADATA_THRESHOLD_BYTES) {
-        warnings.push(
-            'Large file mode is enabled to keep the UI responsive. Detailed codec/GPS metadata will be detected during processing.',
-        );
-    }
 
     if (meta.duration > WARN_DURATION_SECONDS) {
         warnings.push(

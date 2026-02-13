@@ -9,6 +9,18 @@ const MAX_AUTO_OFFSET_SECONDS = 300; // 5 minutes
 export const MANUAL_SYNC_RANGE_SECONDS = 1800;
 
 /**
+ * Resolve effective sync range in seconds.
+ * Uses video duration when available, but never exceeds manual range.
+ */
+export function getSyncRangeSeconds(videoDurationSeconds?: number): number {
+    if (!Number.isFinite(videoDurationSeconds) || (videoDurationSeconds ?? 0) <= 0) {
+        return MANUAL_SYNC_RANGE_SECONDS;
+    }
+
+    return Math.min(MANUAL_SYNC_RANGE_SECONDS, Math.max(1, Math.round(videoDurationSeconds!)));
+}
+
+/**
  * Attempt automatic synchronization between GPX and video.
  * Looks for the closest GPX point to the video's GPS start coordinates.
  * Returns a SyncConfig with the computed offset.
@@ -144,10 +156,22 @@ function formatTimeDiff(seconds: number): string {
  * Clamp manual sync offset to allowed range.
  */
 export function clampSyncOffset(offsetSeconds: number): number {
+    return clampSyncOffsetToRange(offsetSeconds, MANUAL_SYNC_RANGE_SECONDS);
+}
+
+/**
+ * Clamp manual sync offset to allowed range.
+ */
+export function clampSyncOffsetToRange(offsetSeconds: number, maxAbsSeconds: number): number {
     if (!Number.isFinite(offsetSeconds)) return 0;
+
+    const safeMaxAbsSeconds = Number.isFinite(maxAbsSeconds) && maxAbsSeconds > 0
+        ? maxAbsSeconds
+        : MANUAL_SYNC_RANGE_SECONDS;
+
     return Math.max(
-        -MANUAL_SYNC_RANGE_SECONDS,
-        Math.min(MANUAL_SYNC_RANGE_SECONDS, offsetSeconds),
+        -safeMaxAbsSeconds,
+        Math.min(safeMaxAbsSeconds, offsetSeconds),
     );
 }
 

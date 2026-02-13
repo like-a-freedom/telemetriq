@@ -66,10 +66,10 @@ describe('Pinia Stores', () => {
             expect(store.isAutoSynced).toBe(false);
         });
 
-        it('should clamp manual offset to range', () => {
+        it('should keep large manual offset value', () => {
             const store = useSyncStore();
             store.setManualOffset(999999);
-            expect(store.offsetSeconds).toBe(1800); // Max range
+            expect(store.offsetSeconds).toBe(999999);
         });
 
         it('should normalize non-finite manual offset to zero', () => {
@@ -77,6 +77,15 @@ describe('Pinia Stores', () => {
             store.setManualOffset(Number.NaN);
             expect(store.offsetSeconds).toBe(0);
             expect(store.isAutoSynced).toBe(false);
+        });
+
+        it('should not clamp manual offset by video duration', () => {
+            const store = useSyncStore();
+            store.setManualOffset(999999, 120);
+            expect(store.offsetSeconds).toBe(999999);
+
+            store.setManualOffset(-999999, 120);
+            expect(store.offsetSeconds).toBe(-999999);
         });
 
         it('should reset state', () => {
@@ -367,6 +376,26 @@ describe('Pinia Stores', () => {
 
             expect(store.offsetSeconds).toBe(0);
             expect(store.isAutoSynced).toBe(true);
+        });
+
+        it('should keep large auto-sync offset even when video duration is passed', async () => {
+            const store = useSyncStore();
+
+            await store.performAutoSync(
+                [
+                    { lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:00:00Z') },
+                ],
+                new Date('2024-01-15T10:10:00Z'),
+                undefined,
+                undefined,
+                undefined,
+                false,
+                120,
+            );
+
+            expect(store.offsetSeconds).toBe(600);
+            expect(store.isAutoSynced).toBe(true);
+            expect(store.syncWarning).toContain('Large time difference');
         });
     });
 

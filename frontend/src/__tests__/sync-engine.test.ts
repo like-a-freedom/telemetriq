@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { autoSync, clampSyncOffset, getGpxTimeRange, MANUAL_SYNC_RANGE_SECONDS } from '../modules/sync-engine';
+import {
+    autoSync,
+    clampSyncOffset,
+    clampSyncOffsetToRange,
+    getGpxTimeRange,
+    getSyncRangeSeconds,
+    MANUAL_SYNC_RANGE_SECONDS,
+} from '../modules/sync-engine';
 import type { TrackPoint } from '../core/types';
 import { SyncError } from '../core/errors';
 
@@ -258,6 +265,36 @@ describe('Sync Engine', () => {
 
         it('should handle zero', () => {
             expect(clampSyncOffset(0)).toBe(0);
+        });
+    });
+
+    describe('getSyncRangeSeconds', () => {
+        it('should return default manual range for missing duration', () => {
+            expect(getSyncRangeSeconds()).toBe(MANUAL_SYNC_RANGE_SECONDS);
+            expect(getSyncRangeSeconds(Number.NaN)).toBe(MANUAL_SYNC_RANGE_SECONDS);
+            expect(getSyncRangeSeconds(0)).toBe(MANUAL_SYNC_RANGE_SECONDS);
+        });
+
+        it('should cap range by video duration when it is shorter than manual max', () => {
+            expect(getSyncRangeSeconds(245.4)).toBe(245);
+            expect(getSyncRangeSeconds(60)).toBe(60);
+        });
+
+        it('should not exceed manual range for long videos', () => {
+            expect(getSyncRangeSeconds(10_000)).toBe(MANUAL_SYNC_RANGE_SECONDS);
+        });
+    });
+
+    describe('clampSyncOffsetToRange', () => {
+        it('should clamp by provided max range', () => {
+            expect(clampSyncOffsetToRange(180, 120)).toBe(120);
+            expect(clampSyncOffsetToRange(-180, 120)).toBe(-120);
+            expect(clampSyncOffsetToRange(90, 120)).toBe(90);
+        });
+
+        it('should fallback to manual range on invalid max range', () => {
+            expect(clampSyncOffsetToRange(999999, Number.NaN)).toBe(MANUAL_SYNC_RANGE_SECONDS);
+            expect(clampSyncOffsetToRange(-999999, 0)).toBe(-MANUAL_SYNC_RANGE_SECONDS);
         });
     });
 
