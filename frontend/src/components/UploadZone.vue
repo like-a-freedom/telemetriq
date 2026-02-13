@@ -84,6 +84,8 @@ const {
   resetInput,
 } = useFileDrop();
 
+void fileInput;
+
 const fileSizeFormatted = computed(() => {
   if (!props.fileSize) return "";
   if (props.fileSize < 1024) return `${props.fileSize} B`;

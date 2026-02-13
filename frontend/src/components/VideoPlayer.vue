@@ -21,7 +21,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from "vue";
-import type { TelemetryFrame, OverlayConfig, ExtendedOverlayConfig } from "../core/types";
+import type { TelemetryFrame, ExtendedOverlayConfig } from "../core/types";
 import { renderOverlay } from "../modules/overlay-renderer";
 import { getTelemetryAtTime } from "../modules/telemetry-core";
 
@@ -58,14 +58,20 @@ function onTimeUpdate(): void {
 }
 
 function scheduleFrameCallback(): void {
-  const video = videoRef.value as HTMLVideoElement & {
-    requestVideoFrameCallback?: (
-      cb: (now: number, meta: VideoFrameCallbackMetadata) => void
-    ) => number;
-  };
-  if (!video?.requestVideoFrameCallback) return;
+  const video = videoRef.value;
+  if (!video) return;
 
-  videoFrameHandle = video.requestVideoFrameCallback((_, meta) => {
+  const requestVideoFrameCallback = (
+    video as HTMLVideoElement & {
+      requestVideoFrameCallback?: (
+        cb: (now: number, meta: VideoFrameCallbackMetadata) => void
+      ) => number;
+    }
+  ).requestVideoFrameCallback;
+
+  if (typeof requestVideoFrameCallback !== "function") return;
+
+  videoFrameHandle = requestVideoFrameCallback.call(video, (_, meta) => {
     currentTime.value = meta.mediaTime;
     drawOverlay();
     scheduleFrameCallback();
@@ -103,12 +109,18 @@ watch(() => props.overlayConfig, drawOverlay, { deep: true });
 watch(() => props.telemetryFrames, drawOverlay, { deep: true });
 
 onMounted(() => {
-  const video = videoRef.value as HTMLVideoElement & {
-    requestVideoFrameCallback?: (
-      cb: (now: number, meta: VideoFrameCallbackMetadata) => void
-    ) => number;
-  };
-  if (video?.requestVideoFrameCallback) {
+  const video = videoRef.value;
+  if (!video) return;
+
+  const requestVideoFrameCallback = (
+    video as HTMLVideoElement & {
+      requestVideoFrameCallback?: (
+        cb: (now: number, meta: VideoFrameCallbackMetadata) => void
+      ) => number;
+    }
+  ).requestVideoFrameCallback;
+
+  if (typeof requestVideoFrameCallback === "function") {
     scheduleFrameCallback();
   }
 });

@@ -113,9 +113,9 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useFilesStore, useSettingsStore } from "../stores";
 import { checkBrowserCapabilities } from "../modules/file-validation";
-// @ts-expect-error Vue SFC default export typing handled by Vite/Vue tooling
+// @ts-ignore Vue SFC default export typing handled by current tooling setup
 import UploadZone from "../components/UploadZone.vue";
-// @ts-expect-error Vue SFC default export typing handled by Vite/Vue tooling
+// @ts-ignore Vue SFC default export typing handled by current tooling setup
 import FileInfo from "../components/FileInfo.vue";
 
 const router = useRouter();

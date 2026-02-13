@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { validateVideoFile } from '../modules/file-validation';
 
 describe('File Validation', () => {
@@ -58,7 +58,7 @@ describe('File Validation', () => {
     describe('DJI filename parsing', () => {
         // These tests use internal function - we test via the sync result instead
         // Since parseDjiFilename is private, we verify behavior through integration
-        
+
         it('should handle DJI filename patterns', () => {
             const testCases = [
                 { name: 'DJI_20260211_092425', expected: new Date(Date.UTC(2026, 1, 11, 9, 24, 25)) },

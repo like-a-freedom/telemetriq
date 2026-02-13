@@ -24,7 +24,7 @@ export const useSyncStore = defineStore('sync', () => {
     const isAutoSynced = computed(() => syncConfig.value.autoSynced);
 
     // Actions
-    function setManualOffset(seconds: number, videoDurationSeconds?: number): void {
+    function setManualOffset(seconds: number, _videoDurationSeconds?: number): void {
         const safeSeconds = safeNumber(seconds, 0);
         syncConfig.value = {
             offsetSeconds: safeSeconds,

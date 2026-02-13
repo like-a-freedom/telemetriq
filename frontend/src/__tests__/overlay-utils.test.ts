@@ -7,7 +7,6 @@ import {
     getResolutionTuning,
     fontWeightValue,
     applyTextShadow,
-    drawTrackedText,
     measureTrackedTextWidth,
     getMarginLabel,
 } from '../modules/overlay-utils';
