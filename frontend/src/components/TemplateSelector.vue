@@ -1,14 +1,20 @@
 <template>
   <div class="template-selector">
     <div class="template-dropdown">
-      <label class="template-dropdown__label" for="template-select">Template</label>
+      <label class="template-dropdown__label" for="template-select"
+        >Template</label
+      >
       <select
         id="template-select"
         class="template-dropdown__select"
         :value="settingsStore.currentTemplateId"
         @change="onTemplateChange"
       >
-        <option v-for="template in templates" :key="template.id" :value="template.id">
+        <option
+          v-for="template in templates"
+          :key="template.id"
+          :value="template.id"
+        >
           {{ template.name }}
         </option>
       </select>
