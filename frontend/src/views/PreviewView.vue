@@ -58,11 +58,10 @@
               </button>
             </div>
             <div class="preview-view__field-row preview-view__timezone-row">
-              <label class="preview-view__label preview-view__label--small">Timezone</label>
-              <select
-                v-model="manualTimezone"
-                class="preview-view__select"
+              <label class="preview-view__label preview-view__label--small"
+                >Timezone</label
               >
+              <select v-model="manualTimezone" class="preview-view__select">
                 <option
                   v-for="tz in timezones"
                   :key="tz.value"
@@ -181,37 +180,40 @@ const canChangePosition = computed(
 );
 
 const timezones = [
-  { value: -720, label: 'UTC-12' },
-  { value: -660, label: 'UTC-11' },
-  { value: -600, label: 'UTC-10' },
-  { value: -540, label: 'UTC-9' },
-  { value: -480, label: 'UTC-8 (Pacific)' },
-  { value: -420, label: 'UTC-7 (Mountain)' },
-  { value: -360, label: 'UTC-6 (Central)' },
-  { value: -300, label: 'UTC-5 (Eastern)' },
-  { value: -240, label: 'UTC-4 (Atlantic)' },
-  { value: -180, label: 'UTC-3' },
-  { value: -120, label: 'UTC-2' },
-  { value: -60, label: 'UTC-1' },
-  { value: 0, label: 'UTC' },
-  { value: 60, label: 'UTC+1' },
-  { value: 120, label: 'UTC+2' },
-  { value: 180, label: 'UTC+3 (Moscow)' },
-  { value: 240, label: 'UTC+4' },
-  { value: 300, label: 'UTC+5' },
-  { value: 330, label: 'UTC+5:30 (India)' },
-  { value: 360, label: 'UTC+6' },
-  { value: 420, label: 'UTC+7' },
-  { value: 480, label: 'UTC+8' },
-  { value: 540, label: 'UTC+9' },
-  { value: 600, label: 'UTC+10' },
-  { value: 660, label: 'UTC+11' },
-  { value: 720, label: 'UTC+12' },
+  { value: -720, label: "UTC-12" },
+  { value: -660, label: "UTC-11" },
+  { value: -600, label: "UTC-10" },
+  { value: -540, label: "UTC-9" },
+  { value: -480, label: "UTC-8 (Pacific)" },
+  { value: -420, label: "UTC-7 (Mountain)" },
+  { value: -360, label: "UTC-6 (Central)" },
+  { value: -300, label: "UTC-5 (Eastern)" },
+  { value: -240, label: "UTC-4 (Atlantic)" },
+  { value: -180, label: "UTC-3" },
+  { value: -120, label: "UTC-2" },
+  { value: -60, label: "UTC-1" },
+  { value: 0, label: "UTC" },
+  { value: 60, label: "UTC+1" },
+  { value: 120, label: "UTC+2" },
+  { value: 180, label: "UTC+3 (Moscow)" },
+  { value: 240, label: "UTC+4" },
+  { value: 300, label: "UTC+5" },
+  { value: 330, label: "UTC+5:30 (India)" },
+  { value: 360, label: "UTC+6" },
+  { value: 420, label: "UTC+7" },
+  { value: 480, label: "UTC+8" },
+  { value: 540, label: "UTC+9" },
+  { value: 600, label: "UTC+10" },
+  { value: 660, label: "UTC+11" },
+  { value: 720, label: "UTC+12" },
 ];
 
 const currentTimezoneLabel = computed(() => {
-  const tz = timezones.find(t => t.value === manualTimezone.value);
-  return tz?.label || `UTC${manualTimezone.value >= 0 ? '+' : ''}${manualTimezone.value / 60}`;
+  const tz = timezones.find((t) => t.value === manualTimezone.value);
+  return (
+    tz?.label ||
+    `UTC${manualTimezone.value >= 0 ? "+" : ""}${manualTimezone.value / 60}`
+  );
 });
 
 onMounted(() => {
@@ -233,11 +235,20 @@ onMounted(() => {
   // Attempt auto-sync
   if (filesStore.gpxData) {
     // DEBUG: Log what we're passing to sync engine
-    console.log('[DEBUG AutoSync] GPX first point:', filesStore.gpxData.points[0]?.time);
-    console.log('[DEBUG AutoSync] Video startTime:', filesStore.videoMeta?.startTime);
-    console.log('[DEBUG AutoSync] Video timezoneOffsetMinutes:', filesStore.videoMeta?.timezoneOffsetMinutes);
-    console.log('[DEBUG AutoSync] Video GPS:', filesStore.videoMeta?.gps);
-    
+    console.log(
+      "[DEBUG AutoSync] GPX first point:",
+      filesStore.gpxData.points[0]?.time
+    );
+    console.log(
+      "[DEBUG AutoSync] Video startTime:",
+      filesStore.videoMeta?.startTime
+    );
+    console.log(
+      "[DEBUG AutoSync] Video timezoneOffsetMinutes:",
+      filesStore.videoMeta?.timezoneOffsetMinutes
+    );
+    console.log("[DEBUG AutoSync] Video GPS:", filesStore.videoMeta?.gps);
+
     syncStore.performAutoSync(
       filesStore.gpxData.points,
       filesStore.videoMeta?.startTime,
@@ -264,16 +275,53 @@ function startProcessing(): void {
   router.push("/processing");
 }
 
+function parseManualDateTimeWithTimezone(
+  input: string,
+  timezoneOffsetMinutes: number
+): Date | null {
+  const [datePart, timePart] = input.split("T");
+  if (!datePart || !timePart) return null;
+
+  const [yearStr, monthStr, dayStr] = datePart.split("-");
+  const [hourStr, minuteStr, secondStr = "0"] = timePart.split(":");
+
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  const hour = Number(hourStr);
+  const minute = Number(minuteStr);
+  const second = Number(secondStr);
+
+  if (
+    [year, month, day, hour, minute, second].some((value) =>
+      Number.isNaN(value)
+    )
+  ) {
+    return null;
+  }
+
+  // Interpret input as wall-clock time in selected timezone, then convert to UTC.
+  const wallClockMs = Date.UTC(year, month - 1, day, hour, minute, second);
+  const utcMs = wallClockMs - timezoneOffsetMinutes * 60_000;
+  return new Date(utcMs);
+}
+
 function applyManualTime(): void {
   if (!filesStore.gpxData || !manualStartTime.value) return;
-  const localTime = new Date(manualStartTime.value);
-  if (Number.isNaN(localTime.getTime())) return;
+
+  const manualUtcTime = parseManualDateTimeWithTimezone(
+    manualStartTime.value,
+    manualTimezone.value
+  );
+
+  if (!manualUtcTime || Number.isNaN(manualUtcTime.getTime())) return;
+
   syncStore.performAutoSync(
     filesStore.gpxData.points,
-    localTime,
+    manualUtcTime,
     undefined,
     undefined,
-    manualTimezone.value,
+    undefined,
     true
   );
 }

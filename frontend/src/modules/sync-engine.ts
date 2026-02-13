@@ -27,7 +27,7 @@ export function autoSync(
         videoStartLon,
         videoTimezoneOffsetMinutes
     });
-    
+
     if (gpxPoints.length === 0) {
         throw new SyncError('No track points for synchronization');
     }
@@ -89,17 +89,11 @@ function syncByGpsCoordinates(
 function syncByTime(
     gpxPoints: TrackPoint[],
     videoTime: Date,
-    videoTimezoneOffsetMinutes?: number,
+    _videoTimezoneOffsetMinutes?: number,
 ): SyncConfig {
-    // Convert local video time to UTC using timezone offset
-    // timezoneOffsetMinutes: minutes to ADD to local time to get UTC (e.g., +180 for UTC+3)
-    // Note: JavaScript's getTimezoneOffset() returns negative for positive timezones,
-    // so we invert the sign when using user-selected timezone
-    const timezoneMs = videoTimezoneOffsetMinutes !== undefined
-        ? videoTimezoneOffsetMinutes * 60_000
-        : 0;
-    // Subtract timezone offset to convert local → UTC
-    const videoMs = videoTime.getTime() - timezoneMs;
+    // Date already stores an absolute UTC timestamp internally.
+    // Applying timezone offset again shifts time twice and breaks auto-sync.
+    const videoMs = videoTime.getTime();
     const gpxStartMs = gpxPoints[0]!.time.getTime();
     // Calculate how far into the GPX track the video starts
     const offsetMs = videoMs - gpxStartMs;
@@ -107,8 +101,7 @@ function syncByTime(
 
     // DEBUG logging
     console.log('[DEBUG syncByTime] videoTime:', videoTime.toISOString());
-    console.log('[DEBUG syncByTime] videoTimezoneOffsetMinutes:', videoTimezoneOffsetMinutes);
-    console.log('[DEBUG syncByTime] timezoneMs:', timezoneMs);
+    console.log('[DEBUG syncByTime] videoTimezoneOffsetMinutes (ignored):', _videoTimezoneOffsetMinutes);
     console.log('[DEBUG syncByTime] videoMs (UTC):', new Date(videoMs).toISOString());
     console.log('[DEBUG syncByTime] gpxStartMs:', new Date(gpxStartMs).toISOString());
     console.log('[DEBUG syncByTime] offsetMs:', offsetMs);
@@ -120,7 +113,7 @@ function syncByTime(
         return {
             offsetSeconds,
             autoSynced: true, // Still auto-sync, but with warning
-            warning: `Large time difference (${formatTimeDiff(Math.abs(offsetSeconds))}). Verify sync manually if needed.`,
+            warning: `Large time difference: ${formatTimeDiff(offsetSeconds)}. Auto-sync was applied — please verify manually.`,
         };
     }
 
@@ -134,17 +127,17 @@ function syncByTime(
  * Format time difference in seconds to human-readable string
  */
 function formatTimeDiff(seconds: number): string {
-    const absSeconds = Math.abs(seconds);
-    const hours = Math.floor(absSeconds / 3600);
-    const minutes = Math.floor((absSeconds % 3600) / 60);
-    const secs = absSeconds % 60;
+    const totalSeconds = Math.max(0, Math.round(Math.abs(seconds)));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
 
-    if (hours > 0) {
-        return `${hours}h ${minutes}m`;
-    } else if (minutes > 0) {
-        return `${minutes}m ${secs}s`;
-    }
-    return `${secs}s`;
+    const parts: string[] = [];
+    if (hours > 0) parts.push(`${hours} h`);
+    if (minutes > 0) parts.push(`${minutes} min`);
+    if (secs > 0 || parts.length === 0) parts.push(`${secs} sec`);
+
+    return parts.join(' ');
 }
 
 /**

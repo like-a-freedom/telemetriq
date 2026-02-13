@@ -75,12 +75,11 @@ describe('layout modules - additional', () => {
             expect(mockCtx.createLinearGradient).toHaveBeenCalled();
         });
 
-        it('should draw L-frame lines', () => {
+        it('should draw progress bar and bottom shapes', () => {
             renderLFrameLayout(mockCtx, sampleMetrics, {} as any, 1920, 1080, lFrameConfig);
-            expect(mockCtx.beginPath).toHaveBeenCalled();
-            expect(mockCtx.moveTo).toHaveBeenCalled();
-            expect(mockCtx.lineTo).toHaveBeenCalled();
-            expect(mockCtx.stroke).toHaveBeenCalled();
+            // implementation draws bottom gradient and progress bar via fillRect
+            expect(mockCtx.createLinearGradient).toHaveBeenCalled();
+            expect(mockCtx.fillRect).toHaveBeenCalled();
         });
 
         it('should handle empty metrics gracefully', () => {
