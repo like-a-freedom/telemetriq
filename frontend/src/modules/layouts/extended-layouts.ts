@@ -790,7 +790,7 @@ function drawSwissGrid(
     const labelSize = Math.max(8, Math.round(barH * 0.12 * tuning.textScale));
     const valueSize = Math.max(12, Math.round(barH * 0.26 * tuning.textScale));
     const unitSize = Math.max(8, Math.round(labelSize * 0.9));
-    
+
     for (let i = 0; i < items.length; i++) {
         const colX = contentX + colW * i;
         if (i > 0) {
@@ -800,21 +800,21 @@ function drawSwissGrid(
             ctx.lineTo(colX, y + barH * 0.88);
             ctx.stroke();
         }
-        
+
         // Center-align all text within the column
         const centerX = colX + colW / 2;
         ctx.textAlign = 'center';
-        
+
         // Label
         ctx.fillStyle = 'rgba(255,255,255,0.42)';
         ctx.font = `500 ${labelSize}px ${config.fontFamily}`;
         ctx.fillText(items[i]![0]!, centerX, y + barH * 0.27);
-        
+
         // Value
         ctx.fillStyle = config.textColor || '#FFFFFF';
         ctx.font = `300 ${valueSize}px ${config.fontFamily}`;
         ctx.fillText(items[i]![1]!, centerX, y + barH * 0.58);
-        
+
         // Unit
         if (items[i]![2]) {
             ctx.fillStyle = 'rgba(255,255,255,0.32)';

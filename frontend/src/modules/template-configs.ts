@@ -48,7 +48,7 @@ export function getAllTemplateMetadata(): TemplateMetadata[] {
 
 // Legacy exports for backward compatibility
 /** @deprecated Import from './templates/types' instead */
-export interface TemplateMetadataLegacy extends TemplateMetadata {}
+export interface TemplateMetadataLegacy extends TemplateMetadata { }
 
 /** @deprecated Use TEMPLATE_MAP from './templates' instead */
 export const TEMPLATE_METADATA: Record<TemplateId, TemplateMetadata> = {
