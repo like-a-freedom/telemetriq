@@ -1,6 +1,4 @@
-FROM node:25-alpine AS base
-
-RUN npm install -g bun
+FROM oven/bun:alpine AS base
 
 WORKDIR /app
 
