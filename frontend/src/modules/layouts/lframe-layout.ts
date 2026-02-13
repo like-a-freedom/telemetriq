@@ -5,8 +5,6 @@ import {
     getResolutionTuning,
     fontWeightValue,
     applyTextShadow,
-    drawTrackedText,
-    measureTrackedTextWidth,
 } from '../overlay-utils';
 
 export function renderLFrameLayout(
@@ -27,26 +25,20 @@ export function renderLFrameLayout(
 
     const margin = w * 0.04 * tuning.spacingScale;
     const bottomMargin = h * 0.05;
-    const frameX = margin + valueSizeBase * 0.2;
-    const frameBottom = h - bottomMargin;
 
     ctx.save();
     applyTextShadow(ctx, config);
 
-    drawLFrame(ctx, frameX, frameBottom, w, h);
-
-    const metricsStartX = frameX + margin * 0.45;
-    const horizontalLineWidth = w * 0.84;
-    const metricsAreaWidth = horizontalLineWidth - margin * 0.9;
+    const metricsStartX = margin;
+    const metricsAreaWidth = w * 0.84 - margin * 0.9;
     const metricGap = metricsAreaWidth / Math.max(1, metrics.length);
-    const metricsY = frameBottom - margin * 0.3;
+    const metricsY = h - bottomMargin - margin * 0.3;
 
     const { valueSize, labelSize, unitSize } = calculateOptimalFontSizes(ctx, metrics, metricGap, {
         valueSizeBase,
         h,
         fontFamily,
         valueWeight: config.valueFontWeight || 'light',
-        labelLetterSpacing: (config.labelLetterSpacing || 0.15) * tuning.labelTrackingScale,
     });
 
     for (let i = 0; i < metrics.length; i++) {
@@ -60,7 +52,6 @@ export function renderLFrameLayout(
             fontFamily,
             valueWeight: config.valueFontWeight || 'light',
             textColor: config.textColor || '#FFFFFF',
-            labelLetterSpacing: (config.labelLetterSpacing || 0.15) * tuning.labelTrackingScale,
         });
     }
 
@@ -76,41 +67,13 @@ function drawBottomGradient(ctx: OverlayContext2D, w: number, h: number): void {
     ctx.fillRect(0, h * 0.7, w, h * 0.3);
 }
 
-function drawLFrame(ctx: OverlayContext2D, frameX: number, frameBottom: number, w: number, h: number): void {
-    const lineColor = 'rgba(255,255,255,0.5)';
-    const lineW = Math.max(1, Math.round(h * 0.001));
-    const verticalLineHeight = h * 0.18;
-    const horizontalLineWidth = w * 0.84;
 
-    ctx.strokeStyle = lineColor;
-    ctx.lineWidth = lineW;
-
-    // Vertical line of L
-    ctx.beginPath();
-    ctx.moveTo(frameX, frameBottom - verticalLineHeight);
-    ctx.lineTo(frameX, frameBottom);
-    ctx.stroke();
-
-    // Horizontal line of L
-    ctx.beginPath();
-    ctx.moveTo(frameX, frameBottom);
-    ctx.lineTo(frameX + horizontalLineWidth, frameBottom);
-    ctx.stroke();
-
-    // Corner dot
-    const dotRadius = Math.max(2, h * 0.003);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath();
-    ctx.arc(frameX, frameBottom, dotRadius, 0, Math.PI * 2);
-    ctx.fill();
-}
 
 interface FontCalcConfig {
     valueSizeBase: number;
     h: number;
     fontFamily: string;
     valueWeight: string;
-    labelLetterSpacing: number;
 }
 
 function calculateOptimalFontSizes(
@@ -160,7 +123,7 @@ function metricsFit(
         ctx.font = `300 ${unitSize}px ${config.fontFamily}`;
         const unitWidth = metric.unit ? ctx.measureText(metric.unit).width : 0;
         ctx.font = `300 ${labelSize}px ${config.fontFamily}`;
-        const labelWidth = measureTrackedTextWidth(ctx, metric.label.toUpperCase(), config.labelLetterSpacing, labelSize);
+        const labelWidth = ctx.measureText(metric.label.toUpperCase()).width;
 
         if (Math.max(valueWidth, unitWidth, labelWidth) > metricGap * 0.84) {
             return false;
@@ -179,7 +142,6 @@ interface MetricRenderConfig {
     fontFamily: string;
     valueWeight: string;
     textColor: string;
-    labelLetterSpacing: number;
 }
 
 function renderMetric(
@@ -188,16 +150,15 @@ function renderMetric(
     index: number,
     config: MetricRenderConfig,
 ): void {
-    const { metricsStartX, metricGap, metricsY, valueSize, labelSize, unitSize, fontFamily, valueWeight, textColor, labelLetterSpacing } = config;
+    const { metricsStartX, metricGap, metricsY, valueSize, labelSize, unitSize, fontFamily, valueWeight, textColor } = config;
     const mx = metricsStartX + index * metricGap + metricGap / 2;
 
-    // Label
+    // Label - using regular fillText without letter spacing to avoid kerning issues
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
     ctx.font = `300 ${labelSize}px ${fontFamily}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
-    const labelStartX = mx - (ctx.measureText(metric.label.toUpperCase()).width / 2);
-    drawTrackedText(ctx, metric.label.toUpperCase(), labelStartX, metricsY - valueSize - labelSize * 0.2, labelLetterSpacing, labelSize);
+    ctx.fillText(metric.label.toUpperCase(), mx, metricsY - valueSize - labelSize * 0.2);
 
     // Value
     const weight = fontWeightValue(valueWeight);

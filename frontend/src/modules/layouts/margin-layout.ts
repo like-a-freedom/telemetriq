@@ -58,7 +58,6 @@ export function renderMarginLayout(
         containerWidth: w,
     });
 
-    drawProgressLine(ctx, w, h);
     ctx.restore();
 }
 
@@ -79,15 +78,6 @@ function drawEdgeGradients(
     rightGrad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = rightGrad;
     ctx.fillRect(w * 0.85, 0, w * 0.15, h);
-}
-
-function drawProgressLine(ctx: OverlayContext2D, w: number, h: number): void {
-    const lineX = Math.round(w * 0.005);
-    const lineW = Math.max(1, Math.round(w * 0.002));
-    ctx.fillStyle = 'rgba(255,255,255,0.08)';
-    ctx.fillRect(lineX, 0, lineW, h);
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fillRect(lineX, 0, lineW, h * 0.33);
 }
 
 interface SideMetricsConfig {
@@ -168,29 +158,30 @@ function renderLeftMetric(
 ): void {
     const { marginX, metricY, valueSize, labelSize, unitSize, fontFamily, valueWeight, textColor } = config;
 
-    // Vertical label (rotated)
-    ctx.save();
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.font = `300 ${labelSize}px ${fontFamily}`;
-    ctx.translate(marginX + labelSize * 0.8, metricY + valueSize);
-    ctx.rotate(-Math.PI / 2);
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText(getMarginLabel(metric.label), 0, 0);
-    ctx.restore();
-
-    // Value
+    // Value - positioned with more space from left edge to avoid label overlap
+    const valueX = marginX + labelSize * 1.5;
     const weight = fontWeightValue(valueWeight);
     ctx.fillStyle = textColor;
     ctx.font = `${weight} ${valueSize}px ${fontFamily}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText(metric.value, marginX, metricY + valueSize);
+    ctx.fillText(metric.value, valueX, metricY + valueSize);
 
     // Unit below value
     ctx.fillStyle = 'rgba(255,255,255,0.4)';
     ctx.font = `300 ${unitSize}px ${fontFamily}`;
-    ctx.fillText(metric.unit.toUpperCase(), marginX, metricY + valueSize + unitSize * 1.5);
+    ctx.fillText(metric.unit.toUpperCase(), valueX, metricY + valueSize + unitSize * 1.5);
+
+    // Vertical label (rotated) - positioned to the left of the value
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = `300 ${labelSize}px ${fontFamily}`;
+    ctx.translate(marginX + labelSize * 0.8, metricY + valueSize * 0.5);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(getMarginLabel(metric.label), 0, 0);
+    ctx.restore();
 }
 
 interface RightMetricConfig {
