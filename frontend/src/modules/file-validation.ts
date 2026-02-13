@@ -112,13 +112,6 @@ export function extractVideoMeta(file: File): Promise<VideoMeta> {
                 // We invert it so that sync engine can use: localTime - offset = UTC
                 timezoneOffsetMinutes: djiParsed ? -djiParsed.date.getTimezoneOffset() : (startTime ? startTime.getTimezoneOffset() : undefined),
             };
-            
-            // DEBUG logging
-            console.log('[DEBUG extractVideoMeta] Initial from DJI filename:', {
-                startTime: meta.startTime?.toISOString(),
-                timezoneOffsetMinutes: meta.timezoneOffsetMinutes,
-                isDji: !!djiParsed
-            });
 
             URL.revokeObjectURL(url);
 
@@ -155,7 +148,6 @@ export function extractVideoMeta(file: File): Promise<VideoMeta> {
                     if (mp4Meta.startTime) {
                         meta.startTime = mp4Meta.startTime;
                         meta.timezoneOffsetMinutes = 0; // MP4 creation_time is UTC
-                        console.log('[DEBUG extractVideoMeta] Using MP4 metadata:', meta.startTime.toISOString(), 'UTC');
                     }
                     if (mp4Meta.gps) meta.gps = mp4Meta.gps;
 
@@ -166,11 +158,6 @@ export function extractVideoMeta(file: File): Promise<VideoMeta> {
                         reject(new ValidationError('Failed to determine video resolution from metadata'));
                         return;
                     }
-                    // DEBUG logging
-                    console.log('[DEBUG extractVideoMeta] Final meta:', {
-                        startTime: meta.startTime?.toISOString(),
-                        timezoneOffsetMinutes: meta.timezoneOffsetMinutes,
-                    });
                     resolve(meta);
                 });
         };
@@ -213,10 +200,6 @@ async function extractMp4Metadata(file: File): Promise<{
         const tags = await input.getMetadataTags();
         const created = tags.date;
         const gps = findIso6709Location(tags.raw);
-
-        // DEBUG logging
-        console.log('[DEBUG extractMp4Metadata] tags.date:', created);
-        console.log('[DEBUG extractMp4Metadata] tags.raw:', tags.raw);
 
         return {
             codec,

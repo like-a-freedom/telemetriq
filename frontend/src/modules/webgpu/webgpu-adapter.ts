@@ -44,6 +44,7 @@ interface GPUCompositeResources {
   overlayTexture: GPUTexture;
   uniformBuffer: GPUBuffer;
   bindGroup: GPUBindGroup;
+  lastOverlayKey: string | null;
 }
 
 /**
@@ -101,11 +102,8 @@ export class WebGPUAdapter {
   private async doInitialize(): Promise<boolean> {
     try {
       if (!WebGPUAdapter.isSupported()) {
-        console.log('[WebGPUAdapter] WebGPU not supported in this browser');
         return false;
       }
-
-      console.log('[WebGPUAdapter] Initializing WebGPU...');
 
       const adapter = await navigator.gpu.requestAdapter({
         powerPreference: 'high-performance',
@@ -116,12 +114,8 @@ export class WebGPUAdapter {
         return false;
       }
 
-      console.log('[WebGPUAdapter] WebGPU adapter obtained:', adapter.info?.description || 'unknown');
-
       const device = await adapter.requestDevice();
       const format = navigator.gpu.getPreferredCanvasFormat();
-
-      console.log('[WebGPUAdapter] WebGPU device created successfully');
 
       // Create shader module
       const shaderModule = device.createShaderModule({
@@ -170,8 +164,6 @@ export class WebGPUAdapter {
       this.gpu = { adapter, device, pipeline, sampler, format };
       this.isInitialized = true;
 
-      console.log('[WebGPUAdapter] WebGPU initialized successfully');
-
       return true;
     } catch (error) {
       console.error('[WebGPUAdapter] Failed to initialize WebGPU:', error);
@@ -184,6 +176,7 @@ export class WebGPUAdapter {
     overlaySource: CanvasImageSource,
     videoWidth: number,
     videoHeight: number,
+    overlayKey?: string,
   ): Promise<boolean> {
     if (!this.isEnabled()) return false;
 
@@ -200,11 +193,15 @@ export class WebGPUAdapter {
         { width: videoWidth, height: videoHeight },
       );
 
-      this.gpu.device.queue.copyExternalImageToTexture(
-        { source: overlaySource },
-        { texture: resources.overlayTexture },
-        { width: videoWidth, height: videoHeight },
-      );
+      const shouldRefreshOverlay = overlayKey === undefined || resources.lastOverlayKey !== overlayKey;
+      if (shouldRefreshOverlay) {
+        this.gpu.device.queue.copyExternalImageToTexture(
+          { source: overlaySource },
+          { texture: resources.overlayTexture },
+          { width: videoWidth, height: videoHeight },
+        );
+        resources.lastOverlayKey = overlayKey ?? null;
+      }
 
       const commandEncoder = this.gpu.device.createCommandEncoder();
       const currentTexture = resources.context.getCurrentTexture();
@@ -231,6 +228,68 @@ export class WebGPUAdapter {
     } catch (error) {
       console.warn('[WebGPUAdapter] compositeOverlay failed:', error);
       return false;
+    }
+  }
+
+  async compositeVideoFrame(
+    videoFrame: VideoFrame,
+    overlaySource: CanvasImageSource,
+    videoWidth: number,
+    videoHeight: number,
+    overlayKey?: string,
+  ): Promise<VideoFrame | null> {
+    if (!this.isEnabled()) return null;
+
+    try {
+      const initialized = await this.initialize();
+      if (!initialized || !this.gpu) return null;
+
+      const resources = this.ensureCompositeResources(videoWidth, videoHeight);
+      if (!resources) return null;
+
+      this.gpu.device.queue.copyExternalImageToTexture(
+        { source: videoFrame },
+        { texture: resources.baseTexture },
+        { width: videoWidth, height: videoHeight },
+      );
+
+      const shouldRefreshOverlay = overlayKey === undefined || resources.lastOverlayKey !== overlayKey;
+      if (shouldRefreshOverlay) {
+        this.gpu.device.queue.copyExternalImageToTexture(
+          { source: overlaySource },
+          { texture: resources.overlayTexture },
+          { width: videoWidth, height: videoHeight },
+        );
+        resources.lastOverlayKey = overlayKey ?? null;
+      }
+
+      const commandEncoder = this.gpu.device.createCommandEncoder();
+      const currentTexture = resources.context.getCurrentTexture();
+      const passEncoder = commandEncoder.beginRenderPass({
+        colorAttachments: [
+          {
+            view: currentTexture.createView(),
+            clearValue: { r: 0, g: 0, b: 0, a: 0 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          },
+        ],
+      });
+
+      passEncoder.setPipeline(this.gpu.pipeline);
+      passEncoder.setBindGroup(0, resources.bindGroup);
+      passEncoder.draw(6, 1, 0, 0);
+      passEncoder.end();
+
+      this.gpu.device.queue.submit([commandEncoder.finish()]);
+
+      return new VideoFrame(resources.canvas, {
+        timestamp: videoFrame.timestamp,
+        duration: videoFrame.duration ?? undefined,
+      });
+    } catch (error) {
+      console.warn('[WebGPUAdapter] compositeVideoFrame failed:', error);
+      return null;
     }
   }
 
@@ -349,6 +408,7 @@ export class WebGPUAdapter {
       overlayTexture,
       uniformBuffer,
       bindGroup,
+      lastOverlayKey: null,
     };
 
     return this.compositeResources;
@@ -540,7 +600,6 @@ export function getWebGPUStatus(): {
 export function toggleWebGPU(enabled: boolean): void {
   const adapter = WebGPUAdapter.getInstance();
   adapter.setEnabled(enabled);
-  console.log(`[WebGPU] ${enabled ? 'Enabled' : 'Disabled'}`);
 }
 
 /**

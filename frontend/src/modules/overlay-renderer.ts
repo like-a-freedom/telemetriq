@@ -81,18 +81,6 @@ export async function renderOverlay(
     const metrics = buildMetrics(frame, effectiveConfig);
 
     if (metrics.length === 0) {
-        console.warn('[renderOverlay] No metrics to render. Config:', {
-            showPace: effectiveConfig.showPace,
-            showHr: effectiveConfig.showHr,
-            showDistance: effectiveConfig.showDistance,
-            showTime: effectiveConfig.showTime,
-            frame: {
-                paceSecondsPerKm: frame.paceSecondsPerKm,
-                hr: frame.hr,
-                distanceKm: frame.distanceKm,
-                elapsedTime: frame.elapsedTime
-            }
-        });
         return;
     }
 
@@ -137,6 +125,7 @@ export async function renderOverlay(
                     overlayCanvas as CanvasImageSource,
                     videoWidth,
                     videoHeight,
+                    cacheKey,
                 );
             }
         } catch (error) {
@@ -148,10 +137,6 @@ export async function renderOverlay(
         ctx.drawImage(overlayCanvas as CanvasImageSource, 0, 0);
     }
 
-    // Debug log (throttled to avoid spam)
-    if (Math.random() < 0.01) {
-        console.log('[renderOverlay] Rendered overlay with metrics:', metrics.length);
-    }
 }
 
 function getEffectiveConfig(config: ExtendedOverlayConfig): ExtendedOverlayConfig {
@@ -322,6 +307,61 @@ export async function renderOverlayOnFrame(
 ): Promise<VideoFrame> {
     const width = videoFrame.displayWidth;
     const height = videoFrame.displayHeight;
+
+    const effectiveConfig = getEffectiveConfig(config);
+    const metrics = buildMetrics(telemetryFrame, effectiveConfig);
+
+    if (metrics.length > 0) {
+        const shouldUseCache = width * height <= MAX_CACHE_PIXELS;
+        const cacheKey = shouldUseCache
+            ? buildCacheKey(metrics, effectiveConfig, width, height)
+            : undefined;
+
+        let overlayCanvas: OffscreenCanvas | HTMLCanvasElement | null = null;
+
+        if (cacheKey) {
+            const cached = overlayCache.get(cacheKey);
+            if (cached) {
+                overlayCanvas = cached.canvas;
+            }
+        }
+
+        if (!overlayCanvas) {
+            const standaloneCanvas = createCanvas(width, height);
+            const standaloneCtx = getCanvasContext(standaloneCanvas);
+            if (standaloneCtx) {
+                if (typeof standaloneCtx.clearRect === 'function') {
+                    standaloneCtx.clearRect(0, 0, width, height);
+                }
+                const layoutMode = effectiveConfig.layoutMode || 'box';
+                renderLayout(standaloneCtx, metrics, telemetryFrame, width, height, effectiveConfig, layoutMode);
+                overlayCanvas = standaloneCanvas;
+
+                if (cacheKey) {
+                    cacheOverlay(cacheKey, standaloneCanvas, width, height);
+                    overlayCanvas = overlayCache.get(cacheKey)?.canvas ?? standaloneCanvas;
+                }
+            }
+        }
+
+        if (overlayCanvas && WebGPUAdapter.isSupported()) {
+            try {
+                const adapter = WebGPUAdapter.getInstance();
+                if (adapter.isEnabled()) {
+                    const gpuFrame = await adapter.compositeVideoFrame(
+                        videoFrame,
+                        overlayCanvas as CanvasImageSource,
+                        width,
+                        height,
+                        cacheKey,
+                    );
+                    if (gpuFrame) return gpuFrame;
+                }
+            } catch (error) {
+                console.warn('WebGPU VideoFrame compositing failed, using Canvas fallback:', error);
+            }
+        }
+    }
 
     // Canvas 2D fallback
     const canvas = new OffscreenCanvas(width, height);

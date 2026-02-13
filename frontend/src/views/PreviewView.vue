@@ -235,21 +235,6 @@ onMounted(() => {
 
   // Attempt auto-sync
   if (filesStore.gpxData) {
-    // DEBUG: Log what we're passing to sync engine
-    console.log(
-      "[DEBUG AutoSync] GPX first point:",
-      filesStore.gpxData.points[0]?.time
-    );
-    console.log(
-      "[DEBUG AutoSync] Video startTime:",
-      filesStore.videoMeta?.startTime
-    );
-    console.log(
-      "[DEBUG AutoSync] Video timezoneOffsetMinutes:",
-      filesStore.videoMeta?.timezoneOffsetMinutes
-    );
-    console.log("[DEBUG AutoSync] Video GPS:", filesStore.videoMeta?.gps);
-
     syncStore.performAutoSync(
       filesStore.gpxData.points,
       filesStore.videoMeta?.startTime,

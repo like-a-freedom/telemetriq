@@ -53,7 +53,6 @@ export async function loadFfmpegCore(
                         coreURL: `${baseURL}/ffmpeg-core.js`,
                         wasmURL: `${baseURL}/ffmpeg-core.wasm`,
                     });
-                    console.info(`[ffmpeg core] loaded from ${baseURL} (direct URLs)`);
                     return undefined;
                 } catch {
                     // Fall through to blob URL approach
@@ -64,8 +63,6 @@ export async function loadFfmpegCore(
             const coreUrl = await toBlobUrlFn(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
             const wasmUrl = await toBlobUrlFn(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
             await ffmpeg.load({ coreURL: coreUrl, wasmURL: wasmUrl });
-
-            console.info(`[ffmpeg core] loaded from ${baseURL} (blob URLs)`);
             return undefined;
         } catch (err) {
             console.warn(`[ffmpeg core] failed to load from ${baseURL}`);
@@ -111,17 +108,6 @@ export async function probeFfmpegCore(baseURL: string, fetchFn: typeof fetch = f
  */
 export function createFfmpegInstance(factory: FfmpegFactory = () => new FFmpeg()): FFmpeg {
     const ffmpeg = factory();
-    const logBuffer: string[] = [];
-
-    ffmpeg.on('log', ({ message }) => {
-        console.debug('[ffmpeg log]', message);
-        logBuffer.push(message);
-        if (logBuffer.length > 50) logBuffer.shift();
-    });
-
-    ffmpeg.on('progress', ({ progress, time }) => {
-        console.debug('[ffmpeg progress]', { progress, time });
-    });
 
     return ffmpeg;
 }
@@ -170,14 +156,12 @@ export async function transcodeWithForcedKeyframes(
     const attemptLogs: string[] = [];
 
     ffmpeg.on('log', ({ message }) => {
-        console.debug('[ffmpeg transcode log]', message);
         logBuffer.push(message);
         if (logBuffer.length > 50) logBuffer.shift();
     });
 
     ffmpeg.on('progress', ({ progress, time }) => {
         const percent = Number.isFinite(progress) ? Math.round(progress * 100) : 0;
-        console.debug('[ffmpeg transcode progress]', { percent, time });
         onProgress?.(percent, time);
     });
 
@@ -209,9 +193,7 @@ export async function transcodeWithForcedKeyframes(
     const runTranscode = async (args: string[], label: string): Promise<void> => {
         logBuffer.length = 0;
         try {
-            console.info(`[ffmpeg transcode] running ${label}`);
             await ffmpeg.exec(args);
-            console.info(`[ffmpeg transcode] ${label} succeeded`);
         } catch (error) {
             if (logBuffer.length > 0) {
                 attemptLogs.push(`[${label}]\n${logBuffer.join('\n')}`);
