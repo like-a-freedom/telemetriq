@@ -5,6 +5,7 @@ import {
     getResolutionTuning,
     fontWeightValue,
     applyTextShadow,
+    getStableMetricValue,
 } from '../overlay-utils';
 
 export function renderHorizonLayout(
@@ -130,7 +131,7 @@ function metricsFitInColumns(
 ): boolean {
     for (const metric of metrics) {
         ctx.font = `${weight} ${valueSize}px ${fontFamily}`;
-        const valueWidth = ctx.measureText(metric.value).width;
+        const valueWidth = ctx.measureText(getStableMetricValue(metric.label)).width;
         ctx.font = `300 ${unitSize}px ${fontFamily}`;
         const unitWidth = metric.unit ? ctx.measureText(metric.unit).width : 0;
 
