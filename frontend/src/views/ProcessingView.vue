@@ -7,6 +7,19 @@
       </p>
     </header>
 
+    <!-- WebGPU Status -->
+    <div v-if="webGPUStatus" class="processing-view__webgpu-status">
+      <div class="webgpu-badge" :class="{ 'webgpu-badge--active': webGPUStatus.enabled && webGPUStatus.supported }">
+        <span class="webgpu-badge__icon">{{ webGPUStatus.enabled && webGPUStatus.supported ? '⚡' : '🐢' }}</span>
+        <span class="webgpu-badge__text">
+          {{ webGPUStatus.enabled && webGPUStatus.supported ? 'GPU Acceleration' : 'CPU Mode' }}
+        </span>
+        <span v-if="webGPUStatus.supported" class="webgpu-badge__toggle" @click="toggleWebGPUMode">
+          {{ webGPUStatus.enabled ? 'Disable' : 'Enable' }}
+        </span>
+      </div>
+    </div>
+
     <ProgressBar
       :progress="processingStore.progress"
       :has-error="!!processingStore.processingError"
@@ -71,6 +84,7 @@ import {
 import { normalizeProcessingError } from "../stores/store-utils";
 import { buildTelemetryTimeline } from "../modules/telemetry-core";
 import { VideoProcessor } from "../modules/video-processor";
+import { getWebGPUStatus, toggleWebGPU } from "../modules/webgpu";
 
 // @ts-expect-error Vue SFC default export typing handled by Vite/Vue tooling
 import ProgressBar from "../components/ProgressBar.vue";
@@ -85,6 +99,20 @@ const isE2E =
   new URLSearchParams(window.location.search).has("e2e") ||
   window.sessionStorage.getItem("e2e-mode") === "1";
 const hasStarted = ref(false);
+const webGPUStatus = ref<{ supported: boolean; enabled: boolean; available: boolean } | null>(null);
+
+// Check WebGPU status
+function checkWebGPUStatus() {
+  webGPUStatus.value = getWebGPUStatus();
+}
+
+// Toggle WebGPU mode
+function toggleWebGPUMode() {
+  if (!webGPUStatus.value) return;
+  const newEnabled = !webGPUStatus.value.enabled;
+  toggleWebGPU(newEnabled);
+  checkWebGPUStatus();
+}
 
 async function startProcessingFlow(): Promise<void> {
   if (hasStarted.value || !filesStore.isReady) return;
@@ -125,6 +153,8 @@ async function startProcessingFlow(): Promise<void> {
 }
 
 onMounted(() => {
+  checkWebGPUStatus();
+  
   if (!filesStore.isReady && !isE2E) {
     router.push("/");
     return;
@@ -269,5 +299,59 @@ watch(
 
 .processing-view__btn--primary:hover {
   background: #535bf2;
+}
+
+.processing-view__webgpu-status {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.webgpu-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  background: #2a2a2a;
+  border: 1px solid #404040;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  color: #aaa;
+}
+
+.webgpu-badge--active {
+  background: rgba(100, 108, 255, 0.15);
+  border-color: #646cff;
+  color: #646cff;
+}
+
+.webgpu-badge__icon {
+  font-size: 1rem;
+}
+
+.webgpu-badge__text {
+  font-weight: 500;
+}
+
+.webgpu-badge__toggle {
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.webgpu-badge__toggle:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.webgpu-badge--active .webgpu-badge__toggle {
+  background: rgba(100, 108, 255, 0.3);
+}
+
+.webgpu-badge--active .webgpu-badge__toggle:hover {
+  background: rgba(100, 108, 255, 0.5);
 }
 </style>

@@ -7,6 +7,7 @@ import { renderMarginLayout } from './layouts/margin-layout';
 import { renderLFrameLayout } from './layouts/lframe-layout';
 import { renderClassicLayout } from './layouts/classic-layout';
 import { renderExtendedLayout } from './layouts/extended-layouts';
+import { WebGPUAdapter } from './webgpu/webgpu-adapter';
 
 type CachedOverlay = {
     canvas: OffscreenCanvas | HTMLCanvasElement;
@@ -59,17 +60,18 @@ export const DEFAULT_OVERLAY_CONFIG: ExtendedOverlayConfig = {
 
 /**
  * Render the telemetry overlay onto a canvas.
- * Dispatches to the appropriate layout renderer based on template config.
+ * Uses WebGPU acceleration when available, falls back to Canvas 2D.
  */
-export function renderOverlay(
+export async function renderOverlay(
     ctx: OverlayContext2D,
     frame: TelemetryFrame,
     videoWidth: number,
     videoHeight: number,
     config: ExtendedOverlayConfig = DEFAULT_OVERLAY_CONFIG,
-): void {
+): Promise<void> {
     const effectiveConfig = getEffectiveConfig(config);
 
+    // Check cache first (works for both WebGPU and Canvas 2D)
     const shouldUseCache = videoWidth * videoHeight <= MAX_CACHE_PIXELS;
     const cacheKey = shouldUseCache
         ? buildCacheKey(frame, effectiveConfig, videoWidth, videoHeight)
@@ -83,13 +85,28 @@ export function renderOverlay(
         }
     }
 
+    // Always build overlay with canonical CPU layout engine (template reference rendering).
     const overlayTarget = createOverlayTarget(videoWidth, videoHeight);
     if (!overlayTarget) return;
 
     const { canvas: overlayCanvas, ctx: overlayCtx } = overlayTarget;
     const metrics = buildMetrics(frame, effectiveConfig);
 
-    if (metrics.length === 0) return;
+    if (metrics.length === 0) {
+        console.warn('[renderOverlay] No metrics to render. Config:', {
+            showPace: effectiveConfig.showPace,
+            showHr: effectiveConfig.showHr,
+            showDistance: effectiveConfig.showDistance,
+            showTime: effectiveConfig.showTime,
+            frame: {
+                paceSecondsPerKm: frame.paceSecondsPerKm,
+                hr: frame.hr,
+                distanceKm: frame.distanceKm,
+                elapsedTime: frame.elapsedTime
+            }
+        });
+        return;
+    }
 
     const layoutMode = effectiveConfig.layoutMode || 'box';
     renderLayout(overlayCtx, metrics, frame, videoWidth, videoHeight, effectiveConfig, layoutMode);
@@ -97,7 +114,33 @@ export function renderOverlay(
     if (cacheKey) {
         cacheOverlay(cacheKey, overlayCanvas, videoWidth, videoHeight);
     }
-    ctx.drawImage(overlayCanvas as CanvasImageSource, 0, 0);
+
+    // Use WebGPU only for compositing base frame + already-rendered overlay.
+    let composited = false;
+    if (WebGPUAdapter.isSupported()) {
+        try {
+            const adapter = WebGPUAdapter.getInstance();
+            if (adapter.isEnabled()) {
+                composited = await adapter.compositeOverlay(
+                    ctx,
+                    overlayCanvas as CanvasImageSource,
+                    videoWidth,
+                    videoHeight,
+                );
+            }
+        } catch (error) {
+            console.warn('WebGPU compositing failed, falling back to Canvas 2D:', error);
+        }
+    }
+
+    if (!composited) {
+        ctx.drawImage(overlayCanvas as CanvasImageSource, 0, 0);
+    }
+
+    // Debug log (throttled to avoid spam)
+    if (Math.random() < 0.01) {
+        console.log('[renderOverlay] Rendered overlay with metrics:', metrics.length);
+    }
 }
 
 function getEffectiveConfig(config: ExtendedOverlayConfig): ExtendedOverlayConfig {
@@ -254,20 +297,22 @@ function getCanvasContext(
 
 /**
  * Render overlay onto a VideoFrame and return a new frame with overlay.
+ * Uses WebGPU acceleration when available.
  */
-export function renderOverlayOnFrame(
+export async function renderOverlayOnFrame(
     videoFrame: VideoFrame,
     telemetryFrame: TelemetryFrame,
     config: ExtendedOverlayConfig = DEFAULT_OVERLAY_CONFIG,
-): VideoFrame {
+): Promise<VideoFrame> {
     const width = videoFrame.displayWidth;
     const height = videoFrame.displayHeight;
 
+    // Canvas 2D fallback
     const canvas = new OffscreenCanvas(width, height);
     const ctx = canvas.getContext('2d')!;
 
     ctx.drawImage(videoFrame, 0, 0, width, height);
-    renderOverlay(ctx, telemetryFrame, width, height, config);
+    await renderOverlay(ctx, telemetryFrame, width, height, config);
 
     return new VideoFrame(canvas, {
         timestamp: videoFrame.timestamp,
