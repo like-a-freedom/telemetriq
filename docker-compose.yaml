@@ -1,5 +1,5 @@
 services:
-  frontend-prod:
+  telemetriq:
     container_name: telemetriq
     build:
       context: ./frontend
@@ -11,5 +11,3 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    profiles:
-      - production
