@@ -29,9 +29,10 @@ export function renderLFrameLayout(
     ctx.save();
     applyTextShadow(ctx, config);
 
-    const metricsStartX = margin;
     const metricsAreaWidth = w * 0.84 - margin * 0.9;
     const metricGap = metricsAreaWidth / Math.max(1, metrics.length);
+    const renderedBlockWidth = metricGap * metrics.length;
+    const metricsStartX = Math.max(margin, (w - renderedBlockWidth) / 2);
     const metricsY = h - bottomMargin - margin * 0.3;
 
     const { valueSize, labelSize, unitSize } = calculateOptimalFontSizes(ctx, metrics, metricGap, {

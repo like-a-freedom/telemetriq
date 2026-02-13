@@ -117,6 +117,21 @@ export type TemplateId =
     | 'margin'
     | 'l-frame'
     | 'classic'
+    | 'floating-pills'
+    | 'arc-gauge'
+    | 'hero-number'
+    | 'dashboard-hud'
+    | 'cinematic-bar'
+    | 'split-edges'
+    | 'stacked-serif'
+    | 'editorial'
+    | 'ticker-tape'
+    | 'whisper'
+    | 'two-tone'
+    | 'condensed-strip'
+    | 'soft-rounded'
+    | 'thin-line'
+    | 'swiss-grid'
     | 'custom';
 
 /** Visual layout mode for the overlay */
@@ -124,6 +139,21 @@ export type OverlayLayoutMode =
     | 'bottom-bar'     // Horizon: full-width gradient bar at bottom
     | 'side-margins'   // Margin: metrics on left/right margins
     | 'corner-frame'   // L-Frame: L-shaped frame at corner
+    | 'floating-pills'
+    | 'arc-gauge'
+    | 'hero-number'
+    | 'dashboard-hud'
+    | 'cinematic-bar'
+    | 'split-edges'
+    | 'stacked-serif'
+    | 'editorial'
+    | 'ticker-tape'
+    | 'whisper'
+    | 'two-tone'
+    | 'condensed-strip'
+    | 'soft-rounded'
+    | 'thin-line'
+    | 'swiss-grid'
     | 'box';           // Classic: positioned rounded rectangle
 
 /** Sync configuration */

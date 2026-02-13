@@ -16,6 +16,21 @@ import { horizonTemplate } from './horizon';
 import { marginTemplate } from './margin';
 import { lframeTemplate } from './lframe';
 import { classicTemplate } from './classic';
+import { floatingPillsTemplate } from './floating-pills';
+import { arcGaugeTemplate } from './arc-gauge';
+import { heroNumberTemplate } from './hero-number';
+import { dashboardHudTemplate } from './dashboard-hud';
+import { cinematicBarTemplate } from './cinematic-bar';
+import { splitEdgesTemplate } from './split-edges';
+import { stackedSerifTemplate } from './stacked-serif';
+import { editorialTemplate } from './editorial';
+import { tickerTapeTemplate } from './ticker-tape';
+import { whisperTemplate } from './whisper';
+import { twoToneTemplate } from './two-tone';
+import { condensedStripTemplate } from './condensed-strip';
+import { softRoundedTemplate } from './soft-rounded';
+import { thinLineTemplate } from './thin-line';
+import { swissGridTemplate } from './swiss-grid';
 import { customTemplate } from './custom';
 
 /** All available templates */
@@ -24,6 +39,21 @@ export const TEMPLATES: TemplateDefinition[] = [
   marginTemplate,
   lframeTemplate,
   classicTemplate,
+  floatingPillsTemplate,
+  arcGaugeTemplate,
+  heroNumberTemplate,
+  dashboardHudTemplate,
+  cinematicBarTemplate,
+  splitEdgesTemplate,
+  stackedSerifTemplate,
+  editorialTemplate,
+  tickerTapeTemplate,
+  whisperTemplate,
+  twoToneTemplate,
+  condensedStripTemplate,
+  softRoundedTemplate,
+  thinLineTemplate,
+  swissGridTemplate,
   customTemplate,
 ];
 
@@ -33,6 +63,21 @@ export const TEMPLATE_MAP: Record<TemplateId, TemplateDefinition> = {
   'margin': marginTemplate,
   'l-frame': lframeTemplate,
   'classic': classicTemplate,
+  'floating-pills': floatingPillsTemplate,
+  'arc-gauge': arcGaugeTemplate,
+  'hero-number': heroNumberTemplate,
+  'dashboard-hud': dashboardHudTemplate,
+  'cinematic-bar': cinematicBarTemplate,
+  'split-edges': splitEdgesTemplate,
+  'stacked-serif': stackedSerifTemplate,
+  'editorial': editorialTemplate,
+  'ticker-tape': tickerTapeTemplate,
+  'whisper': whisperTemplate,
+  'two-tone': twoToneTemplate,
+  'condensed-strip': condensedStripTemplate,
+  'soft-rounded': softRoundedTemplate,
+  'thin-line': thinLineTemplate,
+  'swiss-grid': swissGridTemplate,
   'custom': customTemplate,
 };
 
@@ -66,4 +111,19 @@ export { horizonTemplate } from './horizon';
 export { marginTemplate } from './margin';
 export { lframeTemplate } from './lframe';
 export { classicTemplate } from './classic';
+export { floatingPillsTemplate } from './floating-pills';
+export { arcGaugeTemplate } from './arc-gauge';
+export { heroNumberTemplate } from './hero-number';
+export { dashboardHudTemplate } from './dashboard-hud';
+export { cinematicBarTemplate } from './cinematic-bar';
+export { splitEdgesTemplate } from './split-edges';
+export { stackedSerifTemplate } from './stacked-serif';
+export { editorialTemplate } from './editorial';
+export { tickerTapeTemplate } from './ticker-tape';
+export { whisperTemplate } from './whisper';
+export { twoToneTemplate } from './two-tone';
+export { condensedStripTemplate } from './condensed-strip';
+export { softRoundedTemplate } from './soft-rounded';
+export { thinLineTemplate } from './thin-line';
+export { swissGridTemplate } from './swiss-grid';
 export { customTemplate } from './custom';

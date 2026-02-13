@@ -13,19 +13,39 @@ import {
     marginTemplate,
     lframeTemplate,
     classicTemplate,
+    floatingPillsTemplate,
+    arcGaugeTemplate,
+    heroNumberTemplate,
+    dashboardHudTemplate,
+    cinematicBarTemplate,
+    splitEdgesTemplate,
+    stackedSerifTemplate,
+    editorialTemplate,
+    tickerTapeTemplate,
+    whisperTemplate,
+    twoToneTemplate,
+    condensedStripTemplate,
+    softRoundedTemplate,
+    thinLineTemplate,
+    swissGridTemplate,
     customTemplate,
 } from '../modules/templates';
 import type { TemplateId } from '../core/types';
 
 describe('templates registry', () => {
+    const allTemplateIds: TemplateId[] = [
+        'horizon', 'margin', 'l-frame', 'classic',
+        'floating-pills', 'arc-gauge', 'hero-number', 'dashboard-hud', 'cinematic-bar',
+        'split-edges', 'stacked-serif', 'editorial', 'ticker-tape', 'whisper', 'two-tone',
+        'condensed-strip', 'soft-rounded', 'thin-line', 'swiss-grid', 'custom',
+    ];
+
     describe('TEMPLATES array', () => {
         it('should contain all templates', () => {
-            expect(TEMPLATES.length).toBe(5);
-            expect(TEMPLATES.map(t => t.id)).toContain('horizon');
-            expect(TEMPLATES.map(t => t.id)).toContain('margin');
-            expect(TEMPLATES.map(t => t.id)).toContain('l-frame');
-            expect(TEMPLATES.map(t => t.id)).toContain('classic');
-            expect(TEMPLATES.map(t => t.id)).toContain('custom');
+            expect(TEMPLATES.length).toBe(allTemplateIds.length);
+            allTemplateIds.forEach((id) => {
+                expect(TEMPLATES.map(t => t.id)).toContain(id);
+            });
         });
 
         it('each template should have metadata and config', () => {
@@ -48,6 +68,21 @@ describe('templates registry', () => {
             expect(TEMPLATE_MAP['margin']).toBe(marginTemplate);
             expect(TEMPLATE_MAP['l-frame']).toBe(lframeTemplate);
             expect(TEMPLATE_MAP['classic']).toBe(classicTemplate);
+            expect(TEMPLATE_MAP['floating-pills']).toBe(floatingPillsTemplate);
+            expect(TEMPLATE_MAP['arc-gauge']).toBe(arcGaugeTemplate);
+            expect(TEMPLATE_MAP['hero-number']).toBe(heroNumberTemplate);
+            expect(TEMPLATE_MAP['dashboard-hud']).toBe(dashboardHudTemplate);
+            expect(TEMPLATE_MAP['cinematic-bar']).toBe(cinematicBarTemplate);
+            expect(TEMPLATE_MAP['split-edges']).toBe(splitEdgesTemplate);
+            expect(TEMPLATE_MAP['stacked-serif']).toBe(stackedSerifTemplate);
+            expect(TEMPLATE_MAP['editorial']).toBe(editorialTemplate);
+            expect(TEMPLATE_MAP['ticker-tape']).toBe(tickerTapeTemplate);
+            expect(TEMPLATE_MAP['whisper']).toBe(whisperTemplate);
+            expect(TEMPLATE_MAP['two-tone']).toBe(twoToneTemplate);
+            expect(TEMPLATE_MAP['condensed-strip']).toBe(condensedStripTemplate);
+            expect(TEMPLATE_MAP['soft-rounded']).toBe(softRoundedTemplate);
+            expect(TEMPLATE_MAP['thin-line']).toBe(thinLineTemplate);
+            expect(TEMPLATE_MAP['swiss-grid']).toBe(swissGridTemplate);
             expect(TEMPLATE_MAP['custom']).toBe(customTemplate);
         });
     });
@@ -77,12 +112,29 @@ describe('templates registry', () => {
             expect(customTemplate.config.layoutMode).toBe('box');
             expect(customTemplate.metadata.name).toBe('Custom');
         });
+
+        it('new template layouts should map to expected modes', () => {
+            expect(floatingPillsTemplate.config.layoutMode).toBe('floating-pills');
+            expect(arcGaugeTemplate.config.layoutMode).toBe('arc-gauge');
+            expect(heroNumberTemplate.config.layoutMode).toBe('hero-number');
+            expect(dashboardHudTemplate.config.layoutMode).toBe('dashboard-hud');
+            expect(cinematicBarTemplate.config.layoutMode).toBe('cinematic-bar');
+            expect(splitEdgesTemplate.config.layoutMode).toBe('split-edges');
+            expect(stackedSerifTemplate.config.layoutMode).toBe('stacked-serif');
+            expect(editorialTemplate.config.layoutMode).toBe('editorial');
+            expect(tickerTapeTemplate.config.layoutMode).toBe('ticker-tape');
+            expect(whisperTemplate.config.layoutMode).toBe('whisper');
+            expect(twoToneTemplate.config.layoutMode).toBe('two-tone');
+            expect(condensedStripTemplate.config.layoutMode).toBe('condensed-strip');
+            expect(softRoundedTemplate.config.layoutMode).toBe('soft-rounded');
+            expect(thinLineTemplate.config.layoutMode).toBe('thin-line');
+            expect(swissGridTemplate.config.layoutMode).toBe('swiss-grid');
+        });
     });
 
     describe('getTemplateConfig', () => {
         it('should return config for each template', () => {
-            const ids: TemplateId[] = ['horizon', 'margin', 'l-frame', 'classic', 'custom'];
-            ids.forEach(id => {
+            allTemplateIds.forEach(id => {
                 const config = getTemplateConfig(id);
                 expect(config.templateId).toBe(id);
             });
@@ -99,19 +151,16 @@ describe('templates registry', () => {
     describe('getAvailableTemplates', () => {
         it('should return all template IDs', () => {
             const templates = getAvailableTemplates();
-            expect(templates).toHaveLength(5);
-            expect(templates).toContain('horizon');
-            expect(templates).toContain('margin');
-            expect(templates).toContain('l-frame');
-            expect(templates).toContain('classic');
-            expect(templates).toContain('custom');
+            expect(templates).toHaveLength(allTemplateIds.length);
+            allTemplateIds.forEach((id) => {
+                expect(templates).toContain(id);
+            });
         });
     });
 
     describe('getTemplateMetadata', () => {
         it('should return metadata for each template', () => {
-            const ids: TemplateId[] = ['horizon', 'margin', 'l-frame', 'classic', 'custom'];
-            ids.forEach(id => {
+            allTemplateIds.forEach(id => {
                 const meta = getTemplateMetadata(id);
                 expect(meta.id).toBe(id);
                 expect(meta.name).toBeDefined();
@@ -127,7 +176,7 @@ describe('templates registry', () => {
     describe('getAllTemplateMetadata', () => {
         it('should return metadata for all templates except custom', () => {
             const templates = getAllTemplateMetadata();
-            expect(templates).toHaveLength(4);
+            expect(templates).toHaveLength(allTemplateIds.length - 1);
             expect(templates.find(t => t.id === 'custom')).toBeUndefined();
         });
     });

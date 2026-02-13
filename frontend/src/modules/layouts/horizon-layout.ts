@@ -132,9 +132,9 @@ function metricsFitInColumns(
         ctx.font = `${weight} ${valueSize}px ${fontFamily}`;
         const valueWidth = ctx.measureText(metric.value).width;
         ctx.font = `300 ${unitSize}px ${fontFamily}`;
-        const unitWidth = metric.unit ? ctx.measureText(metric.unit).width + unitSize * 0.35 : 0;
+        const unitWidth = metric.unit ? ctx.measureText(metric.unit).width : 0;
 
-        if (valueWidth + unitWidth > columnWidth * 0.82) {
+        if (Math.max(valueWidth, unitWidth) > columnWidth * 0.82) {
             return false;
         }
     }
@@ -161,14 +161,17 @@ function renderMetricColumn(
     config: ColumnRenderConfig,
 ): void {
     const { padding, columnWidth, centerX, baselineY, labelSize, valueSize, unitSize, fontFamily, valueWeight, textColor } = config;
+    const labelY = baselineY - valueSize - labelSize * 0.35;
+    const valueY = baselineY;
+    const unitY = baselineY + unitSize * 1.28;
 
     // Separator line (except first)
     if (index > 0) {
         ctx.strokeStyle = 'rgba(255,255,255,0.1)';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(padding + columnWidth * index, baselineY - valueSize * 0.95);
-        ctx.lineTo(padding + columnWidth * index, baselineY + labelSize * 0.5);
+        ctx.moveTo(padding + columnWidth * index, labelY - labelSize * 0.3);
+        ctx.lineTo(padding + columnWidth * index, unitY + unitSize * 0.35);
         ctx.stroke();
     }
 
@@ -177,7 +180,7 @@ function renderMetricColumn(
     ctx.font = `500 ${labelSize}px ${fontFamily}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
-    ctx.fillText(metric.label.toUpperCase(), centerX, baselineY - valueSize - labelSize * 0.3);
+    ctx.fillText(metric.label.toUpperCase(), centerX, labelY);
 
     // Value
     const weight = fontWeightValue(valueWeight);
@@ -185,15 +188,14 @@ function renderMetricColumn(
     ctx.font = `${weight} ${valueSize}px ${fontFamily}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-
-    const valueMetrics = ctx.measureText(metric.value);
-    ctx.fillText(metric.value, centerX, baselineY);
+    ctx.fillText(metric.value, centerX, valueY);
 
     // Unit
     if (metric.unit) {
         ctx.fillStyle = 'rgba(255,255,255,0.5)';
         ctx.font = `300 ${unitSize}px ${fontFamily}`;
-        ctx.textAlign = 'left';
-        ctx.fillText(metric.unit, centerX + valueMetrics.width / 2 + unitSize * 0.15, baselineY);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(metric.unit, centerX, unitY);
     }
 }
