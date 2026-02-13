@@ -86,7 +86,7 @@ import { buildTelemetryTimeline } from "../modules/telemetry-core";
 import { VideoProcessor } from "../modules/video-processor";
 import { getWebGPUStatus, toggleWebGPU } from "../modules/webgpu";
 
-// @ts-expect-error Vue SFC default export typing handled by Vite/Vue tooling
+// @ts-ignore Vue SFC default export typing handled by current tooling setup
 import ProgressBar from "../components/ProgressBar.vue";
 
 const router = useRouter();
@@ -99,7 +99,11 @@ const isE2E =
   new URLSearchParams(window.location.search).has("e2e") ||
   window.sessionStorage.getItem("e2e-mode") === "1";
 const hasStarted = ref(false);
-const webGPUStatus = ref<{ supported: boolean; enabled: boolean; available: boolean } | null>(null);
+const webGPUStatus = ref<{
+  supported: boolean;
+  enabled: boolean;
+  available: boolean;
+} | null>(null);
 
 // Check WebGPU status
 function checkWebGPUStatus() {
@@ -154,7 +158,7 @@ async function startProcessingFlow(): Promise<void> {
 
 onMounted(() => {
   checkWebGPUStatus();
-  
+
   if (!filesStore.isReady && !isE2E) {
     router.push("/");
     return;

@@ -8,7 +8,6 @@ import {
     createEtaCalculator,
     mapProgressPhase,
 } from '../modules/progress-utils';
-import type { ProcessingProgress } from '../core/types';
 
 describe('progress-utils', () => {
     describe('createProcessingProgressReporter', () => {

@@ -52,6 +52,8 @@ describe('layout modules - additional', () => {
         const lFrameConfig: ExtendedOverlayConfig = {
             templateId: 'l-frame',
             layoutMode: 'corner-frame',
+            position: 'bottom-left',
+            backgroundOpacity: 0.6,
             fontSizePercent: 2.0,
             fontFamily: 'Inter, sans-serif',
             textColor: '#FFFFFF',
@@ -93,6 +95,7 @@ describe('layout modules - additional', () => {
         const marginConfig: ExtendedOverlayConfig = {
             templateId: 'margin',
             layoutMode: 'side-margins',
+            position: 'bottom-left',
             fontSizePercent: 2.0,
             fontFamily: 'Inter, sans-serif',
             textColor: '#FFFFFF',

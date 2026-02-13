@@ -45,15 +45,16 @@ describe('video-codec-manager', () => {
 
             vi.stubGlobal('VideoDecoder', class {
                 configure = configureSpy;
-                set output(_: any) {}
-                set error(_: any) {}
+                set output(_: any) { }
+                set error(_: any) { }
             });
 
             manager.createDecoder('avc1.640028', description, vi.fn(), vi.fn());
 
             expect(configureSpy).toHaveBeenCalled();
-            const config = configureSpy.mock.calls[0][0];
-            expect(config.description).toBe(description);
+            const config = configureSpy.mock.calls[0]?.[0];
+            expect(config).toBeDefined();
+            expect(config?.description).toBe(description);
         });
     });
 
@@ -95,9 +96,9 @@ describe('video-codec-manager', () => {
             vi.stubGlobal('VideoEncoder', class {
                 static isConfigSupported = vi.fn().mockResolvedValue({ supported: false });
                 state = 'unconfigured';
-                configure() {}
-                set output(_: any) {}
-                set error(_: any) {}
+                configure() { }
+                set output(_: any) { }
+                set error(_: any) { }
             });
 
             await expect(

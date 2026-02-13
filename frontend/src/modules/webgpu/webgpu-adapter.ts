@@ -47,6 +47,8 @@ interface GPUCompositeResources {
   lastOverlayKey: string | null;
 }
 
+type Canvas2DContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
 /**
  * WebGPU adapter for GPU-accelerated overlay rendering
  * 
@@ -97,6 +99,39 @@ export class WebGPUAdapter {
 
     this.initPromise = this.doInitialize();
     return this.initPromise;
+  }
+
+  private get2dContext(canvas: OffscreenCanvas | HTMLCanvasElement): Canvas2DContext | null {
+    return canvas.getContext('2d') as Canvas2DContext | null;
+  }
+
+  private isGPUCopyExternalImageSource(source: unknown): boolean {
+    if (typeof VideoFrame !== 'undefined' && source instanceof VideoFrame) return true;
+    if (typeof ImageBitmap !== 'undefined' && source instanceof ImageBitmap) return true;
+    if (typeof OffscreenCanvas !== 'undefined' && source instanceof OffscreenCanvas) return true;
+    if (typeof HTMLCanvasElement !== 'undefined' && source instanceof HTMLCanvasElement) return true;
+    if (typeof HTMLImageElement !== 'undefined' && source instanceof HTMLImageElement) return true;
+    if (typeof HTMLVideoElement !== 'undefined' && source instanceof HTMLVideoElement) return true;
+    return false;
+  }
+
+  private copyExternalSourceToTexture(
+    texture: GPUTexture,
+    source: CanvasImageSource | VideoFrame,
+    width: number,
+    height: number,
+  ): boolean {
+    if (!this.gpu || !this.isGPUCopyExternalImageSource(source)) {
+      return false;
+    }
+
+    this.gpu.device.queue.copyExternalImageToTexture(
+      { source: source as GPUCopyExternalImageSource },
+      { texture },
+      { width, height },
+    );
+
+    return true;
   }
 
   private async doInitialize(): Promise<boolean> {
@@ -187,19 +222,15 @@ export class WebGPUAdapter {
       const resources = this.ensureCompositeResources(videoWidth, videoHeight);
       if (!resources) return false;
 
-      this.gpu.device.queue.copyExternalImageToTexture(
-        { source: ctx.canvas as CanvasImageSource },
-        { texture: resources.baseTexture },
-        { width: videoWidth, height: videoHeight },
-      );
+      if (!this.copyExternalSourceToTexture(resources.baseTexture, ctx.canvas, videoWidth, videoHeight)) {
+        return false;
+      }
 
       const shouldRefreshOverlay = overlayKey === undefined || resources.lastOverlayKey !== overlayKey;
       if (shouldRefreshOverlay) {
-        this.gpu.device.queue.copyExternalImageToTexture(
-          { source: overlaySource },
-          { texture: resources.overlayTexture },
-          { width: videoWidth, height: videoHeight },
-        );
+        if (!this.copyExternalSourceToTexture(resources.overlayTexture, overlaySource, videoWidth, videoHeight)) {
+          return false;
+        }
         resources.lastOverlayKey = overlayKey ?? null;
       }
 
@@ -255,11 +286,9 @@ export class WebGPUAdapter {
 
       const shouldRefreshOverlay = overlayKey === undefined || resources.lastOverlayKey !== overlayKey;
       if (shouldRefreshOverlay) {
-        this.gpu.device.queue.copyExternalImageToTexture(
-          { source: overlaySource },
-          { texture: resources.overlayTexture },
-          { width: videoWidth, height: videoHeight },
-        );
+        if (!this.copyExternalSourceToTexture(resources.overlayTexture, overlaySource, videoWidth, videoHeight)) {
+          return null;
+        }
         resources.lastOverlayKey = overlayKey ?? null;
       }
 
@@ -326,7 +355,7 @@ export class WebGPUAdapter {
     const height = videoFrame.displayHeight;
 
     const canvas = this.createCanvas(width, height);
-    const ctx = canvas.getContext('2d');
+    const ctx = this.get2dContext(canvas);
     if (!ctx) return null;
 
     ctx.drawImage(videoFrame, 0, 0, width, height);
@@ -423,32 +452,6 @@ export class WebGPUAdapter {
     this.compositeResources = null;
   }
 
-  private createTextureFromSource(
-    device: GPUDevice,
-    source: CanvasImageSource,
-    width: number,
-    height: number,
-  ): GPUTexture | null {
-    try {
-      const texture = device.createTexture({
-        size: [width, height],
-        format: 'rgba8unorm',
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
-      });
-
-      device.queue.copyExternalImageToTexture(
-        { source },
-        { texture },
-        { width, height },
-      );
-
-      return texture;
-    } catch (error) {
-      console.warn('[WebGPUAdapter] Failed to create texture from source:', error);
-      return null;
-    }
-  }
-
   private renderOverlayToCanvas(
     frame: TelemetryFrame,
     width: number,
@@ -456,7 +459,7 @@ export class WebGPUAdapter {
     config: ExtendedOverlayConfig,
   ): OffscreenCanvas | HTMLCanvasElement {
     const overlayCanvas = this.createCanvas(width, height);
-    const overlayCtx = overlayCanvas.getContext('2d');
+    const overlayCtx = this.get2dContext(overlayCanvas);
     if (!overlayCtx) return overlayCanvas;
 
     const lines: string[] = [];

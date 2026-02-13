@@ -219,13 +219,12 @@ export class VideoProcessor {
         const ctx = canvas.getContext('2d')!;
 
         // Try to initialize WebGPU adapter for faster rendering
-        let webgpuEnabled = false;
         if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
             try {
                 const { WebGPUAdapter } = await import('./webgpu/webgpu-adapter');
                 if (WebGPUAdapter.isSupported()) {
                     const adapter = WebGPUAdapter.getInstance();
-                    webgpuEnabled = adapter.isEnabled();
+                    adapter.isEnabled();
                 }
             } catch (error) {
                 console.warn('[VideoProcessor] Failed to load WebGPU adapter:', error);

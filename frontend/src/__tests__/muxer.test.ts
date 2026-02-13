@@ -3,8 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createMuxer } from '../modules/muxer';
-import { ProcessingError } from '../core/errors';
-import type { DemuxedMedia, Mp4Sample } from '../modules/video-processing-types';
+import type { DemuxedMedia } from '../modules/video-processing-types';
 import type { VideoMeta } from '../core/types';
 
 describe('muxer', () => {
@@ -81,8 +80,34 @@ describe('muxer', () => {
             });
 
             // Ensure EncodedVideoChunk/EncodedAudioChunk constructors exist in the test env
-            vi.stubGlobal('EncodedVideoChunk', class { constructor(init: any) { Object.assign(this, init); } copyTo(dest: Uint8Array) { const src = this.data instanceof Uint8Array ? this.data : new Uint8Array(this.data || 0); const len = Math.min(src.length, dest.length); if (len > 0) dest.set(src.subarray(0, len), 0); return dest; } });
-            vi.stubGlobal('EncodedAudioChunk', class { constructor(init: any) { Object.assign(this, init); } copyTo(dest: Uint8Array) { const src = this.data instanceof Uint8Array ? this.data : new Uint8Array(this.data || 0); const len = Math.min(src.length, dest.length); if (len > 0) dest.set(src.subarray(0, len), 0); return dest; } });
+            vi.stubGlobal('EncodedVideoChunk', class {
+                data!: Uint8Array | ArrayBuffer;
+
+                constructor(init: any) {
+                    this.data = init?.data ?? new Uint8Array();
+                }
+
+                copyTo(dest: Uint8Array) {
+                    const src = this.data instanceof Uint8Array ? this.data : new Uint8Array(this.data || 0);
+                    const len = Math.min(src.length, dest.length);
+                    if (len > 0) dest.set(src.subarray(0, len), 0);
+                    return dest;
+                }
+            });
+            vi.stubGlobal('EncodedAudioChunk', class {
+                data!: Uint8Array | ArrayBuffer;
+
+                constructor(init: any) {
+                    this.data = init?.data ?? new Uint8Array();
+                }
+
+                copyTo(dest: Uint8Array) {
+                    const src = this.data instanceof Uint8Array ? this.data : new Uint8Array(this.data || 0);
+                    const len = Math.min(src.length, dest.length);
+                    if (len > 0) dest.set(src.subarray(0, len), 0);
+                    return dest;
+                }
+            });
 
             // Ensure EncodedPacket.fromEncodedChunk returns a stable packet-like object that mediabunny expects
             vi.stubGlobal('EncodedPacket', {
@@ -135,6 +160,8 @@ describe('muxer', () => {
             });
 
             vi.stubGlobal('EncodedVideoChunk', class {
+                data!: Uint8Array | ArrayBuffer;
+
                 constructor(init: any) { Object.assign(this, init); }
                 copyTo(dest: Uint8Array) {
                     const src = this.data instanceof Uint8Array ? this.data : new Uint8Array(this.data || 0);
@@ -145,6 +172,8 @@ describe('muxer', () => {
             });
 
             vi.stubGlobal('EncodedAudioChunk', class {
+                data!: Uint8Array | ArrayBuffer;
+
                 constructor(init: any) { Object.assign(this, init); }
                 copyTo(dest: Uint8Array) {
                     const src = this.data instanceof Uint8Array ? this.data : new Uint8Array(this.data || 0);

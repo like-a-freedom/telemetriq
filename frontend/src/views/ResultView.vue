@@ -52,7 +52,7 @@ import {
   useSettingsStore,
   useSyncStore,
 } from "../stores";
-// @ts-expect-error Vue SFC default export typing handled by Vite/Vue tooling
+// @ts-ignore Vue SFC default export typing handled by current tooling setup
 import FileInfo from "../components/FileInfo.vue";
 
 const router = useRouter();

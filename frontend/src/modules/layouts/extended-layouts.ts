@@ -940,7 +940,7 @@ function toMetricMap(metrics: MetricItem[]): MetricMap {
 
 function parsePace(pace?: string): number {
     if (!pace) return 6;
-    const [m, s] = pace.split(':').map(Number);
+    const [m = Number.NaN, s = Number.NaN] = pace.split(':').map(Number);
     if (!Number.isFinite(m) || !Number.isFinite(s)) return 6;
     return m + s / 60;
 }

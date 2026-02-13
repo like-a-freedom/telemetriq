@@ -160,11 +160,11 @@ import { useRouter } from "vue-router";
 import { useFilesStore, useSyncStore, useSettingsStore } from "../stores";
 import { buildTelemetryTimeline } from "../modules/telemetry-core";
 import type { TelemetryFrame } from "../core/types";
-// @ts-expect-error Vue SFC default export typing handled by Vite/Vue tooling
+// @ts-ignore Vue SFC default export typing handled by current tooling setup
 import VideoPlayer from "../components/VideoPlayer.vue";
-// @ts-expect-error Vue SFC default export typing handled by Vite/Vue tooling
+// @ts-ignore Vue SFC default export typing handled by current tooling setup
 import SyncSlider from "../components/SyncSlider.vue";
-// @ts-expect-error Vue SFC default export typing handled by Vite/Vue tooling
+// @ts-ignore Vue SFC default export typing handled by current tooling setup
 import TemplateSelector from "../components/TemplateSelector.vue";
 
 const router = useRouter();
@@ -208,14 +208,6 @@ const timezones = [
   { value: 660, label: "UTC+11" },
   { value: 720, label: "UTC+12" },
 ];
-
-const currentTimezoneLabel = computed(() => {
-  const tz = timezones.find((t) => t.value === manualTimezone.value);
-  return (
-    tz?.label ||
-    `UTC${manualTimezone.value >= 0 ? "+" : ""}${manualTimezone.value / 60}`
-  );
-});
 
 onMounted(() => {
   if (!filesStore.isReady) {
