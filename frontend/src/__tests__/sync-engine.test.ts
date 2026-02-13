@@ -81,6 +81,20 @@ describe('Sync Engine', () => {
             expect(result.offsetSeconds).toBe(-600); // -10 minutes
         });
 
+        it('should format large time difference warning in rounded human-readable form', () => {
+            const points = [
+                makePoint(55.7558, 37.6173, '2026-02-11T10:00:00Z'),
+                makePoint(55.7567, 37.6173, '2026-02-11T10:01:00Z'),
+            ];
+
+            const videoTime = new Date('2026-02-11T10:29:04.600Z'); // 29m 4.6s -> rounds to 29m 5s
+            const result = autoSync(points, videoTime);
+
+            expect(result.autoSynced).toBe(true);
+            expect(result.warning).toContain('Large time difference');
+            expect(result.warning).toContain('29 min 5 sec');
+        });
+
         // DJI filename scenarios
         it('should sync DJI video time correctly - GPX starts after video', () => {
             // GPX: 2026-02-11T05:55:25Z (first point)
@@ -92,7 +106,7 @@ describe('Sync Engine', () => {
 
             const djiVideoTime = new Date('2026-02-11T09:24:25Z');
             const result = autoSync(points, djiVideoTime, undefined, undefined, 0);
-            
+
             // Time difference is ~3.5 hours, exceeds 5 minute threshold
             // But should still sync with warning
             expect(result.autoSynced).toBe(true);
@@ -110,27 +124,24 @@ describe('Sync Engine', () => {
 
             const djiVideoTime = new Date('2026-02-11T05:55:00Z');
             const result = autoSync(points, djiVideoTime, undefined, undefined, 0);
-            
+
             // Time difference is ~3.5 hours, but should still sync
             expect(result.autoSynced).toBe(true);
             expect(result.warning).toContain('Large time difference');
             expect(result.offsetSeconds).toBe(-(3 * 3600 + 29 * 60)); // -12540 seconds
         });
 
-        it('should sync with local timezone offset for non-UTC videos', () => {
-            // GPX: 2026-02-11T10:00:00Z
-            // Video local time: 13:00 (UTC+3), so video shows 13:00 but we need UTC
+        it('should not apply timezone shift twice for absolute video Date', () => {
+            // GPX and video start at the same UTC time
             const points = [
                 makePoint(55.7558, 37.6173, '2026-02-11T10:00:00Z'),
                 makePoint(55.7567, 37.6173, '2026-02-11T10:01:00Z'),
             ];
 
-            // Video local time is 13:00, timezone is +3, so UTC is 10:00
-            const videoTimeLocal = new Date('2026-02-11T13:00:00Z');
-            // With timezone offset +180 min (UTC+3), the function adjusts to get UTC
-            const result = autoSync(points, videoTimeLocal, undefined, undefined, 180);
-            
-            // videoTime.getTime() - 180*60000 = 10:00 UTC = GPX start
+            const videoTime = new Date('2026-02-11T10:00:00Z');
+            // Even if timezone offset is passed from metadata, Date is already absolute.
+            const result = autoSync(points, videoTime, undefined, undefined, -180);
+
             expect(result.autoSynced).toBe(true);
             expect(result.offsetSeconds).toBe(0);
         });
@@ -143,7 +154,7 @@ describe('Sync Engine', () => {
 
             // GPS coords are available
             const result = autoSync(points, new Date('2024-01-15T10:05:00Z'), 55.7558, 37.6173);
-            
+
             // Should use GPS, not time
             expect(result.autoSynced).toBe(true);
             expect(result.offsetSeconds).toBe(0); // GPS matched to first point
@@ -157,7 +168,7 @@ describe('Sync Engine', () => {
 
             const videoTime = new Date('2024-01-15T10:00:00Z');
             const result = autoSync(points, videoTime);
-            
+
             expect(result.autoSynced).toBe(true);
             expect(result.offsetSeconds).toBe(0);
         });
@@ -171,7 +182,7 @@ describe('Sync Engine', () => {
             // Video started 5 minutes before GPX
             const videoTime = new Date('2024-01-15T10:00:00Z');
             const result = autoSync(points, videoTime);
-            
+
             expect(result.autoSynced).toBe(true);
             expect(result.offsetSeconds).toBe(-300); // -5 minutes
         });
@@ -185,7 +196,7 @@ describe('Sync Engine', () => {
             // Video started 5 minutes before GPX (boundary case - more than 5 min fails)
             const videoTime = new Date('2024-01-15T10:00:00Z');
             const result = autoSync(points, videoTime);
-            
+
             // > 5 minutes (exactly 5 min = 300 sec, but we use > not >=)
             expect(result.autoSynced).toBe(true); // 5 min = boundary, still passes
         });
@@ -200,7 +211,7 @@ describe('Sync Engine', () => {
             // Video starts 30 minutes into GPX - exceeds 5 min threshold
             const videoTime = new Date('2024-01-15T10:30:00Z');
             const result = autoSync(points, videoTime);
-            
+
             // Should sync with warning
             expect(result.autoSynced).toBe(true);
             expect(result.warning).toContain('Large time difference');
@@ -217,7 +228,7 @@ describe('Sync Engine', () => {
             // Video starts 4 min 59 sec before GPX - within threshold
             const videoTime = new Date('2024-01-15T10:00:01Z');
             const result = autoSync(points, videoTime);
-            
+
             expect(result.autoSynced).toBe(true);
             expect(result.offsetSeconds).toBeCloseTo(-299, 0); // ~299 seconds
         });

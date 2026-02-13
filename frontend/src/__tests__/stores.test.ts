@@ -132,6 +132,242 @@ describe('Pinia Stores', () => {
             expect(store.isAutoSynced).toBe(false);
             expect(store.syncError).toBeTruthy();
         });
+
+        it('should auto-sync with GPS coordinates and set isAutoSynced', async () => {
+            const store = useSyncStore();
+
+            await store.performAutoSync(
+                [
+                    { lat: 55.7558, lon: 37.6173, time: new Date('2024-01-15T10:00:00Z') },
+                    { lat: 55.7567, lon: 37.6173, time: new Date('2024-01-15T10:00:30Z') },
+                    { lat: 55.7576, lon: 37.6173, time: new Date('2024-01-15T10:01:00Z') },
+                ],
+                undefined,
+                55.7576,
+                37.6173
+            );
+
+            expect(store.offsetSeconds).toBe(60);
+            expect(store.isAutoSynced).toBe(true);
+            expect(store.syncError).toBeNull();
+            expect(store.syncWarning).toBeNull();
+        });
+
+        it('should auto-sync with video time within threshold and set isAutoSynced', async () => {
+            const store = useSyncStore();
+
+            await store.performAutoSync(
+                [
+                    { lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:00:00Z') },
+                    { lat: 55.76, lon: 37.62, time: new Date('2024-01-15T10:10:00Z') },
+                ],
+                new Date('2024-01-15T10:02:00Z')
+            );
+
+            expect(store.offsetSeconds).toBe(120);
+            expect(store.isAutoSynced).toBe(true);
+            expect(store.syncError).toBeNull();
+            expect(store.syncWarning).toBeNull();
+        });
+
+        it('should auto-sync with large time difference and set warning', async () => {
+            const store = useSyncStore();
+
+            await store.performAutoSync(
+                [
+                    { lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:00:00Z') },
+                    { lat: 55.76, lon: 37.62, time: new Date('2024-01-15T10:30:00Z') },
+                ],
+                new Date('2024-01-15T09:50:00Z') // 10 minutes before GPX start
+            );
+
+            expect(store.offsetSeconds).toBe(-600);
+            expect(store.isAutoSynced).toBe(true);
+            expect(store.syncError).toBeNull();
+            expect(store.syncWarning).toContain('Large time difference');
+        });
+
+        it('should handle auto-sync failure (no GPS/time) and set error', async () => {
+            const store = useSyncStore();
+
+            await store.performAutoSync(
+                [
+                    { lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:00:00Z') },
+                ]
+                // No videoStartTime, no GPS coordinates
+            );
+
+            expect(store.offsetSeconds).toBe(0);
+            expect(store.isAutoSynced).toBe(false);
+            expect(store.syncError).toBe('Auto-sync failed. Use manual adjustment.');
+            expect(store.syncWarning).toBe('Auto-sync is not possible without GPS or the video start time.');
+        });
+
+        it('should clear previous warning on successful auto-sync', async () => {
+            const store = useSyncStore();
+
+            // First sync with warning
+            await store.performAutoSync(
+                [{ lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:00:00Z') }],
+                new Date('2024-01-15T09:40:00Z')
+            );
+            expect(store.syncWarning).toContain('Large time difference');
+
+            // Second sync without warning
+            await store.performAutoSync(
+                [{ lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:00:00Z') }],
+                new Date('2024-01-15T10:00:00Z')
+            );
+
+            expect(store.syncWarning).toBeNull();
+            expect(store.offsetSeconds).toBe(0);
+            expect(store.isAutoSynced).toBe(true);
+        });
+
+        it('should clear previous error on successful auto-sync', async () => {
+            const store = useSyncStore();
+
+            // First sync fails
+            await store.performAutoSync([], new Date('2024-01-15T10:00:00Z'));
+            expect(store.syncError).toBeTruthy();
+
+            // Second sync succeeds
+            await store.performAutoSync(
+                [{ lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:00:00Z') }],
+                new Date('2024-01-15T10:00:00Z')
+            );
+
+            expect(store.syncError).toBeNull();
+            expect(store.isAutoSynced).toBe(true);
+        });
+
+        it('should reset manual override flag after successful auto-sync', async () => {
+            const store = useSyncStore();
+
+            store.setManualOffset(100);
+            expect(store.isAutoSynced).toBe(false); // manual mode active
+
+            await store.performAutoSync(
+                [{ lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:00:00Z') }],
+                new Date('2024-01-15T10:00:00Z'),
+                undefined,
+                undefined,
+                undefined,
+                true // allow override
+            );
+
+            // After successful auto-sync, should be in auto mode with offset from auto-sync
+            expect(store.isAutoSynced).toBe(true);
+            expect(store.offsetSeconds).toBe(0);
+        });
+
+        it('should set isAutoSyncing flag during async operation', async () => {
+            const store = useSyncStore();
+
+            const promise = store.performAutoSync(
+                [{ lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:00:00Z') }],
+                new Date('2024-01-15T10:00:00Z')
+            );
+
+            // Since performAutoSync is synchronous in tests, isAutoSyncing is set and then immediately cleared
+            // We verify the final state after completion
+            await promise;
+            expect(store.isAutoSyncing).toBe(false);
+        });
+
+        it('should handle exception during auto-sync and set error', async () => {
+            const store = useSyncStore();
+
+            // Empty points will throw SyncError
+            await store.performAutoSync([], new Date('2024-01-15T10:00:00Z'));
+
+            expect(store.offsetSeconds).toBe(0);
+            expect(store.isAutoSynced).toBe(false);
+            expect(store.syncError).toBeTruthy();
+            expect(store.isAutoSyncing).toBe(false);
+        });
+
+        it('should prioritize GPS over time when both provided', async () => {
+            const store = useSyncStore();
+
+            await store.performAutoSync(
+                [
+                    { lat: 55.7558, lon: 37.6173, time: new Date('2024-01-15T10:00:00Z') },
+                    { lat: 55.7567, lon: 37.6173, time: new Date('2024-01-15T10:01:00Z') },
+                ],
+                new Date('2024-01-15T10:05:00Z'), // video time suggests 5 min offset
+                55.7558,
+                37.6173 // GPS matches first point -> offset = 0
+            );
+
+            expect(store.offsetSeconds).toBe(0);
+            expect(store.isAutoSynced).toBe(true);
+        });
+
+        it('should handle negative offset correctly', async () => {
+            const store = useSyncStore();
+
+            await store.performAutoSync(
+                [
+                    { lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:05:00Z') },
+                    { lat: 55.76, lon: 37.62, time: new Date('2024-01-15T10:10:00Z') },
+                ],
+                new Date('2024-01-15T10:00:00Z') // 5 minutes before GPX start
+            );
+
+            expect(store.offsetSeconds).toBe(-300);
+            expect(store.isAutoSynced).toBe(true);
+        });
+
+        it('should handle boundary case: exactly 5 minutes offset (no warning)', async () => {
+            const store = useSyncStore();
+
+            await store.performAutoSync(
+                [
+                    { lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:05:00Z') },
+                    { lat: 55.76, lon: 37.62, time: new Date('2024-01-15T10:30:00Z') },
+                ],
+                new Date('2024-01-15T10:00:00Z') // exactly 5 minutes before
+            );
+
+            // 300 seconds is NOT > 300, so no warning
+            expect(store.offsetSeconds).toBe(-300);
+            expect(store.isAutoSynced).toBe(true);
+            expect(store.syncWarning).toBeNull();
+        });
+
+        it('should warn for offset just over 5 minutes', async () => {
+            const store = useSyncStore();
+
+            await store.performAutoSync(
+                [
+                    { lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:05:01Z') },
+                ],
+                new Date('2024-01-15T10:00:00Z') // 5 min 1 sec before
+            );
+
+            expect(store.offsetSeconds).toBeCloseTo(-301, 0);
+            expect(store.isAutoSynced).toBe(true);
+            expect(store.syncWarning).toContain('Large time difference');
+        });
+
+        it('should not apply timezone offset twice (absolute Date)', async () => {
+            const store = useSyncStore();
+
+            // GPX and video at same UTC time
+            await store.performAutoSync(
+                [
+                    { lat: 55.75, lon: 37.61, time: new Date('2026-02-11T10:00:00Z') },
+                ],
+                new Date('2026-02-11T10:00:00Z'),
+                undefined,
+                undefined,
+                -180 // timezone offset should be ignored
+            );
+
+            expect(store.offsetSeconds).toBe(0);
+            expect(store.isAutoSynced).toBe(true);
+        });
     });
 
     describe('processingStore', () => {

@@ -292,6 +292,49 @@ describe('Telemetry Core', () => {
             expect(timeline[0]!.elevationM).toBe(120);
             expect(timeline[1]!.elevationM).toBe(125);
         });
+
+        it('should fill missing pace values by interpolation/extrapolation for smooth output', () => {
+            const points = [
+                makePoint(55.0000, 37.0000, '2024-01-15T10:00:00Z'),
+                makePoint(55.0000, 37.0000, '2024-01-15T10:00:05Z'), // no movement -> raw pace undefined
+                makePoint(55.0090, 37.0000, '2024-01-15T10:05:05Z'), // ~1km in 300s -> ~5:00/km
+            ];
+
+            const timeline = buildTelemetryTimeline(points);
+            expect(timeline[0]!.paceSecondsPerKm).toBeDefined();
+            expect(timeline[1]!.paceSecondsPerKm).toBeDefined();
+            expect(timeline[2]!.paceSecondsPerKm).toBeDefined();
+            expect(timeline[1]!.paceSecondsPerKm).toBeCloseTo(timeline[2]!.paceSecondsPerKm!, 0);
+        });
+
+        it('should adapt pace dynamically to changing speed profile (not monotonic drift)', () => {
+            const points = [
+                makePoint(55.0000, 37.0000, '2024-01-15T10:00:00Z'),
+                makePoint(55.0005, 37.0000, '2024-01-15T10:00:30Z'),
+                makePoint(55.0010, 37.0000, '2024-01-15T10:01:00Z'),
+                makePoint(55.0012, 37.0000, '2024-01-15T10:01:30Z'), // slowdown
+                makePoint(55.0014, 37.0000, '2024-01-15T10:02:00Z'),
+                makePoint(55.0022, 37.0000, '2024-01-15T10:02:30Z'), // speedup
+                makePoint(55.0030, 37.0000, '2024-01-15T10:03:00Z'),
+            ];
+
+            const timeline = buildTelemetryTimeline(points);
+            const paces = timeline
+                .map((f) => f.paceSecondsPerKm)
+                .filter((v): v is number => v !== undefined);
+
+            expect(paces.length).toBeGreaterThan(3);
+
+            let hasIncrease = false;
+            let hasDecrease = false;
+            for (let i = 1; i < paces.length; i++) {
+                if (paces[i]! > paces[i - 1]!) hasIncrease = true;
+                if (paces[i]! < paces[i - 1]!) hasDecrease = true;
+            }
+
+            expect(hasIncrease).toBe(true);
+            expect(hasDecrease).toBe(true);
+        });
     });
 
     describe('getTelemetryAtTime', () => {
@@ -361,6 +404,123 @@ describe('Telemetry Core', () => {
             expect(result).not.toBeNull();
             expect(result!.distanceKm).toBeGreaterThan(0);
             expect(result!.distanceKm).toBeLessThan(frames[1]!.distanceKm);
+        });
+
+        it('should interpolate pace between neighboring frames', () => {
+            const customFrames = [
+                {
+                    timeOffset: 0,
+                    paceSecondsPerKm: 300,
+                    hr: 140,
+                    distanceKm: 0,
+                    elevationM: 100,
+                    elapsedTime: '0:00',
+                    movingTimeSeconds: 0,
+                },
+                {
+                    timeOffset: 10,
+                    paceSecondsPerKm: 360,
+                    hr: 142,
+                    distanceKm: 0.05,
+                    elevationM: 101,
+                    elapsedTime: '0:10',
+                    movingTimeSeconds: 10,
+                },
+            ];
+
+            const result = getTelemetryAtTime(customFrames, 5, 0);
+            expect(result).not.toBeNull();
+            expect(result!.paceSecondsPerKm).toBeDefined();
+        });
+
+        it('should update pace at 1Hz (same value within one second)', () => {
+            const points = [
+                makePoint(55.0000, 37.0000, '2024-01-15T10:00:00Z'),
+                makePoint(55.00003, 37.0000, '2024-01-15T10:00:01Z'),
+                makePoint(55.00006, 37.0000, '2024-01-15T10:00:02Z'),
+                makePoint(55.00009, 37.0000, '2024-01-15T10:00:03Z'),
+                makePoint(55.00012, 37.0000, '2024-01-15T10:00:04Z'),
+                makePoint(55.00015, 37.0000, '2024-01-15T10:00:05Z'),
+                makePoint(55.00018, 37.0000, '2024-01-15T10:00:06Z'),
+                makePoint(55.00021, 37.0000, '2024-01-15T10:00:07Z'),
+                makePoint(55.00024, 37.0000, '2024-01-15T10:00:08Z'),
+                makePoint(55.00027, 37.0000, '2024-01-15T10:00:09Z'),
+                makePoint(55.00030, 37.0000, '2024-01-15T10:00:10Z'),
+                makePoint(55.00033, 37.0000, '2024-01-15T10:00:11Z'),
+            ];
+
+            const frames = buildTelemetryTimeline(points);
+            const a = getTelemetryAtTime(frames, 9.10, 0);
+            const b = getTelemetryAtTime(frames, 9.90, 0);
+
+            expect(a).not.toBeNull();
+            expect(b).not.toBeNull();
+            expect(a!.paceSecondsPerKm).toBeDefined();
+            expect(a!.paceSecondsPerKm).toBeCloseTo(b!.paceSecondsPerKm!, 10);
+        });
+
+        it('should reflect speed change across seconds', () => {
+            const points = [
+                makePoint(55.0000, 37.0000, '2024-01-15T10:00:00Z'),
+                makePoint(55.00004, 37.0000, '2024-01-15T10:00:01Z'),
+                makePoint(55.00008, 37.0000, '2024-01-15T10:00:02Z'),
+                makePoint(55.00012, 37.0000, '2024-01-15T10:00:03Z'),
+                makePoint(55.00016, 37.0000, '2024-01-15T10:00:04Z'),
+                makePoint(55.00018, 37.0000, '2024-01-15T10:00:05Z'),
+                makePoint(55.00020, 37.0000, '2024-01-15T10:00:06Z'),
+                makePoint(55.00022, 37.0000, '2024-01-15T10:00:07Z'),
+                makePoint(55.00024, 37.0000, '2024-01-15T10:00:08Z'),
+                makePoint(55.00026, 37.0000, '2024-01-15T10:00:09Z'),
+                makePoint(55.00030, 37.0000, '2024-01-15T10:00:10Z'),
+                makePoint(55.00034, 37.0000, '2024-01-15T10:00:11Z'),
+            ];
+
+            const frames = buildTelemetryTimeline(points);
+            const fast = getTelemetryAtTime(frames, 4.2, 0);
+            const slow = getTelemetryAtTime(frames, 9.2, 0);
+
+            expect(fast).not.toBeNull();
+            expect(slow).not.toBeNull();
+            expect(fast!.paceSecondsPerKm).toBeDefined();
+            expect(slow!.paceSecondsPerKm).toBeDefined();
+            expect(slow!.paceSecondsPerKm!).toBeGreaterThan(fast!.paceSecondsPerKm!);
+        });
+
+        it('should compute stable valid pace for 9-second clip window', () => {
+            const points = [
+                // pre-roll low movement before clip start
+                makePoint(55.00000, 37.0000, '2024-01-15T10:00:00Z'),
+                makePoint(55.00000, 37.0000, '2024-01-15T10:00:01Z'),
+                makePoint(55.00001, 37.0000, '2024-01-15T10:00:02Z'),
+                makePoint(55.00001, 37.0000, '2024-01-15T10:00:03Z'),
+                makePoint(55.00002, 37.0000, '2024-01-15T10:00:04Z'),
+                makePoint(55.00004, 37.0000, '2024-01-15T10:00:05Z'),
+                // athlete is running during the 9-second clip window [6..14]
+                makePoint(55.00008, 37.0000, '2024-01-15T10:00:06Z'),
+                makePoint(55.00012, 37.0000, '2024-01-15T10:00:07Z'),
+                makePoint(55.00016, 37.0000, '2024-01-15T10:00:08Z'),
+                makePoint(55.00020, 37.0000, '2024-01-15T10:00:09Z'),
+                makePoint(55.00024, 37.0000, '2024-01-15T10:00:10Z'),
+                makePoint(55.00028, 37.0000, '2024-01-15T10:00:11Z'),
+                makePoint(55.00032, 37.0000, '2024-01-15T10:00:12Z'),
+                makePoint(55.00036, 37.0000, '2024-01-15T10:00:13Z'),
+                makePoint(55.00040, 37.0000, '2024-01-15T10:00:14Z'),
+                makePoint(55.00044, 37.0000, '2024-01-15T10:00:15Z'),
+            ];
+
+            const frames = buildTelemetryTimeline(points);
+
+            const paceValues: number[] = [];
+            for (let sec = 6; sec <= 14; sec++) {
+                const frame = getTelemetryAtTime(frames, sec + 0.2, 0);
+                expect(frame).not.toBeNull();
+                expect(frame!.paceSecondsPerKm).toBeDefined();
+                paceValues.push(frame!.paceSecondsPerKm!);
+            }
+
+            // Clip window should not drift into walking-range values.
+            expect(Math.max(...paceValues)).toBeLessThan(720); // < 12:00 /km
+            expect(Math.min(...paceValues)).toBeGreaterThan(120); // > 2:00 /km
         });
     });
 });
