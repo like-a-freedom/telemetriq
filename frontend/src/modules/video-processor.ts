@@ -321,6 +321,11 @@ export class VideoProcessor {
                 framesProcessed++;
                 reportProcessingProgress.report(framesProcessed);
 
+                // Periodically drain frame queue to prevent unbounded backlog and timing jitter.
+                if (framesProcessed % 8 === 0) {
+                    await frameProcessingQueue;
+                }
+
                 if (isCodecQueuePressureHigh(decoder, encoder)) {
                     await waitForCodecQueues(decoder, encoder, this.abortController.signal);
                 }

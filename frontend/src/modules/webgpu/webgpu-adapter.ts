@@ -35,6 +35,17 @@ interface GPUResources {
   format: GPUTextureFormat;
 }
 
+interface GPUCompositeResources {
+  canvas: OffscreenCanvas | HTMLCanvasElement;
+  context: GPUCanvasContext;
+  width: number;
+  height: number;
+  baseTexture: GPUTexture;
+  overlayTexture: GPUTexture;
+  uniformBuffer: GPUBuffer;
+  bindGroup: GPUBindGroup;
+}
+
 /**
  * WebGPU adapter for GPU-accelerated overlay rendering
  * 
@@ -46,6 +57,7 @@ export class WebGPUAdapter {
   private static instance: WebGPUAdapter | null = null;
   private enabled = false;
   private gpu: GPUResources | null = null;
+  private compositeResources: GPUCompositeResources | null = null;
   private isInitialized = false;
   private initPromise: Promise<boolean> | null = null;
 
@@ -179,55 +191,23 @@ export class WebGPUAdapter {
       const initialized = await this.initialize();
       if (!initialized || !this.gpu) return false;
 
-      const destinationCanvas = this.createCanvas(videoWidth, videoHeight);
-      const gpuContext = destinationCanvas.getContext('webgpu') as GPUCanvasContext | null;
-      if (!gpuContext) return false;
+      const resources = this.ensureCompositeResources(videoWidth, videoHeight);
+      if (!resources) return false;
 
-      gpuContext.configure({
-        device: this.gpu.device,
-        format: this.gpu.format,
-        alphaMode: 'premultiplied',
-        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
-      });
-
-      const baseTexture = this.createTextureFromSource(
-        this.gpu.device,
-        ctx.canvas as CanvasImageSource,
-        videoWidth,
-        videoHeight,
+      this.gpu.device.queue.copyExternalImageToTexture(
+        { source: ctx.canvas as CanvasImageSource },
+        { texture: resources.baseTexture },
+        { width: videoWidth, height: videoHeight },
       );
-      if (!baseTexture) return false;
 
-      const overlayTexture = this.createTextureFromSource(
-        this.gpu.device,
-        overlaySource,
-        videoWidth,
-        videoHeight,
+      this.gpu.device.queue.copyExternalImageToTexture(
+        { source: overlaySource },
+        { texture: resources.overlayTexture },
+        { width: videoWidth, height: videoHeight },
       );
-      if (!overlayTexture) {
-        baseTexture.destroy();
-        return false;
-      }
-
-      const uniformData = new Float32Array([1.0, 0, 0, 0]);
-      const uniformBuffer = this.gpu.device.createBuffer({
-        size: uniformData.byteLength,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-      });
-      this.gpu.device.queue.writeBuffer(uniformBuffer, 0, uniformData);
-
-      const bindGroup = this.gpu.device.createBindGroup({
-        layout: this.gpu.pipeline.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: this.gpu.sampler },
-          { binding: 1, resource: baseTexture.createView() },
-          { binding: 2, resource: overlayTexture.createView() },
-          { binding: 3, resource: { buffer: uniformBuffer } },
-        ],
-      });
 
       const commandEncoder = this.gpu.device.createCommandEncoder();
-      const currentTexture = gpuContext.getCurrentTexture();
+      const currentTexture = resources.context.getCurrentTexture();
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [
           {
@@ -240,16 +220,12 @@ export class WebGPUAdapter {
       });
 
       passEncoder.setPipeline(this.gpu.pipeline);
-      passEncoder.setBindGroup(0, bindGroup);
+      passEncoder.setBindGroup(0, resources.bindGroup);
       passEncoder.draw(6, 1, 0, 0);
       passEncoder.end();
 
       this.gpu.device.queue.submit([commandEncoder.finish()]);
-      ctx.drawImage(destinationCanvas as CanvasImageSource, 0, 0, videoWidth, videoHeight);
-
-      baseTexture.destroy();
-      overlayTexture.destroy();
-      uniformBuffer.destroy();
+      ctx.drawImage(resources.canvas as CanvasImageSource, 0, 0, videoWidth, videoHeight);
 
       return true;
     } catch (error) {
@@ -313,6 +289,78 @@ export class WebGPUAdapter {
     canvas.width = width;
     canvas.height = height;
     return canvas;
+  }
+
+  private ensureCompositeResources(width: number, height: number): GPUCompositeResources | null {
+    if (!this.gpu) return null;
+
+    if (this.compositeResources && this.compositeResources.width === width && this.compositeResources.height === height) {
+      return this.compositeResources;
+    }
+
+    this.disposeCompositeResources();
+
+    const canvas = this.createCanvas(width, height);
+    const context = canvas.getContext('webgpu') as GPUCanvasContext | null;
+    if (!context) return null;
+
+    context.configure({
+      device: this.gpu.device,
+      format: this.gpu.format,
+      alphaMode: 'premultiplied',
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+    });
+
+    const baseTexture = this.gpu.device.createTexture({
+      size: [width, height],
+      format: 'rgba8unorm',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+
+    const overlayTexture = this.gpu.device.createTexture({
+      size: [width, height],
+      format: 'rgba8unorm',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+
+    const uniformData = new Float32Array([1.0, 0, 0, 0]);
+    const uniformBuffer = this.gpu.device.createBuffer({
+      size: uniformData.byteLength,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+    this.gpu.device.queue.writeBuffer(uniformBuffer, 0, uniformData);
+
+    const bindGroup = this.gpu.device.createBindGroup({
+      layout: this.gpu.pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: this.gpu.sampler },
+        { binding: 1, resource: baseTexture.createView() },
+        { binding: 2, resource: overlayTexture.createView() },
+        { binding: 3, resource: { buffer: uniformBuffer } },
+      ],
+    });
+
+    this.compositeResources = {
+      canvas,
+      context,
+      width,
+      height,
+      baseTexture,
+      overlayTexture,
+      uniformBuffer,
+      bindGroup,
+    };
+
+    return this.compositeResources;
+  }
+
+  private disposeCompositeResources(): void {
+    if (!this.compositeResources) return;
+
+    this.compositeResources.baseTexture.destroy();
+    this.compositeResources.overlayTexture.destroy();
+    this.compositeResources.uniformBuffer.destroy();
+    this.compositeResources = null;
   }
 
   private createTextureFromSource(
@@ -459,6 +507,7 @@ export class WebGPUAdapter {
    * Clean up resources
    */
   dispose(): void {
+    this.disposeCompositeResources();
     this.gpu?.device.destroy();
     this.gpu = null;
     this.isInitialized = false;
