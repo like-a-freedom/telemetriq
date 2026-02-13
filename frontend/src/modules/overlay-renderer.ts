@@ -13,7 +13,15 @@ type CachedOverlay = {
     canvas: OffscreenCanvas | HTMLCanvasElement;
 };
 
+type ScratchOverlay = {
+    canvas: OffscreenCanvas | HTMLCanvasElement;
+    ctx: OverlayContext2D;
+    width: number;
+    height: number;
+};
+
 const overlayCache = new Map<string, CachedOverlay>();
+const scratchOverlays = new WeakMap<object, ScratchOverlay>();
 const MAX_CACHE_ENTRIES = 200;
 const MAX_CACHE_PIXELS = 1280 * 720;
 
@@ -70,26 +78,6 @@ export async function renderOverlay(
     config: ExtendedOverlayConfig = DEFAULT_OVERLAY_CONFIG,
 ): Promise<void> {
     const effectiveConfig = getEffectiveConfig(config);
-
-    // Check cache first (works for both WebGPU and Canvas 2D)
-    const shouldUseCache = videoWidth * videoHeight <= MAX_CACHE_PIXELS;
-    const cacheKey = shouldUseCache
-        ? buildCacheKey(frame, effectiveConfig, videoWidth, videoHeight)
-        : undefined;
-
-    if (cacheKey) {
-        const cached = overlayCache.get(cacheKey);
-        if (cached) {
-            ctx.drawImage(cached.canvas as CanvasImageSource, 0, 0);
-            return;
-        }
-    }
-
-    // Always build overlay with canonical CPU layout engine (template reference rendering).
-    const overlayTarget = createOverlayTarget(videoWidth, videoHeight);
-    if (!overlayTarget) return;
-
-    const { canvas: overlayCanvas, ctx: overlayCtx } = overlayTarget;
     const metrics = buildMetrics(frame, effectiveConfig);
 
     if (metrics.length === 0) {
@@ -106,6 +94,29 @@ export async function renderOverlay(
             }
         });
         return;
+    }
+
+    // Check cache first using display-level values (reduces unnecessary rerenders).
+    const shouldUseCache = videoWidth * videoHeight <= MAX_CACHE_PIXELS;
+    const cacheKey = shouldUseCache
+        ? buildCacheKey(metrics, effectiveConfig, videoWidth, videoHeight)
+        : undefined;
+
+    if (cacheKey) {
+        const cached = overlayCache.get(cacheKey);
+        if (cached) {
+            ctx.drawImage(cached.canvas as CanvasImageSource, 0, 0);
+            return;
+        }
+    }
+
+    // Always build overlay with canonical CPU layout engine (template reference rendering).
+    const overlayTarget = createOverlayTarget(ctx, videoWidth, videoHeight);
+    if (!overlayTarget) return;
+
+    const { canvas: overlayCanvas, ctx: overlayCtx } = overlayTarget;
+    if (typeof overlayCtx.clearRect === 'function') {
+        overlayCtx.clearRect(0, 0, videoWidth, videoHeight);
     }
 
     const layoutMode = effectiveConfig.layoutMode || 'box';
@@ -217,16 +228,13 @@ export function buildMetrics(frame: TelemetryFrame, config: ExtendedOverlayConfi
 }
 
 function buildCacheKey(
-    frame: TelemetryFrame,
+    metrics: MetricItem[],
     config: ExtendedOverlayConfig,
     width: number,
     height: number,
 ): string {
     return JSON.stringify({
-        hr: frame.hr,
-        pace: frame.paceSecondsPerKm,
-        dist: frame.distanceKm.toFixed(2),
-        time: frame.elapsedTime,
+        metrics,
         pos: config.position,
         opacity: config.backgroundOpacity,
         font: config.fontSizePercent,
@@ -267,13 +275,21 @@ function cacheOverlay(
 }
 
 function createOverlayTarget(
+    destinationCtx: OverlayContext2D,
     width: number,
     height: number,
 ): { canvas: OffscreenCanvas | HTMLCanvasElement; ctx: OverlayContext2D } | null {
+    const key = destinationCtx.canvas as unknown as object;
+    const cached = scratchOverlays.get(key);
+    if (cached && cached.width === width && cached.height === height) {
+        return { canvas: cached.canvas, ctx: cached.ctx };
+    }
+
     const canvas = createCanvas(width, height);
     const ctx = getCanvasContext(canvas);
 
     if (!ctx) return null;
+    scratchOverlays.set(key, { canvas, ctx, width, height });
     return { canvas, ctx };
 }
 
