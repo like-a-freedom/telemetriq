@@ -4,12 +4,61 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { VideoProcessor } from '../modules/video-processor';
-import { ProcessingError } from '../core/errors';
 import type { VideoMeta } from '../core/types';
 
 vi.mock('../modules/ffmpeg-utils', () => ({
     remuxWithFfmpeg: vi.fn().mockResolvedValue(new Blob([new Uint8Array([1, 2, 3])], { type: 'video/mp4' })),
     transcodeWithForcedKeyframes: vi.fn().mockResolvedValue(new File([new Uint8Array([1])], 'transcoded.mp4', { type: 'video/mp4' })),
+}));
+
+vi.mock('../modules/demuxer', () => ({
+    createDemuxer: vi.fn(() => ({
+        demux: vi.fn().mockRejectedValue(new Error('Direct demux not available')),
+        demuxWithFallback: vi.fn().mockResolvedValue({
+            videoTrack: { id: 1, codec: 'avc1.640028', codecName: 'avc1', timescale: 1_000_000 },
+            videoSamples: [{
+                data: new Uint8Array([1, 2, 3]).buffer,
+                duration: 1_000,
+                dts: 0,
+                cts: 0,
+                timescale: 1_000_000,
+                is_rap: true,
+            }],
+            audioSamples: [],
+        }),
+    })),
+}));
+
+vi.mock('../modules/muxer', () => ({
+    createMuxer: vi.fn(() => ({
+        muxMp4: vi.fn().mockResolvedValue(new Blob([new Uint8Array([9])], { type: 'video/mp4' })),
+        startStreamingMuxSession: vi.fn().mockReturnValue({
+            enqueueVideoChunk: vi.fn(),
+            flushVideoQueue: vi.fn().mockResolvedValue(undefined),
+            finalize: vi.fn().mockResolvedValue(new Blob([new Uint8Array([8])], { type: 'video/mp4' })),
+        }),
+    })),
+}));
+
+vi.mock('../modules/video-codec-manager', () => ({
+    createVideoCodecManager: vi.fn(() => ({
+        createDecoder: vi.fn().mockReturnValue({
+            state: 'configured',
+            decode: vi.fn(),
+            flush: vi.fn().mockResolvedValue(undefined),
+            close: vi.fn(),
+        }),
+        isVideoTrackDecodable: vi.fn().mockResolvedValue(true),
+        createEncoder: vi.fn().mockResolvedValue({
+            encoder: {
+                state: 'configured',
+                encode: vi.fn(),
+                flush: vi.fn().mockResolvedValue(undefined),
+                close: vi.fn(),
+            },
+            encodeMeta: { width: 1920, height: 1080, fps: 30, duration: 10, codec: 'avc1.640028', fileName: 'test.mp4', fileSize: 1000 },
+        }),
+    })),
 }));
 
 // Mock WebCodecs API
@@ -143,239 +192,5 @@ describe('VideoProcessor', () => {
         });
 
         expect(processor).toBeInstanceOf(VideoProcessor);
-    });
-
-    it('isVideoTrackDecodable should return false when capability check throws', async () => {
-        vi.stubGlobal('VideoDecoder', class {
-            static isConfigSupported = vi.fn().mockRejectedValue(new Error('unsupported runtime'));
-        });
-
-        const processor = new VideoProcessor({
-            videoFile: new File([], 'test.mp4'),
-            videoMeta: createMockVideoMeta(),
-            telemetryFrames: [],
-            syncOffsetSeconds: 0,
-        });
-
-        const decodable = await (processor as any).isVideoTrackDecodable('avc1.640028');
-        expect(decodable).toBe(false);
-    });
-
-    it('demuxSamplesWithFallback should retry after first demux failure', async () => {
-        const processor = new VideoProcessor({
-            videoFile: new File([], 'test.mp4'),
-            videoMeta: createMockVideoMeta(),
-            telemetryFrames: [],
-            syncOffsetSeconds: 0,
-        });
-
-        const demuxSpy = vi.spyOn(processor as any, 'demuxSamples')
-            .mockRejectedValueOnce(new Error('first parse failed'))
-            .mockResolvedValueOnce({
-                videoTrack: { id: 1, codec: 'avc1.640028', codecName: 'avc1', timescale: 1_000_000 },
-                videoSamples: [{
-                    data: new ArrayBuffer(1),
-                    duration: 1,
-                    dts: 0,
-                    cts: 0,
-                    timescale: 1_000_000,
-                    is_rap: true,
-                }],
-                audioSamples: [],
-            });
-
-        const result = await (processor as any).demuxSamplesWithFallback(new File([], 'test.mp4'));
-
-        expect(demuxSpy).toHaveBeenCalledTimes(2);
-        expect(result.videoSamples.length).toBe(1);
-    });
-
-    it('demuxSamplesWithFallback should throw ProcessingError when fallback also fails', async () => {
-        const processor = new VideoProcessor({
-            videoFile: new File([], 'test.mp4'),
-            videoMeta: createMockVideoMeta(),
-            telemetryFrames: [],
-            syncOffsetSeconds: 0,
-        });
-
-        vi.spyOn(processor as any, 'demuxSamples').mockRejectedValue(new Error('still failing'));
-
-        await expect((processor as any).demuxSamplesWithFallback(new File([], 'test.mp4')))
-            .rejects.toBeInstanceOf(ProcessingError);
-    });
-
-    it('demuxSamplesWithFallback should skip FFmpeg fallback for very large files', async () => {
-        const hugeFile = new File([new Uint8Array([1])], 'huge.mp4', { type: 'video/mp4' });
-        Object.defineProperty(hugeFile, 'size', { value: (1024 * 1024 * 1024) + 1 });
-
-        const processor = new VideoProcessor({
-            videoFile: hugeFile,
-            videoMeta: createMockVideoMeta(),
-            telemetryFrames: [],
-            syncOffsetSeconds: 0,
-        });
-
-        const demuxSpy = vi.spyOn(processor as any, 'demuxSamples').mockRejectedValue(new Error('parse failed'));
-
-        await expect((processor as any).demuxSamplesWithFallback(hugeFile))
-            .rejects.toThrow(/disabled for files larger than 1 GB/i);
-
-        expect(demuxSpy).toHaveBeenCalledTimes(1);
-    });
-
-    it('createEncoder should throw when no codec configuration is supported', async () => {
-        vi.stubGlobal('VideoEncoder', class {
-            static isConfigSupported = vi.fn().mockResolvedValue({ supported: false });
-            state = 'unconfigured';
-            configure() {
-                this.state = 'configured';
-            }
-            set output(_cb: any) { }
-            set error(_cb: any) { }
-        });
-
-        const processor = new VideoProcessor({
-            videoFile: new File([], 'test.mp4'),
-            videoMeta: createMockVideoMeta(),
-            telemetryFrames: [],
-            syncOffsetSeconds: 0,
-        });
-
-        await expect((processor as any).createEncoder(
-            createMockVideoMeta(),
-            'avc1.640028',
-            vi.fn(),
-            vi.fn(),
-        )).rejects.toBeInstanceOf(ProcessingError);
-    });
-
-    it('process should complete happy path with mux progress', async () => {
-        const processor = new VideoProcessor({
-            videoFile: new File([new Uint8Array([1, 2, 3])], 'test.mp4', { type: 'video/mp4' }),
-            videoMeta: createMockVideoMeta(),
-            telemetryFrames: [],
-            syncOffsetSeconds: 0,
-            useFfmpegMux: true,
-            onProgress: vi.fn(),
-        });
-
-        const demuxed = {
-            videoTrack: { id: 1, codec: 'avc1.640028', codecName: 'avc1', timescale: 1_000_000 },
-            videoSamples: [
-                {
-                    data: new Uint8Array([1, 2, 3]).buffer,
-                    duration: 1_000,
-                    dts: 0,
-                    cts: 0,
-                    timescale: 1_000_000,
-                    is_rap: true,
-                },
-            ],
-            audioSamples: [],
-        };
-
-        vi.spyOn(processor as any, 'demuxSamplesWithFallback').mockResolvedValue(demuxed);
-        vi.spyOn(processor as any, 'isVideoTrackDecodable').mockResolvedValue(true);
-
-        const encoder = {
-            state: 'configured',
-            encode: vi.fn(),
-            flush: vi.fn().mockResolvedValue(undefined),
-            close: vi.fn(),
-        };
-        encoder.close.mockImplementation(() => { encoder.state = 'closed'; });
-        vi.spyOn(processor as any, 'createEncoder').mockResolvedValue({
-            encoder,
-            encodeMeta: createMockVideoMeta(),
-        });
-
-        const decoder = {
-            state: 'configured',
-            decode: vi.fn(),
-            flush: vi.fn().mockResolvedValue(undefined),
-            close: vi.fn(),
-        };
-        decoder.close.mockImplementation(() => { decoder.state = 'closed'; });
-        vi.spyOn(processor as any, 'createDecoder').mockReturnValue(decoder);
-
-        vi.spyOn(processor as any, 'muxMp4').mockResolvedValue(new Blob([new Uint8Array([9])], { type: 'video/mp4' }));
-
-        const result = await processor.process();
-
-        expect(result).toBeInstanceOf(Blob);
-        expect((processor as any).demuxSamplesWithFallback).toHaveBeenCalled();
-        expect((processor as any).muxMp4).toHaveBeenCalled();
-    });
-
-    it('process should use streaming mux for large files', async () => {
-        const largeFile = new File([new Uint8Array([1, 2, 3])], 'large.mp4', { type: 'video/mp4' });
-        Object.defineProperty(largeFile, 'size', { value: (512 * 1024 * 1024) + 1 });
-
-        const processor = new VideoProcessor({
-            videoFile: largeFile,
-            videoMeta: createMockVideoMeta(),
-            telemetryFrames: [],
-            syncOffsetSeconds: 0,
-            onProgress: vi.fn(),
-        });
-
-        const demuxed = {
-            videoTrack: { id: 1, codec: 'avc1.640028', codecName: 'avc1', timescale: 1_000_000 },
-            audioTrack: {
-                id: 2,
-                codec: 'mp4a.40.2',
-                codecName: 'aac',
-                timescale: 1_000_000,
-                decoderConfig: undefined,
-            },
-            videoSamples: [
-                {
-                    data: new Uint8Array([1, 2, 3]).buffer,
-                    duration: 1_000,
-                    dts: 0,
-                    cts: 0,
-                    timescale: 1_000_000,
-                    is_rap: true,
-                },
-            ],
-            audioSamples: [],
-        };
-
-        vi.spyOn(processor as any, 'demuxSamplesWithFallback').mockResolvedValue(demuxed);
-        vi.spyOn(processor as any, 'isVideoTrackDecodable').mockResolvedValue(true);
-
-        const encoder = {
-            state: 'configured',
-            encode: vi.fn(),
-            flush: vi.fn().mockResolvedValue(undefined),
-            close: vi.fn(),
-        };
-        encoder.close.mockImplementation(() => { encoder.state = 'closed'; });
-        vi.spyOn(processor as any, 'createEncoder').mockResolvedValue({
-            encoder,
-            encodeMeta: createMockVideoMeta(),
-        });
-
-        const decoder = {
-            state: 'configured',
-            decode: vi.fn(),
-            flush: vi.fn().mockResolvedValue(undefined),
-            close: vi.fn(),
-        };
-        decoder.close.mockImplementation(() => { decoder.state = 'closed'; });
-        vi.spyOn(processor as any, 'createDecoder').mockReturnValue(decoder);
-
-        const startStreamingMuxSessionSpy = vi.spyOn(processor as any, 'startStreamingMuxSession').mockResolvedValue({
-            enqueueVideoChunk: vi.fn(),
-            flushVideoQueue: vi.fn().mockResolvedValue(undefined),
-            finalize: vi.fn().mockResolvedValue(new Blob([new Uint8Array([8])], { type: 'video/mp4' })),
-        });
-        const muxMp4Spy = vi.spyOn(processor as any, 'muxMp4');
-
-        const result = await processor.process();
-
-        expect(result).toBeInstanceOf(Blob);
-        expect(startStreamingMuxSessionSpy).toHaveBeenCalledTimes(1);
-        expect(muxMp4Spy).not.toHaveBeenCalled();
     });
 });

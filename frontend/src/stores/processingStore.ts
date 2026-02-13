@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { ProcessingProgress } from '../core/types';
+import { createEtaCalculator } from './store-utils';
 
 const PHASE_PERCENT_RANGES: Record<ProcessingProgress['phase'], { min: number; max: number }> = {
     demuxing: { min: 0, max: 5 },
@@ -10,33 +11,15 @@ const PHASE_PERCENT_RANGES: Record<ProcessingProgress['phase'], { min: number; m
     complete: { min: 100, max: 100 },
 };
 
-function clampPercent(value: number): number {
-    if (!Number.isFinite(value)) return 0;
-    return Math.max(0, Math.min(100, value));
-}
-
-function mapPhasePercent(phase: ProcessingProgress['phase'], rawPercent: number): number {
-    if (phase === 'complete') return 100;
-
-    const { min, max } = PHASE_PERCENT_RANGES[phase];
-    const normalized = clampPercent(rawPercent) / 100;
-    return Math.round(min + (max - min) * normalized);
-}
-
 export const useProcessingStore = defineStore('processing', () => {
     // State
     const isProcessing = ref(false);
-    const progress = ref<ProcessingProgress>({
-        phase: 'demuxing',
-        percent: 0,
-        framesProcessed: 0,
-        totalFrames: 0,
-    });
+    const progress = ref<ProcessingProgress>(createInitialProgress());
     const resultBlob = ref<Blob | null>(null);
     const resultUrl = ref<string | null>(null);
     const processingError = ref<string | null>(null);
     const startedAtMs = ref<number | null>(null);
-    const smoothedEtaSeconds = ref<number | null>(null);
+    const etaCalculator = ref<ReturnType<typeof createEtaCalculator> | null>(null);
 
     // Computed
     const isComplete = computed(() => progress.value.phase === 'complete');
@@ -48,12 +31,14 @@ export const useProcessingStore = defineStore('processing', () => {
         isProcessing.value = true;
         processingError.value = null;
         startedAtMs.value = Date.now();
-        smoothedEtaSeconds.value = null;
+        etaCalculator.value = createEtaCalculator(startedAtMs.value);
         resultBlob.value = null;
+
         if (resultUrl.value) {
             URL.revokeObjectURL(resultUrl.value);
             resultUrl.value = null;
         }
+
         progress.value = {
             phase: 'demuxing',
             percent: 0,
@@ -63,31 +48,14 @@ export const useProcessingStore = defineStore('processing', () => {
     }
 
     function updateProgress(update: ProcessingProgress): void {
-        const mappedPercent = mapPhasePercent(update.phase, update.percent);
-        const previousPercent = progress.value.percent;
-        const safePercent = update.phase === 'complete'
-            ? 100
-            : Math.min(99, Math.max(previousPercent, mappedPercent));
+        const mappedPercent = calculateMappedPercent(update.phase, update.percent);
+        const safePercent = calculateSafePercent(update.phase, mappedPercent, progress.value.percent);
 
-        let estimatedRemainingSeconds = update.estimatedRemainingSeconds;
-        if (!Number.isFinite(estimatedRemainingSeconds) || estimatedRemainingSeconds === undefined) {
-            const start = startedAtMs.value;
-            if (start !== null && safePercent > 0 && safePercent < 100) {
-                const elapsedSeconds = Math.max(0, (Date.now() - start) / 1000);
-                if (elapsedSeconds > 0) {
-                    const rawEtaSeconds = elapsedSeconds * ((100 - safePercent) / safePercent);
-                    const nextSmoothed = smoothedEtaSeconds.value === null
-                        ? rawEtaSeconds
-                        : smoothedEtaSeconds.value * 0.7 + rawEtaSeconds * 0.3;
-                    smoothedEtaSeconds.value = nextSmoothed;
-                    estimatedRemainingSeconds = Math.max(0, Math.round(nextSmoothed));
-                }
-            } else {
-                estimatedRemainingSeconds = undefined;
-            }
-        } else if (Number.isFinite(estimatedRemainingSeconds)) {
-            smoothedEtaSeconds.value = estimatedRemainingSeconds;
-        }
+        const estimatedRemainingSeconds = calculateEta(
+            safePercent,
+            update.estimatedRemainingSeconds,
+            etaCalculator.value,
+        );
 
         progress.value = {
             ...update,
@@ -114,33 +82,25 @@ export const useProcessingStore = defineStore('processing', () => {
     }
 
     function cancelProcessing(): void {
-        isProcessing.value = false;
-        startedAtMs.value = null;
-        smoothedEtaSeconds.value = null;
-        progress.value = {
-            phase: 'demuxing',
-            percent: 0,
-            framesProcessed: 0,
-            totalFrames: 0,
-        };
+        resetProcessingState();
     }
 
     function reset(): void {
-        isProcessing.value = false;
-        processingError.value = null;
-        startedAtMs.value = null;
-        smoothedEtaSeconds.value = null;
         if (resultUrl.value) {
             URL.revokeObjectURL(resultUrl.value);
         }
+        resetProcessingState();
+    }
+
+    // Helpers
+    function resetProcessingState(): void {
+        isProcessing.value = false;
+        processingError.value = null;
+        startedAtMs.value = null;
+        etaCalculator.value = null;
         resultBlob.value = null;
         resultUrl.value = null;
-        progress.value = {
-            phase: 'demuxing',
-            percent: 0,
-            framesProcessed: 0,
-            totalFrames: 0,
-        };
+        progress.value = createInitialProgress();
     }
 
     return {
@@ -160,3 +120,42 @@ export const useProcessingStore = defineStore('processing', () => {
         reset,
     };
 });
+
+function createInitialProgress(): ProcessingProgress {
+    return {
+        phase: 'demuxing',
+        percent: 0,
+        framesProcessed: 0,
+        totalFrames: 0,
+    };
+}
+
+function calculateMappedPercent(phase: ProcessingProgress['phase'], rawPercent: number): number {
+    if (phase === 'complete') return 100;
+
+    const { min, max } = PHASE_PERCENT_RANGES[phase];
+    const normalized = Math.max(0, Math.min(100, rawPercent)) / 100;
+    return Math.round(min + (max - min) * normalized);
+}
+
+function calculateSafePercent(
+    phase: ProcessingProgress['phase'],
+    mappedPercent: number,
+    previousPercent: number,
+): number {
+    return phase === 'complete'
+        ? 100
+        : Math.min(99, Math.max(previousPercent, mappedPercent));
+}
+
+function calculateEta(
+    currentPercent: number,
+    providedEta: number | undefined,
+    calculator: ReturnType<typeof createEtaCalculator> | null,
+): number | undefined {
+    if (Number.isFinite(providedEta)) {
+        return providedEta;
+    }
+
+    return calculator?.update(currentPercent);
+}
