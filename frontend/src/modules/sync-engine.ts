@@ -20,17 +20,27 @@ export function autoSync(
     videoStartLon?: number,
     videoTimezoneOffsetMinutes?: number,
 ): SyncConfig {
+    console.log('[DEBUG autoSync] Called with:', {
+        gpxPointsCount: gpxPoints.length,
+        videoStartTime: videoStartTime?.toISOString(),
+        videoStartLat,
+        videoStartLon,
+        videoTimezoneOffsetMinutes
+    });
+    
     if (gpxPoints.length === 0) {
         throw new SyncError('No track points for synchronization');
     }
 
     // If we have video GPS coordinates, find nearest point
     if (videoStartLat !== undefined && videoStartLon !== undefined) {
+        console.log('[DEBUG autoSync] Using GPS coordinates');
         return syncByGpsCoordinates(gpxPoints, videoStartLat, videoStartLon);
     }
 
     // If we have video start time, sync by time
     if (videoStartTime) {
+        console.log('[DEBUG autoSync] Using time sync');
         return syncByTime(gpxPoints, videoStartTime, videoTimezoneOffsetMinutes);
     }
 
@@ -81,20 +91,36 @@ function syncByTime(
     videoTime: Date,
     videoTimezoneOffsetMinutes?: number,
 ): SyncConfig {
-    const videoMs = videoTimezoneOffsetMinutes !== undefined
-        ? videoTime.getTime() - videoTimezoneOffsetMinutes * 60_000
-        : videoTime.getTime();
+    // Convert local video time to UTC using timezone offset
+    // timezoneOffsetMinutes: minutes to ADD to local time to get UTC (e.g., +180 for UTC+3)
+    // Note: JavaScript's getTimezoneOffset() returns negative for positive timezones,
+    // so we invert the sign when using user-selected timezone
+    const timezoneMs = videoTimezoneOffsetMinutes !== undefined
+        ? videoTimezoneOffsetMinutes * 60_000
+        : 0;
+    // Subtract timezone offset to convert local → UTC
+    const videoMs = videoTime.getTime() - timezoneMs;
     const gpxStartMs = gpxPoints[0]!.time.getTime();
     // Calculate how far into the GPX track the video starts
     const offsetMs = videoMs - gpxStartMs;
     const offsetSeconds = offsetMs / 1000;
 
-    // Warn if the offset is too large
+    // DEBUG logging
+    console.log('[DEBUG syncByTime] videoTime:', videoTime.toISOString());
+    console.log('[DEBUG syncByTime] videoTimezoneOffsetMinutes:', videoTimezoneOffsetMinutes);
+    console.log('[DEBUG syncByTime] timezoneMs:', timezoneMs);
+    console.log('[DEBUG syncByTime] videoMs (UTC):', new Date(videoMs).toISOString());
+    console.log('[DEBUG syncByTime] gpxStartMs:', new Date(gpxStartMs).toISOString());
+    console.log('[DEBUG syncByTime] offsetMs:', offsetMs);
+    console.log('[DEBUG syncByTime] offsetSeconds:', offsetSeconds);
+
+    // Warn if the offset is too large, but still apply the offset
+    // This allows users to sync even when devices were set to different times
     if (Math.abs(offsetSeconds) > MAX_AUTO_OFFSET_SECONDS) {
         return {
             offsetSeconds,
-            autoSynced: false,
-            warning: 'Time difference exceeds 5 minutes. Check the device clock.',
+            autoSynced: true, // Still auto-sync, but with warning
+            warning: `Large time difference (${formatTimeDiff(Math.abs(offsetSeconds))}). Verify sync manually if needed.`,
         };
     }
 
@@ -102,6 +128,23 @@ function syncByTime(
         offsetSeconds,
         autoSynced: true,
     };
+}
+
+/**
+ * Format time difference in seconds to human-readable string
+ */
+function formatTimeDiff(seconds: number): string {
+    const absSeconds = Math.abs(seconds);
+    const hours = Math.floor(absSeconds / 3600);
+    const minutes = Math.floor((absSeconds % 3600) / 60);
+    const secs = absSeconds % 60;
+
+    if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+    } else if (minutes > 0) {
+        return `${minutes}m ${secs}s`;
+    }
+    return `${secs}s`;
 }
 
 /**

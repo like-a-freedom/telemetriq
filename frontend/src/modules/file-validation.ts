@@ -24,6 +24,32 @@ const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/x-m4v'];
 const ALLOWED_VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v'];
 
 /**
+ * Parse creation time from DJI filename.
+ * Format: DJI_YYYYMMDD_HHMMSS e.g., DJI_20260211_092425
+ * Returns local Date (without timezone info) - timezone should be handled separately.
+ * The time is interpreted as local time, not UTC.
+ */
+function parseDjiFilename(filename: string): { date: Date; isLocalTime: boolean } | undefined {
+    const djiMatch = filename.match(/^DJI_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/i);
+    if (!djiMatch) return undefined;
+
+    const [, year, month, day, hour, minute, second] = djiMatch;
+    // Create date in local timezone (the time in filename is local, not UTC)
+    const date = new Date(
+        Number(year),
+        Number(month) - 1,
+        Number(day),
+        Number(hour),
+        Number(minute),
+        Number(second)
+    );
+
+    if (Number.isNaN(date.getTime())) return undefined;
+
+    return { date, isLocalTime: true };
+}
+
+/**
  * Validate a video file before processing.
  */
 export function validateVideoFile(file: File): FileValidation {
@@ -64,7 +90,14 @@ export function extractVideoMeta(file: File): Promise<VideoMeta> {
         video.src = url;
 
         video.onloadedmetadata = () => {
-            const startTime = file.lastModified ? new Date(file.lastModified) : undefined;
+            // Try DJI filename first (most reliable for drone videos)
+            const djiParsed = parseDjiFilename(file.name);
+            const djiStartTime = djiParsed?.date;
+            // Fallback to lastModified (filesystem time)
+            const fsStartTime = file.lastModified ? new Date(file.lastModified) : undefined;
+            // Use DJI time if available, otherwise filesystem time
+            const startTime = djiStartTime ?? fsStartTime;
+
             const meta: VideoMeta = {
                 duration: video.duration,
                 width: video.videoWidth,
@@ -74,8 +107,18 @@ export function extractVideoMeta(file: File): Promise<VideoMeta> {
                 fileSize: file.size,
                 fileName: file.name,
                 startTime,
-                timezoneOffsetMinutes: startTime ? startTime.getTimezoneOffset() : undefined,
+                // DJI filename time is local time, convert browser offset to positive timezone
+                // getTimezoneOffset() returns negative for positive timezones (e.g., -180 for UTC+3)
+                // We invert it so that sync engine can use: localTime - offset = UTC
+                timezoneOffsetMinutes: djiParsed ? -djiParsed.date.getTimezoneOffset() : (startTime ? startTime.getTimezoneOffset() : undefined),
             };
+            
+            // DEBUG logging
+            console.log('[DEBUG extractVideoMeta] Initial from DJI filename:', {
+                startTime: meta.startTime?.toISOString(),
+                timezoneOffsetMinutes: meta.timezoneOffsetMinutes,
+                isDji: !!djiParsed
+            });
 
             URL.revokeObjectURL(url);
 
@@ -107,9 +150,12 @@ export function extractVideoMeta(file: File): Promise<VideoMeta> {
                         && mp4Meta.duration && mp4Meta.duration > 0) {
                         meta.duration = mp4Meta.duration;
                     }
+                    // Use MP4 metadata UTC time as primary source for sync
+                    // It's more reliable than DJI filename (which is local time without timezone info)
                     if (mp4Meta.startTime) {
                         meta.startTime = mp4Meta.startTime;
-                        meta.timezoneOffsetMinutes = mp4Meta.timezoneOffsetMinutes;
+                        meta.timezoneOffsetMinutes = 0; // MP4 creation_time is UTC
+                        console.log('[DEBUG extractVideoMeta] Using MP4 metadata:', meta.startTime.toISOString(), 'UTC');
                     }
                     if (mp4Meta.gps) meta.gps = mp4Meta.gps;
 
@@ -120,6 +166,11 @@ export function extractVideoMeta(file: File): Promise<VideoMeta> {
                         reject(new ValidationError('Failed to determine video resolution from metadata'));
                         return;
                     }
+                    // DEBUG logging
+                    console.log('[DEBUG extractVideoMeta] Final meta:', {
+                        startTime: meta.startTime?.toISOString(),
+                        timezoneOffsetMinutes: meta.timezoneOffsetMinutes,
+                    });
                     resolve(meta);
                 });
         };
@@ -163,13 +214,17 @@ async function extractMp4Metadata(file: File): Promise<{
         const created = tags.date;
         const gps = findIso6709Location(tags.raw);
 
+        // DEBUG logging
+        console.log('[DEBUG extractMp4Metadata] tags.date:', created);
+        console.log('[DEBUG extractMp4Metadata] tags.raw:', tags.raw);
+
         return {
             codec,
             fps,
             width,
             height,
             startTime: created,
-            timezoneOffsetMinutes: created ? created.getTimezoneOffset() : undefined,
+            timezoneOffsetMinutes: created ? 0 : undefined, // MP4 creation_time is UTC
             gps,
         };
     } finally {

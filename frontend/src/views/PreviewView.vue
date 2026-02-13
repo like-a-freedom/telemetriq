@@ -57,6 +57,21 @@
                 Apply
               </button>
             </div>
+            <div class="preview-view__field-row preview-view__timezone-row">
+              <label class="preview-view__label preview-view__label--small">Timezone</label>
+              <select
+                v-model="manualTimezone"
+                class="preview-view__select"
+              >
+                <option
+                  v-for="tz in timezones"
+                  :key="tz.value"
+                  :value="tz.value"
+                >
+                  {{ tz.label }}
+                </option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -160,9 +175,44 @@ const settingsStore = useSettingsStore();
 const videoUrl = ref<string | null>(null);
 const telemetryFrames = ref<TelemetryFrame[]>([]);
 const manualStartTime = ref("");
+const manualTimezone = ref(180); // Default: UTC+3 (Moscow)
 const canChangePosition = computed(
   () => settingsStore.currentTemplateId === "classic"
 );
+
+const timezones = [
+  { value: -720, label: 'UTC-12' },
+  { value: -660, label: 'UTC-11' },
+  { value: -600, label: 'UTC-10' },
+  { value: -540, label: 'UTC-9' },
+  { value: -480, label: 'UTC-8 (Pacific)' },
+  { value: -420, label: 'UTC-7 (Mountain)' },
+  { value: -360, label: 'UTC-6 (Central)' },
+  { value: -300, label: 'UTC-5 (Eastern)' },
+  { value: -240, label: 'UTC-4 (Atlantic)' },
+  { value: -180, label: 'UTC-3' },
+  { value: -120, label: 'UTC-2' },
+  { value: -60, label: 'UTC-1' },
+  { value: 0, label: 'UTC' },
+  { value: 60, label: 'UTC+1' },
+  { value: 120, label: 'UTC+2' },
+  { value: 180, label: 'UTC+3 (Moscow)' },
+  { value: 240, label: 'UTC+4' },
+  { value: 300, label: 'UTC+5' },
+  { value: 330, label: 'UTC+5:30 (India)' },
+  { value: 360, label: 'UTC+6' },
+  { value: 420, label: 'UTC+7' },
+  { value: 480, label: 'UTC+8' },
+  { value: 540, label: 'UTC+9' },
+  { value: 600, label: 'UTC+10' },
+  { value: 660, label: 'UTC+11' },
+  { value: 720, label: 'UTC+12' },
+];
+
+const currentTimezoneLabel = computed(() => {
+  const tz = timezones.find(t => t.value === manualTimezone.value);
+  return tz?.label || `UTC${manualTimezone.value >= 0 ? '+' : ''}${manualTimezone.value / 60}`;
+});
 
 onMounted(() => {
   if (!filesStore.isReady) {
@@ -182,6 +232,12 @@ onMounted(() => {
 
   // Attempt auto-sync
   if (filesStore.gpxData) {
+    // DEBUG: Log what we're passing to sync engine
+    console.log('[DEBUG AutoSync] GPX first point:', filesStore.gpxData.points[0]?.time);
+    console.log('[DEBUG AutoSync] Video startTime:', filesStore.videoMeta?.startTime);
+    console.log('[DEBUG AutoSync] Video timezoneOffsetMinutes:', filesStore.videoMeta?.timezoneOffsetMinutes);
+    console.log('[DEBUG AutoSync] Video GPS:', filesStore.videoMeta?.gps);
+    
     syncStore.performAutoSync(
       filesStore.gpxData.points,
       filesStore.videoMeta?.startTime,
@@ -217,7 +273,7 @@ function applyManualTime(): void {
     localTime,
     undefined,
     undefined,
-    localTime.getTimezoneOffset(),
+    manualTimezone.value,
     true
   );
 }
@@ -309,6 +365,28 @@ function applyManualTime(): void {
   flex-shrink: 0;
   width: auto;
   padding: 0.6rem 1.25rem;
+}
+
+.preview-view__timezone-row {
+  margin-top: 0.75rem;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.preview-view__timezone-row .preview-view__select {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border, #404040);
+  border-radius: 4px;
+  background: var(--color-bg, #1a1a1a);
+  color: var(--color-text, #fff);
+  font-size: 0.9rem;
+}
+
+.preview-view__label--small {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary, #888);
+  margin-bottom: 0.25rem;
 }
 
 .preview-view__sidebar {
