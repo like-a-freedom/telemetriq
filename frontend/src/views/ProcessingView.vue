@@ -68,9 +68,10 @@ import {
   useSettingsStore,
   useSyncStore,
 } from "../stores";
+import { normalizeProcessingError } from "../stores/store-utils";
 import { buildTelemetryTimeline } from "../modules/telemetry-core";
 import { VideoProcessor } from "../modules/video-processor";
-import { AppError } from "../core/errors";
+
 // @ts-expect-error Vue SFC default export typing handled by Vite/Vue tooling
 import ProgressBar from "../components/ProgressBar.vue";
 
@@ -119,7 +120,7 @@ async function startProcessingFlow(): Promise<void> {
     const result = await processor.process();
     processingStore.setResult(result);
   } catch (err) {
-    processingStore.setError(normalizeErrorMessage(err));
+    processingStore.setError(normalizeProcessingError(err));
   }
 }
 
@@ -167,35 +168,6 @@ function cancelProcessing(): void {
   processorRef.value?.cancel();
   processingStore.cancelProcessing();
   goBack();
-}
-
-function normalizeErrorMessage(err: unknown): string {
-  // Prefer AppError with details so we display helpful diagnostics when available
-  if (err instanceof AppError && err.details) {
-    const details = formatErrorDetails(err.details);
-    return details ? `${err.message}\n\n${details}` : err.message;
-  }
-
-  if (err instanceof Error) return err.message;
-
-  if (typeof err === "string") return err;
-  try {
-    const serialized = JSON.stringify(err);
-    return serialized === undefined || serialized === "{}"
-      ? "Unknown processing error"
-      : serialized;
-  } catch {
-    return "Unknown processing error";
-  }
-}
-
-function formatErrorDetails(details: Record<string, unknown>): string {
-  if (typeof details.details === "string") return details.details;
-  try {
-    return JSON.stringify(details, null, 2);
-  } catch {
-    return "";
-  }
 }
 
 function goBack(): void {

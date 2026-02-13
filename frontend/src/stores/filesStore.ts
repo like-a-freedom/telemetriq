@@ -8,6 +8,7 @@ import {
     WARN_DURATION_SECONDS,
     FAST_METADATA_THRESHOLD_BYTES,
 } from '../modules/file-validation';
+import { formatErrorMessage } from './store-utils';
 
 export const useFilesStore = defineStore('files', () => {
     // State
@@ -28,71 +29,42 @@ export const useFilesStore = defineStore('files', () => {
 
     // Actions
     async function setVideoFile(file: File): Promise<void> {
-        error.value = null;
-        isLoadingVideo.value = true;
-
-        try {
-            const validation = validateVideoFile(file);
-            videoValidation.value = validation;
-
-            if (!validation.valid) {
-                error.value = validation.errors.join('; ');
-                return;
-            }
-
-            videoFile.value = file;
-            videoMeta.value = await extractVideoMeta(file);
-
-            const warnings = [...(videoValidation.value?.warnings ?? [])];
-
-            if (file.size >= FAST_METADATA_THRESHOLD_BYTES) {
-                warnings.push(
-                    'Large file mode is enabled to keep the UI responsive. Detailed codec/GPS metadata will be detected during processing.',
-                );
-            }
-
-            if (videoMeta.value.duration > WARN_DURATION_SECONDS) {
-                warnings.push(
-                    `Video is longer than 30 minutes (${Math.round(videoMeta.value.duration / 60)} min). Processing may take a long time.`,
-                );
-            }
-
-            videoValidation.value = {
-                valid: true,
-                errors: [],
-                warnings,
-            };
-        } catch (err) {
-            error.value = err instanceof Error ? err.message : 'Failed to load video';
-            videoFile.value = null;
-            videoMeta.value = null;
-        } finally {
-            isLoadingVideo.value = false;
-        }
+        await loadFile<File, VideoMeta>({
+            file,
+            validate: validateVideoFile,
+            parse: extractVideoMeta,
+            onSuccess: (file, meta) => {
+                videoFile.value = file;
+                videoMeta.value = meta;
+                videoValidation.value = enhanceVideoValidation(meta, videoValidation.value);
+            },
+            onError: () => {
+                videoFile.value = null;
+                videoMeta.value = null;
+            },
+            setLoading: (v) => { isLoadingVideo.value = v; },
+            setError: (e) => { error.value = e; },
+            setValidation: (v) => { videoValidation.value = v; },
+        });
     }
 
     async function setGpxFile(file: File): Promise<void> {
-        error.value = null;
-        isLoadingGpx.value = true;
-
-        try {
-            const validation = validateGpxFile(file);
-            gpxValidation.value = validation;
-
-            if (!validation.valid) {
-                error.value = validation.errors.join('; ');
-                return;
-            }
-
-            gpxFile.value = file;
-            gpxData.value = await readAndParseGpx(file);
-        } catch (err) {
-            error.value = err instanceof Error ? err.message : 'Failed to load GPX';
-            gpxFile.value = null;
-            gpxData.value = null;
-        } finally {
-            isLoadingGpx.value = false;
-        }
+        await loadFile<File, GpxData>({
+            file,
+            validate: validateGpxFile,
+            parse: readAndParseGpx,
+            onSuccess: (file, data) => {
+                gpxFile.value = file;
+                gpxData.value = data;
+            },
+            onError: () => {
+                gpxFile.value = null;
+                gpxData.value = null;
+            },
+            setLoading: (v) => { isLoadingGpx.value = v; },
+            setError: (e) => { error.value = e; },
+            setValidation: (v) => { gpxValidation.value = v; },
+        });
     }
 
     function reset(): void {
@@ -128,3 +100,68 @@ export const useFilesStore = defineStore('files', () => {
         reset,
     };
 });
+
+// Helper types and functions
+interface LoadFileConfig<F, T> {
+    file: F;
+    validate: (file: F) => FileValidation;
+    parse: (file: F) => Promise<T>;
+    onSuccess: (file: F, result: T) => void;
+    onError: () => void;
+    setLoading: (value: boolean) => void;
+    setError: (error: string | null) => void;
+    setValidation: (validation: FileValidation | null) => void;
+}
+
+async function loadFile<F extends File, T>({
+    file,
+    validate,
+    parse,
+    onSuccess,
+    onError,
+    setLoading,
+    setError,
+    setValidation,
+}: LoadFileConfig<F, T>): Promise<void> {
+    setError(null);
+    setLoading(true);
+
+    try {
+        const validation = validate(file);
+        setValidation(validation);
+
+        if (!validation.valid) {
+            setError(validation.errors.join('; '));
+            return;
+        }
+
+        const result = await parse(file);
+        onSuccess(file, result);
+    } catch (err) {
+        setError(formatErrorMessage(err));
+        onError();
+    } finally {
+        setLoading(false);
+    }
+}
+
+function enhanceVideoValidation(
+    meta: VideoMeta,
+    validation: FileValidation | null,
+): FileValidation {
+    const warnings = [...(validation?.warnings ?? [])];
+
+    if (meta.fileSize >= FAST_METADATA_THRESHOLD_BYTES) {
+        warnings.push(
+            'Large file mode is enabled to keep the UI responsive. Detailed codec/GPS metadata will be detected during processing.',
+        );
+    }
+
+    if (meta.duration > WARN_DURATION_SECONDS) {
+        warnings.push(
+            `Video is longer than 30 minutes (${Math.round(meta.duration / 60)} min). Processing may take a long time.`,
+        );
+    }
+
+    return { valid: true, errors: [], warnings };
+}

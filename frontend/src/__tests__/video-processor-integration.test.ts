@@ -3,39 +3,20 @@
  * DJI Osmo Pocket 3 HEVC file (hvc1.2.4.H150, 1728×3072, long-GOP).
  *
  * These tests validate the Mediabunny-based demuxing path and keyframe
- * detection behavior used by VideoProcessor.
+ * detection behavior.
  */
 /// <reference types="node" />
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ALL_FORMATS, BlobSource, EncodedPacketSink, Input } from 'mediabunny';
-import { VideoProcessor } from '../modules/video-processor';
+import { createDemuxer } from '../modules/demuxer';
 import { createKeyframeDetector } from '../modules/keyframe-detector';
-import type { VideoMeta, TelemetryFrame } from '../core/types';
 
 const DJI_FILE_PATH = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../test_data/DJI_20260211092425_0002_D.MP4');
 
 const FILE_EXISTS = fs.existsSync(DJI_FILE_PATH);
 const describeWithFile = FILE_EXISTS ? describe : describe.skip;
-
-function createTestProcessor(file: File): VideoProcessor {
-    const meta: VideoMeta = {
-        duration: 10,
-        width: 1728,
-        height: 3072,
-        fps: 30,
-        codec: 'hvc1.2.4.H150',
-        fileSize: file.size,
-        fileName: file.name,
-    };
-    return new VideoProcessor({
-        videoFile: file,
-        videoMeta: meta,
-        telemetryFrames: [] as TelemetryFrame[],
-        syncOffsetSeconds: 0,
-    });
-}
 
 interface DemuxResult {
     codec: string;
@@ -123,17 +104,17 @@ describeWithFile('DJI Osmo Pocket 3 — Mediabunny integration', () => {
         expect(firstSample.duration).toBeGreaterThan(0);
     });
 
-    it('VideoProcessor demuxSamples should return samples via Mediabunny path', async () => {
-        const processor = createTestProcessor(file);
-        const parsed = await (processor as any).demuxSamples(file);
+    it('demuxer module should return samples via Mediabunny path', async () => {
+        const demuxer = createDemuxer();
+        const parsed = await demuxer.demux(file);
 
         expect(parsed.videoTrack.codec.toLowerCase()).toMatch(/^(hvc1|hev1)/);
         expect(parsed.videoSamples.length).toBeGreaterThan(0);
     });
 
     it('keyframe detector should find at least one keyframe', async () => {
-        const processor = createTestProcessor(file);
-        const parsed = await (processor as any).demuxSamples(file);
+        const demuxer = createDemuxer();
+        const parsed = await demuxer.demux(file);
 
         const detector = createKeyframeDetector(
             parsed.videoTrack.codec,
@@ -165,8 +146,8 @@ describeWithFile('DJI Osmo Pocket 3 — Mediabunny load tests', () => {
     }, 60_000);
 
     it('should run keyframe detection across all samples quickly', async () => {
-        const processor = createTestProcessor(file);
-        const parsed = await (processor as any).demuxSamples(file);
+        const demuxer = createDemuxer();
+        const parsed = await demuxer.demux(file);
         const detector = createKeyframeDetector(
             parsed.videoTrack.codec,
             parsed.videoTrack.description,
@@ -182,5 +163,4 @@ describeWithFile('DJI Osmo Pocket 3 — Mediabunny load tests', () => {
         expect(keyframeCount).toBeGreaterThan(0);
         expect(elapsed).toBeLessThan(1_000);
     }, 60_000);
-}
-);
+});
