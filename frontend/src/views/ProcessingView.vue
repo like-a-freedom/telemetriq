@@ -9,13 +9,29 @@
 
     <!-- WebGPU Status -->
     <div v-if="webGPUStatus" class="processing-view__webgpu-status">
-      <div class="webgpu-badge" :class="{ 'webgpu-badge--active': webGPUStatus.enabled && webGPUStatus.supported }">
-        <span class="webgpu-badge__icon">{{ webGPUStatus.enabled && webGPUStatus.supported ? '⚡' : '🐢' }}</span>
+      <div
+        class="webgpu-badge"
+        :class="{
+          'webgpu-badge--active':
+            webGPUStatus.enabled && webGPUStatus.supported,
+        }"
+      >
+        <span class="webgpu-badge__icon">{{
+          webGPUStatus.enabled && webGPUStatus.supported ? "⚡" : "🐢"
+        }}</span>
         <span class="webgpu-badge__text">
-          {{ webGPUStatus.enabled && webGPUStatus.supported ? 'GPU Acceleration' : 'CPU Mode' }}
+          {{
+            webGPUStatus.enabled && webGPUStatus.supported
+              ? "GPU Acceleration"
+              : "CPU Mode"
+          }}
         </span>
-        <span v-if="webGPUStatus.supported" class="webgpu-badge__toggle" @click="toggleWebGPUMode">
-          {{ webGPUStatus.enabled ? 'Disable' : 'Enable' }}
+        <span
+          v-if="webGPUStatus.supported"
+          class="webgpu-badge__toggle"
+          @click="toggleWebGPUMode"
+        >
+          {{ webGPUStatus.enabled ? "Disable" : "Enable" }}
         </span>
       </div>
     </div>
@@ -32,12 +48,31 @@
     >
       <p>❌ {{ processingStore.processingError }}</p>
 
-      <div v-if="processingStore.processingError && (processingStore.processingError.includes('ffmpeg core') || processingStore.processingError.includes('ffmpeg-core.js'))" class="processing-view__hint">
-        <p><strong>Hint:</strong> The browser failed to load the FFmpeg core JS/WASM. This is usually a network/CORS issue or missing local core files.</p>
+      <div
+        v-if="
+          processingStore.processingError &&
+          (processingStore.processingError.includes('ffmpeg core') ||
+            processingStore.processingError.includes('ffmpeg-core.js'))
+        "
+        class="processing-view__hint"
+      >
+        <p>
+          <strong>Hint:</strong> The browser failed to load the FFmpeg core
+          JS/WASM. This is usually a network/CORS issue or missing local core
+          files.
+        </p>
         <p>Fix options:</p>
         <ol>
-          <li>Run <code>bun run fetch-ffmpeg-core</code> in the <code>frontend</code> folder to download core files to <code>public/vendor/ffmpeg</code>, then reload the page.</li>
-          <li>Or ensure your network/CORS settings allow fetching from the CDN (check devtools Network tab for the requests to <code>@ffmpeg/core</code>).</li>
+          <li>
+            Run <code>bun run fetch-ffmpeg-core</code> in the
+            <code>frontend</code> folder to download core files to
+            <code>public/vendor/ffmpeg</code>, then reload the page.
+          </li>
+          <li>
+            Or ensure your network/CORS settings allow fetching from the CDN
+            (check devtools Network tab for the requests to
+            <code>@ffmpeg/core</code>).
+          </li>
         </ol>
       </div>
 
