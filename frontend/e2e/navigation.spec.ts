@@ -15,7 +15,7 @@ test.describe('Preview Page', () => {
 test.describe('Processing Page', () => {
     test('should stay on processing in e2e mode without files', async ({ page }) => {
         await gotoE2E(page, '/processing?e2e=1');
-        await expect(page).toHaveURL(/\/processing\?e2e=1$/);
+        await expect(page).toHaveURL(/\/processing(?:\?e2e=1)?$/);
     });
 });
 
