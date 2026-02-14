@@ -22,14 +22,17 @@ export default defineConfig({
         {
             name: 'firefox',
             use: { ...devices['Desktop Firefox'] },
+            grepInvert: /\(chromium only\)/,
         },
         {
             name: 'webkit',
             use: { ...devices['Desktop Safari'] },
+            grepInvert: /\(chromium only\)/,
         },
         {
             name: 'mobile-chrome',
             use: { ...devices['Pixel 5'] },
+            grepInvert: /\(chromium only\)/,
         },
     ],
     webServer: {

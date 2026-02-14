@@ -57,7 +57,7 @@
         />
         <FileInfo
           label="Size"
-          :value="formatSize(filesStore.videoMeta.fileSize)"
+          :value="formatFileSize(filesStore.videoMeta.fileSize)"
         />
       </div>
       <div v-if="videoWarnings.length" class="upload-view__warning-block">
@@ -114,12 +114,12 @@ import { useRouter } from "vue-router";
 import { useFilesStore, useSettingsStore } from "../stores";
 import { checkBrowserCapabilities } from "../modules/file-validation";
 import { useSeo } from "../composables/useSeo";
+import { useFormatters } from "../composables/useFormatters";
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
 import UploadZone from "../components/UploadZone.vue";
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
 import FileInfo from "../components/FileInfo.vue";
 
-// SEO
 useSeo({
   title: "Upload Files",
   description:
@@ -129,6 +129,7 @@ useSeo({
 const router = useRouter();
 const filesStore = useFilesStore();
 const settingsStore = useSettingsStore();
+const { formatDuration, formatFileSize } = useFormatters();
 
 const browserCapabilities = ref({ supported: true, missing: [] as string[] });
 
@@ -175,31 +176,16 @@ async function onGpxSelected(file: File): Promise<void> {
 }
 
 function onVideoRemoved(): void {
-  filesStore.videoFile = null;
-  filesStore.videoMeta = null;
+  filesStore.removeVideo();
 }
 
 function onGpxRemoved(): void {
-  filesStore.gpxFile = null;
-  filesStore.gpxData = null;
+  filesStore.removeGpx();
 }
 
 function goToPreview(): void {
   settingsStore.setScreen("preview");
   router.push("/preview");
-}
-
-function formatDuration(seconds: number): string {
-  const min = Math.floor(seconds / 60);
-  const sec = Math.round(seconds % 60);
-  return `${min}:${sec.toString().padStart(2, "0")}`;
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024)
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 </script>
 

@@ -54,6 +54,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useFileDrop } from "../composables/useFileDrop";
+import { useFormatters } from "../composables/useFormatters";
 
 const props = defineProps<{
   accept: string;
@@ -84,16 +85,13 @@ const {
   resetInput,
 } = useFileDrop();
 
+const { formatFileSize } = useFormatters();
+
 void fileInput;
 
 const fileSizeFormatted = computed(() => {
   if (!props.fileSize) return "";
-  if (props.fileSize < 1024) return `${props.fileSize} B`;
-  if (props.fileSize < 1024 * 1024)
-    return `${(props.fileSize / 1024).toFixed(1)} KB`;
-  if (props.fileSize < 1024 * 1024 * 1024)
-    return `${(props.fileSize / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(props.fileSize / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  return formatFileSize(props.fileSize);
 });
 
 function handleFileSelected(event: Event): void {
@@ -108,6 +106,12 @@ function removeFile(): void {
   resetInput();
   emit("file-removed");
 }
+</script>
+
+<script lang="ts">
+export default {
+  name: "UploadZone",
+};
 </script>
 
 <style scoped>

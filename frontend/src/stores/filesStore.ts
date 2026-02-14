@@ -66,6 +66,20 @@ export const useFilesStore = defineStore('files', () => {
         });
     }
 
+    function removeVideo(): void {
+        videoFile.value = null;
+        videoMeta.value = null;
+        videoValidation.value = null;
+        isLoadingVideo.value = false;
+    }
+
+    function removeGpx(): void {
+        gpxFile.value = null;
+        gpxData.value = null;
+        gpxValidation.value = null;
+        isLoadingGpx.value = false;
+    }
+
     function reset(): void {
         videoFile.value = null;
         gpxFile.value = null;
@@ -96,6 +110,8 @@ export const useFilesStore = defineStore('files', () => {
         // Actions
         setVideoFile,
         setGpxFile,
+        removeVideo,
+        removeGpx,
         reset,
     };
 });

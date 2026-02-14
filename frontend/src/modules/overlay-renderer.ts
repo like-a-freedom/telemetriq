@@ -147,6 +147,19 @@ function getEffectiveConfig(config: ExtendedOverlayConfig): ExtendedOverlayConfi
     return config;
 }
 
+const BASIC_LAYOUTS: Record<string, (ctx: OverlayContext2D, metrics: MetricItem[], w: number, h: number, config: ExtendedOverlayConfig) => void> = {
+    'bottom-bar': renderHorizonLayout,
+    'side-margins': renderMarginLayout,
+    'box': renderClassicLayout,
+};
+
+const EXTENDED_LAYOUTS = new Set([
+    'floating-pills', 'arc-gauge', 'hero-number', 'dashboard-hud',
+    'cinematic-bar', 'split-edges', 'stacked-serif', 'editorial',
+    'ticker-tape', 'whisper', 'two-tone', 'condensed-strip',
+    'soft-rounded', 'thin-line', 'swiss-grid',
+]);
+
 function renderLayout(
     ctx: OverlayContext2D,
     metrics: MetricItem[],
@@ -156,40 +169,18 @@ function renderLayout(
     config: ExtendedOverlayConfig,
     layoutMode: string,
 ): void {
-    switch (layoutMode) {
-        case 'bottom-bar':
-            renderHorizonLayout(ctx, metrics, w, h, config);
-            break;
-        case 'side-margins':
-            renderMarginLayout(ctx, metrics, w, h, config);
-            break;
-        case 'corner-frame':
-            renderLFrameLayout(ctx, metrics, frame, w, h, config);
-            break;
-        case 'box':
-            renderClassicLayout(ctx, metrics, w, h, config);
-            break;
-        case 'floating-pills':
-        case 'arc-gauge':
-        case 'hero-number':
-        case 'dashboard-hud':
-        case 'cinematic-bar':
-        case 'split-edges':
-        case 'stacked-serif':
-        case 'editorial':
-        case 'ticker-tape':
-        case 'whisper':
-        case 'two-tone':
-        case 'condensed-strip':
-        case 'soft-rounded':
-        case 'thin-line':
-        case 'swiss-grid':
-            renderExtendedLayout(ctx, metrics, w, h, config, layoutMode);
-            break;
-        default:
-            renderClassicLayout(ctx, metrics, w, h, config);
-            break;
+    if (layoutMode === 'corner-frame') {
+        renderLFrameLayout(ctx, metrics, frame, w, h, config);
+        return;
     }
+
+    if (EXTENDED_LAYOUTS.has(layoutMode)) {
+        renderExtendedLayout(ctx, metrics, w, h, config, layoutMode);
+        return;
+    }
+
+    const basicRenderer = BASIC_LAYOUTS[layoutMode] ?? renderClassicLayout;
+    basicRenderer(ctx, metrics, w, h, config);
 }
 
 export function buildMetrics(frame: TelemetryFrame, config: ExtendedOverlayConfig): MetricItem[] {
