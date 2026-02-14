@@ -14,6 +14,12 @@ defineProps<{
 }>();
 </script>
 
+<script lang="ts">
+export default {
+  name: "FileInfo",
+};
+</script>
+
 <style scoped>
 .file-info {
   padding: 0.5rem 0;

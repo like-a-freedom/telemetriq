@@ -61,9 +61,16 @@ vi.mock('../modules/video-codec-manager', () => ({
     })),
 }));
 
+// Store original values
+const originalVideoDecoder = globalThis.VideoDecoder;
+const originalVideoEncoder = globalThis.VideoEncoder;
+const originalVideoFrame = globalThis.VideoFrame;
+const originalEncodedVideoChunk = globalThis.EncodedVideoChunk;
+const originalOffscreenCanvas = globalThis.OffscreenCanvas;
+
 // Mock WebCodecs API
 beforeEach(() => {
-    vi.stubGlobal('VideoDecoder', class {
+    globalThis.VideoDecoder = class {
         static isConfigSupported = vi.fn().mockResolvedValue({ supported: true });
         state = 'unconfigured';
         configure() { this.state = 'configured'; }
@@ -72,8 +79,9 @@ beforeEach(() => {
         close() { this.state = 'closed'; }
         set output(_cb: any) { }
         set error(_cb: any) { }
-    });
-    vi.stubGlobal('VideoEncoder', class {
+    } as unknown as typeof VideoDecoder;
+
+    globalThis.VideoEncoder = class {
         static isConfigSupported = vi.fn().mockResolvedValue({ supported: true });
         state = 'unconfigured';
         configure() { this.state = 'configured'; }
@@ -82,21 +90,25 @@ beforeEach(() => {
         close() { this.state = 'closed'; }
         set output(_cb: any) { }
         set error(_cb: any) { }
-    });
-    vi.stubGlobal('VideoFrame', class {
+    } as unknown as typeof VideoEncoder;
+
+    globalThis.VideoFrame = class {
+        source: any;
+        options?: any;
+        timestamp: number;
+        duration?: number;
+        displayWidth = 1920;
+        displayHeight = 1080;
         constructor(source: any, options?: any) {
             this.source = source;
             this.options = options;
             this.timestamp = options?.timestamp ?? 0;
             this.duration = options?.duration;
         }
-        source: any;
-        options?: any;
-        timestamp: number;
-        duration?: number;
         close() { }
-    });
-    vi.stubGlobal('EncodedVideoChunk', class {
+    } as unknown as typeof VideoFrame;
+
+    globalThis.EncodedVideoChunk = class {
         type: 'key' | 'delta';
         timestamp: number;
         duration?: number;
@@ -107,8 +119,9 @@ beforeEach(() => {
             this.duration = init.duration;
             this.data = init.data;
         }
-    });
-    vi.stubGlobal('OffscreenCanvas', class OffscreenCanvas {
+    } as unknown as typeof EncodedVideoChunk;
+
+    globalThis.OffscreenCanvas = class {
         width: number;
         height: number;
         constructor(width: number, height: number) {
@@ -122,11 +135,15 @@ beforeEach(() => {
                 clearRect: vi.fn(),
             };
         }
-    });
+    } as unknown as typeof OffscreenCanvas;
 });
 
 afterEach(() => {
-    vi.unstubAllGlobals();
+    globalThis.VideoDecoder = originalVideoDecoder;
+    globalThis.VideoEncoder = originalVideoEncoder;
+    globalThis.VideoFrame = originalVideoFrame;
+    globalThis.EncodedVideoChunk = originalEncodedVideoChunk;
+    globalThis.OffscreenCanvas = originalOffscreenCanvas;
     vi.clearAllMocks();
 });
 
@@ -143,8 +160,8 @@ describe('VideoProcessor', () => {
     });
 
     it('should throw if WebCodecs API is not available', async () => {
-        vi.stubGlobal('VideoDecoder', undefined);
-        vi.stubGlobal('VideoEncoder', undefined);
+        globalThis.VideoDecoder = undefined as unknown as typeof VideoDecoder;
+        globalThis.VideoEncoder = undefined as unknown as typeof VideoEncoder;
 
         const processor = new VideoProcessor({
             videoFile: new File([], 'test.mp4'),

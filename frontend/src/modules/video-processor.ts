@@ -24,6 +24,31 @@ export interface VideoProcessorOptions {
     useFfmpegMux?: boolean;
 }
 
+interface ProcessFramesParams {
+    demuxed: DemuxedMedia;
+    videoSamples: DemuxedMedia['videoSamples'];
+    totalFrames: number;
+    gopFrames: number;
+    videoMeta: VideoMeta;
+    telemetryFrames: TelemetryFrame[];
+    safeSyncOffsetSeconds: number;
+    config: ExtendedOverlayConfig;
+    reportProcessingProgress: { report: (frames: number, force?: boolean) => void };
+    reportMuxProgress: { report: (percent: number, frames: number) => void };
+}
+
+interface ProcessingState {
+    useStreamingMux: boolean;
+    encodedChunks: EncodedVideoChunk[];
+    encodedFrameCount: number;
+    encoderDecoderConfig: VideoDecoderConfig | undefined;
+    error: ProcessingError | undefined;
+    streamingMuxSession: StreamingMuxSession | undefined;
+    recordError: (message: string) => void;
+    frameProcessingQueue: Promise<void>;
+    framesProcessed: number;
+}
+
 const STREAMING_MUX_FILE_SIZE_BYTES = 512 * 1024 * 1024; // 512 MB
 const MAX_IN_FLIGHT_FRAME_TASKS = 3;
 
@@ -197,144 +222,192 @@ export class VideoProcessor {
         return firstIndex > 0 ? samples.slice(firstIndex) : samples;
     }
 
-    private async processFrames(params: {
-        demuxed: DemuxedMedia;
-        videoSamples: DemuxedMedia['videoSamples'];
-        totalFrames: number;
-        gopFrames: number;
-        videoMeta: VideoMeta;
-        telemetryFrames: TelemetryFrame[];
-        safeSyncOffsetSeconds: number;
-        config: ExtendedOverlayConfig;
-        reportProcessingProgress: { report: (frames: number, force?: boolean) => void };
-        reportMuxProgress: { report: (percent: number, frames: number) => void };
-    }): Promise<Blob> {
-        const {
-            demuxed, videoSamples, totalFrames, gopFrames,
-            videoMeta, telemetryFrames, safeSyncOffsetSeconds,
-            config, reportProcessingProgress, reportMuxProgress,
-        } = params;
+    private async processFrames(params: ProcessFramesParams): Promise<Blob> {
+        const canvas = this.createProcessingCanvas(params.videoMeta);
+        const processingState = this.initializeProcessingState(params);
 
-        const canvas = new OffscreenCanvas(videoMeta.width, videoMeta.height);
-        const ctx = canvas.getContext('2d')!;
+        await this.tryInitializeWebGPU();
 
-        // Try to initialize WebGPU adapter for faster rendering
-        if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
-            try {
-                const { WebGPUAdapter } = await import('./webgpu/webgpu-adapter');
-                if (WebGPUAdapter.isSupported()) {
-                    const adapter = WebGPUAdapter.getInstance();
-                    adapter.isEnabled();
-                }
-            } catch (error) {
-                console.warn('[VideoProcessor] Failed to load WebGPU adapter:', error);
-            }
+        const { encoder, encodeMeta } = await this.setupEncoder(params, processingState);
+        const { decoder, inFlightTasks } = this.setupDecoder(params, processingState, encoder, encodeMeta, canvas);
+
+        await this.decodeAllFrames(params, decoder, processingState, inFlightTasks, encoder);
+
+        if (processingState.error) throw processingState.error;
+        if (this.abortController.signal.aborted) {
+            throw new ProcessingError('Processing was cancelled by the user');
         }
 
-        const useStreamingMux = this.options.videoFile.size >= STREAMING_MUX_FILE_SIZE_BYTES;
-        const encodedChunks: EncodedVideoChunk[] = [];
-        let encodedFrameCount = 0;
-        let encoderDecoderConfig: VideoDecoderConfig | undefined;
-        let processingError: ProcessingError | undefined;
-        let streamingMuxSession: StreamingMuxSession | undefined;
+        return await this.muxAndFinalize(params, processingState, encodeMeta);
+    }
 
-        const recordError = (message: string): void => {
-            if (!processingError) {
-                processingError = new ProcessingError(message);
+    private createProcessingCanvas(videoMeta: VideoMeta): OffscreenCanvas {
+        return new OffscreenCanvas(videoMeta.width, videoMeta.height);
+    }
+
+    private initializeProcessingState(_params: ProcessFramesParams): ProcessingState {
+        const useStreamingMux = this.options.videoFile.size >= STREAMING_MUX_FILE_SIZE_BYTES;
+
+        const state: ProcessingState = {
+            useStreamingMux,
+            encodedChunks: [],
+            encodedFrameCount: 0,
+            encoderDecoderConfig: undefined,
+            error: undefined,
+            streamingMuxSession: undefined,
+            recordError: () => {},
+            frameProcessingQueue: Promise.resolve(),
+            framesProcessed: 0,
+        };
+
+        state.recordError = (message: string): void => {
+            if (!state.error) {
+                state.error = new ProcessingError(message);
                 this.abortController.abort();
             }
         };
 
+        return state;
+    }
+
+    private async tryInitializeWebGPU(): Promise<void> {
+        if (typeof navigator === 'undefined' || !('gpu' in navigator)) return;
+
+        try {
+            const { WebGPUAdapter } = await import('./webgpu/webgpu-adapter');
+            if (WebGPUAdapter.isSupported()) {
+                WebGPUAdapter.getInstance().isEnabled();
+            }
+        } catch (error) {
+            console.warn('[VideoProcessor] Failed to load WebGPU adapter:', error);
+        }
+    }
+
+    private async setupEncoder(
+        params: ProcessFramesParams,
+        state: ProcessingState,
+    ): Promise<{ encoder: VideoEncoder; encodeMeta: VideoMeta }> {
         const { encoder, encodeMeta } = await this.codecManager.createEncoder(
-            videoMeta,
-            demuxed.videoTrack.codec,
+            params.videoMeta,
+            params.demuxed.videoTrack.codec,
             (chunk, metadata) => {
                 if (metadata?.decoderConfig) {
-                    encoderDecoderConfig = metadata.decoderConfig;
+                    state.encoderDecoderConfig = metadata.decoderConfig;
                 }
-                if (useStreamingMux && streamingMuxSession) {
-                    streamingMuxSession.enqueueVideoChunk(chunk, metadata?.decoderConfig ?? encoderDecoderConfig);
+                if (state.useStreamingMux && state.streamingMuxSession) {
+                    state.streamingMuxSession.enqueueVideoChunk(chunk, metadata?.decoderConfig ?? state.encoderDecoderConfig);
                 } else {
-                    encodedChunks.push(chunk);
+                    state.encodedChunks.push(chunk);
                 }
             },
-            recordError,
+            state.recordError,
         );
 
-        if (useStreamingMux) {
-            streamingMuxSession = this.muxer.startStreamingMuxSession(demuxed, encodeMeta, this.abortController.signal);
+        if (state.useStreamingMux) {
+            state.streamingMuxSession = this.muxer.startStreamingMuxSession(params.demuxed, encodeMeta, this.abortController.signal);
         }
 
-        if (encodeMeta.width !== videoMeta.width || encodeMeta.height !== videoMeta.height) {
+        return { encoder, encodeMeta };
+    }
+
+    private setupDecoder(
+        params: ProcessFramesParams,
+        state: ProcessingState,
+        encoder: VideoEncoder,
+        encodeMeta: VideoMeta,
+        canvas: OffscreenCanvas,
+    ): { decoder: VideoDecoder; inFlightTasks: { count: number } } {
+        const ctx = canvas.getContext('2d')!;
+        if (encodeMeta.width !== params.videoMeta.width || encodeMeta.height !== params.videoMeta.height) {
             canvas.width = encodeMeta.width;
             canvas.height = encodeMeta.height;
         }
 
-        let frameProcessingQueue: Promise<void> = Promise.resolve();
-        let inFlightFrameTasks = 0;
+        const inFlightTasks = { count: 0 };
 
         const decoder = this.codecManager.createDecoder(
-            demuxed.videoTrack.codec,
-            demuxed.videoTrack.description,
-            (frame) => {
-                inFlightFrameTasks += 1;
-                frameProcessingQueue = frameProcessingQueue
-                    .then(async () => {
-                        if (this.abortController.signal.aborted) {
-                            frame.close();
-                            return;
-                        }
-
-                        await this.renderAndEncodeFrame({
-                            frame,
-                            canvas,
-                            ctx,
-                            videoMeta: encodeMeta,
-                            telemetryFrames,
-                            safeSyncOffsetSeconds,
-                            config,
-                            encoder,
-                            gopFrames,
-                            encodedFrameCount,
-                        });
-                        encodedFrameCount += 1;
-                    })
-                    .finally(() => {
-                        inFlightFrameTasks = Math.max(0, inFlightFrameTasks - 1);
-                    })
-                    .catch((error) => {
-                        frame.close();
-                        recordError(error instanceof Error ? error.message : 'Frame processing failed');
-                    });
-            },
-            recordError,
+            params.demuxed.videoTrack.codec,
+            params.demuxed.videoTrack.description,
+            (frame) => this.processDecodedFrame(frame, params, state, encoder, encodeMeta, canvas, ctx, inFlightTasks),
+            state.recordError,
         );
 
+        return { decoder, inFlightTasks };
+    }
+
+    private processDecodedFrame(
+        frame: VideoFrame,
+        params: ProcessFramesParams,
+        state: ProcessingState,
+        encoder: VideoEncoder,
+        encodeMeta: VideoMeta,
+        canvas: OffscreenCanvas,
+        ctx: OffscreenCanvasRenderingContext2D,
+        inFlightTasks: { count: number },
+    ): void {
+        inFlightTasks.count += 1;
+        state.frameProcessingQueue = state.frameProcessingQueue
+            .then(async () => {
+                if (this.abortController.signal.aborted) {
+                    frame.close();
+                    return;
+                }
+
+                await this.renderAndEncodeFrame({
+                    frame,
+                    canvas,
+                    ctx,
+                    videoMeta: encodeMeta,
+                    telemetryFrames: params.telemetryFrames,
+                    safeSyncOffsetSeconds: params.safeSyncOffsetSeconds,
+                    config: params.config,
+                    encoder,
+                    gopFrames: params.gopFrames,
+                    encodedFrameCount: state.encodedFrameCount,
+                });
+                state.encodedFrameCount += 1;
+            })
+            .finally(() => {
+                inFlightTasks.count = Math.max(0, inFlightTasks.count - 1);
+            })
+            .catch((error) => {
+                frame.close();
+                state.recordError(error instanceof Error ? error.message : 'Frame processing failed');
+            });
+    }
+
+    private async decodeAllFrames(
+        params: ProcessFramesParams,
+        decoder: VideoDecoder,
+        state: ProcessingState,
+        inFlightTasks: { count: number },
+        encoder: VideoEncoder,
+    ): Promise<void> {
         let framesProcessed = 0;
 
         try {
-            for (const sample of videoSamples) {
+            for (const sample of params.videoSamples) {
                 if (this.abortController.signal.aborted) break;
 
-                if (inFlightFrameTasks >= MAX_IN_FLIGHT_FRAME_TASKS) {
-                    await frameProcessingQueue;
+                if (inFlightTasks.count >= MAX_IN_FLIGHT_FRAME_TASKS) {
+                    await state.frameProcessingQueue;
                 }
 
                 const chunk = this.createVideoChunk(sample);
                 decoder.decode(chunk);
                 framesProcessed++;
-                reportProcessingProgress.report(framesProcessed);
+                params.reportProcessingProgress.report(framesProcessed);
 
                 if (isCodecQueuePressureHigh(decoder, encoder)) {
                     await waitForCodecQueues(decoder, encoder, this.abortController.signal);
                 }
             }
 
-            reportProcessingProgress.report(framesProcessed, true);
+            params.reportProcessingProgress.report(framesProcessed, true);
 
-            if (!this.abortController.signal.aborted && !processingError) {
+            if (!this.abortController.signal.aborted && !state.error) {
                 await decoder.flush();
-                await frameProcessingQueue;
+                await state.frameProcessingQueue;
                 await encoder.flush();
             }
         } finally {
@@ -342,26 +415,29 @@ export class VideoProcessor {
             this.closeCodec(encoder, 'VideoEncoder');
         }
 
-        if (processingError) throw processingError;
-        if (this.abortController.signal.aborted) {
-            throw new ProcessingError('Processing was cancelled by the user');
-        }
+        state.framesProcessed = framesProcessed;
+    }
 
-        reportMuxProgress.report(0, framesProcessed);
+    private async muxAndFinalize(
+        params: ProcessFramesParams,
+        state: ProcessingState,
+        encodeMeta: VideoMeta,
+    ): Promise<Blob> {
+        params.reportMuxProgress.report(0, state.framesProcessed);
 
         let blob = await this.finalizeOutput({
-            useStreamingMux,
-            streamingMuxSession,
-            demuxed,
-            encodedChunks,
-            encoderDecoderConfig,
+            useStreamingMux: state.useStreamingMux,
+            streamingMuxSession: state.streamingMuxSession,
+            demuxed: params.demuxed,
+            encodedChunks: state.encodedChunks,
+            encoderDecoderConfig: state.encoderDecoderConfig,
             encodeMeta,
-            reportMuxProgress,
-            framesProcessed,
+            reportMuxProgress: params.reportMuxProgress,
+            framesProcessed: state.framesProcessed,
         });
 
         if (this.options.useFfmpegMux) {
-            reportMuxProgress.report(99, framesProcessed);
+            params.reportMuxProgress.report(99, state.framesProcessed);
             try {
                 blob = await remuxWithFfmpeg(blob);
             } catch (error) {
@@ -369,7 +445,7 @@ export class VideoProcessor {
             }
         }
 
-        this.options.onProgress?.({ phase: 'complete', percent: 100, framesProcessed, totalFrames });
+        this.options.onProgress?.({ phase: 'complete', percent: 100, framesProcessed: state.framesProcessed, totalFrames: params.totalFrames });
 
         return blob;
     }

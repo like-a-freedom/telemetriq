@@ -179,46 +179,62 @@ function interpolateDistanceAtTime(frames: TelemetryFrame[], targetTime: number)
  * over the recent fixed lookback window.
  */
 function estimateDisplayPaceAtTime(frames: TelemetryFrame[], gpxTime: number): number | undefined {
-    if (frames.length === 0) return undefined;
+    const timeWindow = createPaceTimeWindow(frames, gpxTime);
+    if (timeWindow === null) return undefined;
+
+    const centeredPace = estimatePaceInWindow(frames, timeWindow.centeredStart, timeWindow.centeredEnd);
+    if (centeredPace !== undefined) return centeredPace;
+
+    const backwardPace = estimatePaceInWindow(frames, timeWindow.backwardStart, timeWindow.sampledSecond);
+    if (backwardPace !== undefined) return backwardPace;
+
+    return estimatePaceInWindow(frames, timeWindow.sampledSecond, timeWindow.forwardEnd);
+}
+
+function createPaceTimeWindow(
+    frames: TelemetryFrame[],
+    gpxTime: number,
+): { sampledSecond: number; centeredStart: number; centeredEnd: number; backwardStart: number; forwardEnd: number } | null {
+    if (frames.length === 0) return null;
 
     const first = frames[0]!;
     const last = frames[frames.length - 1]!;
-    if (gpxTime < first.timeOffset || gpxTime > last.timeOffset) return undefined;
+
+    if (gpxTime < first.timeOffset || gpxTime > last.timeOffset) {
+        return null;
+    }
 
     const sampledSecond = Math.floor(gpxTime);
     const halfWindow = PACE_DISPLAY_WINDOW_SECONDS / 2;
 
-    const centeredStart = Math.max(first.timeOffset, sampledSecond - halfWindow);
-    const centeredEnd = Math.min(last.timeOffset, sampledSecond + halfWindow);
-
-    const tryEstimate = (startTime: number, endTime: number): number | undefined => {
-        const elapsedSec = endTime - startTime;
-        if (elapsedSec < PACE_WINDOW_MIN_SECONDS) return undefined;
-
-        const startDist = interpolateDistanceAtTime(frames, startTime);
-        const endDist = interpolateDistanceAtTime(frames, endTime);
-        if (startDist === undefined || endDist === undefined) return undefined;
-
-        const distKm = endDist - startDist;
-        if (distKm < PACE_WINDOW_MIN_DISTANCE_KM) return undefined;
-
-        const paceSecPerKm = elapsedSec / distKm;
-        if (paceSecPerKm < 120 || paceSecPerKm > 1800) return undefined;
-        return paceSecPerKm;
+    return {
+        sampledSecond,
+        centeredStart: Math.max(first.timeOffset, sampledSecond - halfWindow),
+        centeredEnd: Math.min(last.timeOffset, sampledSecond + halfWindow),
+        backwardStart: Math.max(first.timeOffset, sampledSecond - PACE_DISPLAY_WINDOW_SECONDS),
+        forwardEnd: Math.min(last.timeOffset, sampledSecond + PACE_DISPLAY_WINDOW_SECONDS),
     };
+}
 
-    // Primary mode: symmetric window around current second.
-    const centeredPace = tryEstimate(centeredStart, centeredEnd);
-    if (centeredPace !== undefined) return centeredPace;
+function estimatePaceInWindow(
+    frames: TelemetryFrame[],
+    startTime: number,
+    endTime: number,
+): number | undefined {
+    const elapsedSec = endTime - startTime;
+    if (elapsedSec < PACE_WINDOW_MIN_SECONDS) return undefined;
 
-    // Fallback 1: backward window.
-    const backwardStart = Math.max(first.timeOffset, sampledSecond - PACE_DISPLAY_WINDOW_SECONDS);
-    const backwardPace = tryEstimate(backwardStart, sampledSecond);
-    if (backwardPace !== undefined) return backwardPace;
+    const startDist = interpolateDistanceAtTime(frames, startTime);
+    const endDist = interpolateDistanceAtTime(frames, endTime);
+    if (startDist === undefined || endDist === undefined) return undefined;
 
-    // Fallback 2: forward window.
-    const forwardEnd = Math.min(last.timeOffset, sampledSecond + PACE_DISPLAY_WINDOW_SECONDS);
-    return tryEstimate(sampledSecond, forwardEnd);
+    const distKm = endDist - startDist;
+    if (distKm < PACE_WINDOW_MIN_DISTANCE_KM) return undefined;
+
+    const paceSecPerKm = elapsedSec / distKm;
+    if (paceSecPerKm < 120 || paceSecPerKm > 1800) return undefined;
+
+    return paceSecPerKm;
 }
 
 /**
@@ -229,24 +245,44 @@ function fillMissingPaceValues(values: Array<number | undefined>): Array<number 
     if (values.length === 0) return values;
 
     const result = [...values];
-    const validIndices: number[] = [];
-
-    for (let i = 0; i < result.length; i++) {
-        if (result[i] !== undefined) {
-            validIndices.push(i);
-        }
-    }
+    const validIndices = findValidIndices(result);
 
     if (validIndices.length === 0) {
         return result;
     }
 
+    extrapolateLeadingValues(result, validIndices);
+    interpolateGapValues(result, validIndices);
+    extrapolateTrailingValues(result, validIndices);
+
+    return result;
+}
+
+function findValidIndices(values: Array<number | undefined>): number[] {
+    const indices: number[] = [];
+    for (let i = 0; i < values.length; i++) {
+        if (values[i] !== undefined) {
+            indices.push(i);
+        }
+    }
+    return indices;
+}
+
+function extrapolateLeadingValues(
+    result: Array<number | undefined>,
+    validIndices: number[],
+): void {
     const firstValidIdx = validIndices[0]!;
     const firstValue = result[firstValidIdx]!;
     for (let i = 0; i < firstValidIdx; i++) {
         result[i] = firstValue;
     }
+}
 
+function interpolateGapValues(
+    result: Array<number | undefined>,
+    validIndices: number[],
+): void {
     for (let k = 0; k < validIndices.length - 1; k++) {
         const left = validIndices[k]!;
         const right = validIndices[k + 1]!;
@@ -258,14 +294,17 @@ function fillMissingPaceValues(values: Array<number | undefined>): Array<number 
             result[i] = lerp(leftValue, rightValue, t);
         }
     }
+}
 
+function extrapolateTrailingValues(
+    result: Array<number | undefined>,
+    validIndices: number[],
+): void {
     const lastValidIdx = validIndices[validIndices.length - 1]!;
     const lastValue = result[lastValidIdx]!;
     for (let i = lastValidIdx + 1; i < result.length; i++) {
         result[i] = lastValue;
     }
-
-    return result;
 }
 
 /**
@@ -284,6 +323,19 @@ function estimateRollingPaceAtIndex(
     const currTimeMs = point.time.getTime();
     const currDistKm = distances[index]!;
 
+    const backwardPace = findPaceInBackwardWindow(points, distances, index, currTimeMs, currDistKm);
+    if (backwardPace !== undefined) return backwardPace;
+
+    return findPaceInForwardWindow(points, distances, index, currTimeMs, currDistKm);
+}
+
+function findPaceInBackwardWindow(
+    points: TrackPoint[],
+    distances: number[],
+    index: number,
+    currTimeMs: number,
+    currDistKm: number,
+): number | undefined {
     for (let j = index - 1; j >= 0; j--) {
         const prevPoint = points[j]!;
         const dtSec = (currTimeMs - prevPoint.time.getTime()) / 1000;
@@ -296,7 +348,16 @@ function estimateRollingPaceAtIndex(
         const pace = dtSec / distKm;
         if (pace >= 120 && pace <= 1800) return pace;
     }
+    return undefined;
+}
 
+function findPaceInForwardWindow(
+    points: TrackPoint[],
+    distances: number[],
+    index: number,
+    currTimeMs: number,
+    currDistKm: number,
+): number | undefined {
     for (let j = index + 1; j < points.length; j++) {
         const nextPoint = points[j]!;
         const dtSec = (nextPoint.time.getTime() - currTimeMs) / 1000;
@@ -309,7 +370,6 @@ function estimateRollingPaceAtIndex(
         const pace = dtSec / distKm;
         if (pace >= 120 && pace <= 1800) return pace;
     }
-
     return undefined;
 }
 
@@ -322,48 +382,112 @@ export function buildTelemetryTimeline(points: TrackPoint[]): TelemetryFrame[] {
 
     const distances = calculateCumulativeDistances(points);
     const startTime = points[0]!.time.getTime();
-    const frames: TelemetryFrame[] = [];
 
+    const frames = buildRawFrames(points, distances, startTime);
+    const smoothedPaceValues = fillMissingPaceValues(frames.map((frame) => frame.paceSecondsPerKm));
+
+    return applySmoothedPaceValues(frames, smoothedPaceValues);
+}
+
+function buildRawFrames(
+    points: TrackPoint[],
+    distances: number[],
+    startTime: number,
+): TelemetryFrame[] {
+    const frames: TelemetryFrame[] = [];
     let movingTimeMs = 0;
 
     for (let i = 0; i < points.length; i++) {
         const point = points[i]!;
         const timeOffset = (point.time.getTime() - startTime) / 1000;
 
-        let pace: number | undefined;
-        if (i > 0) {
-            const prevPoint = points[i - 1]!;
-            const prevDist = distances[i - 1]!;
-            const currDist = distances[i]!;
-            pace = estimateRollingPaceAtIndex(points, distances, i);
+        const { pace, updatedMovingTimeMs } = processTrackPoint(
+            points,
+            distances,
+            i,
+            movingTimeMs,
+        );
+        movingTimeMs = updatedMovingTimeMs;
 
-            const segmentDist = currDist - prevDist;
-            const segmentTime = (point.time.getTime() - prevPoint.time.getTime()) / 1000;
-            if (segmentTime > 0) {
-                const speedKmh = (segmentDist / segmentTime) * 3600;
-                if (speedKmh >= MOVING_SPEED_THRESHOLD) {
-                    movingTimeMs += point.time.getTime() - prevPoint.time.getTime();
-                }
-            }
-        }
-
-        frames.push({
-            timeOffset,
-            hr: point.hr,
-            paceSecondsPerKm: pace,
-            distanceKm: distances[i]!,
-            elevationM: point.ele,
-            elapsedTime: formatElapsedTime(timeOffset),
-            movingTimeSeconds: movingTimeMs / 1000,
-        });
-    }
-
-    const smoothedPace = fillMissingPaceValues(frames.map((frame) => frame.paceSecondsPerKm));
-    for (let i = 0; i < frames.length; i++) {
-        frames[i]!.paceSecondsPerKm = smoothedPace[i];
+        frames.push(createTelemetryFrame(point, timeOffset, pace, distances[i]!, movingTimeMs));
     }
 
     return frames;
+}
+
+function processTrackPoint(
+    points: TrackPoint[],
+    distances: number[],
+    index: number,
+    currentMovingTimeMs: number,
+): { pace: number | undefined; updatedMovingTimeMs: number } {
+    if (index === 0) {
+        return { pace: undefined, updatedMovingTimeMs: currentMovingTimeMs };
+    }
+
+    const point = points[index]!;
+    const prevPoint = points[index - 1]!;
+    const currDist = distances[index]!;
+    const prevDist = distances[index - 1]!;
+
+    const pace = estimateRollingPaceAtIndex(points, distances, index);
+    const updatedMovingTimeMs = updateMovingTime(
+        currentMovingTimeMs,
+        point,
+        prevPoint,
+        currDist,
+        prevDist,
+    );
+
+    return { pace, updatedMovingTimeMs };
+}
+
+function updateMovingTime(
+    currentMovingTimeMs: number,
+    point: TrackPoint,
+    prevPoint: TrackPoint,
+    currDist: number,
+    prevDist: number,
+): number {
+    const segmentDist = currDist - prevDist;
+    const segmentTime = (point.time.getTime() - prevPoint.time.getTime()) / 1000;
+
+    if (segmentTime > 0) {
+        const speedKmh = (segmentDist / segmentTime) * 3600;
+        if (speedKmh >= MOVING_SPEED_THRESHOLD) {
+            return currentMovingTimeMs + point.time.getTime() - prevPoint.time.getTime();
+        }
+    }
+
+    return currentMovingTimeMs;
+}
+
+function createTelemetryFrame(
+    point: TrackPoint,
+    timeOffset: number,
+    pace: number | undefined,
+    distanceKm: number,
+    movingTimeMs: number,
+): TelemetryFrame {
+    return {
+        timeOffset,
+        hr: point.hr,
+        paceSecondsPerKm: pace,
+        distanceKm,
+        elevationM: point.ele,
+        elapsedTime: formatElapsedTime(timeOffset),
+        movingTimeSeconds: movingTimeMs / 1000,
+    };
+}
+
+function applySmoothedPaceValues(
+    frames: TelemetryFrame[],
+    smoothedPaceValues: Array<number | undefined>,
+): TelemetryFrame[] {
+    return frames.map((frame, index) => ({
+        ...frame,
+        paceSecondsPerKm: smoothedPaceValues[index],
+    }));
 }
 
 /**
@@ -375,6 +499,19 @@ export function getTelemetryAtTime(
     videoTimeSeconds: number,
     syncOffsetSeconds: number,
 ): TelemetryFrame | null {
+    const gpxTime = calculateGpxTime(videoTimeSeconds, syncOffsetSeconds, frames);
+    if (gpxTime === null) return null;
+
+    const { beforeFrame, afterFrame, interpolationFactor } = findSurroundingFrames(frames, gpxTime);
+
+    return createInterpolatedFrame(beforeFrame, afterFrame, interpolationFactor, gpxTime, frames);
+}
+
+function calculateGpxTime(
+    videoTimeSeconds: number,
+    syncOffsetSeconds: number,
+    frames: TelemetryFrame[],
+): number | null {
     if (frames.length === 0) return null;
     if (!Number.isFinite(videoTimeSeconds) || !Number.isFinite(syncOffsetSeconds)) return null;
 
@@ -388,6 +525,26 @@ export function getTelemetryAtTime(
         return null;
     }
 
+    return gpxTime;
+}
+
+function findSurroundingFrames(
+    frames: TelemetryFrame[],
+    gpxTime: number,
+): { beforeFrame: TelemetryFrame; afterFrame: TelemetryFrame; interpolationFactor: number } {
+    const indices = findBracketingIndices(frames, gpxTime);
+    const beforeFrame = frames[indices.before]!;
+    const afterFrame = frames[indices.after]!;
+
+    if (indices.before === indices.after || afterFrame.timeOffset === beforeFrame.timeOffset) {
+        return { beforeFrame, afterFrame, interpolationFactor: 0 };
+    }
+
+    const interpolationFactor = (gpxTime - beforeFrame.timeOffset) / (afterFrame.timeOffset - beforeFrame.timeOffset);
+    return { beforeFrame, afterFrame, interpolationFactor };
+}
+
+function findBracketingIndices(frames: TelemetryFrame[], gpxTime: number): { before: number; after: number } {
     let lo = 0;
     let hi = frames.length - 1;
 
@@ -400,38 +557,50 @@ export function getTelemetryAtTime(
         }
     }
 
-    const beforeFrame = frames[lo]!;
-    const afterFrame = frames[hi]!;
+    return { before: lo, after: hi };
+}
 
-    if (lo === hi || afterFrame.timeOffset === beforeFrame.timeOffset) {
-        return beforeFrame;
-    }
-
-    const t = (gpxTime - beforeFrame.timeOffset) / (afterFrame.timeOffset - beforeFrame.timeOffset);
-
-    const interpolatedHr = (beforeFrame.hr !== undefined && afterFrame.hr !== undefined)
-        ? Math.round(lerp(beforeFrame.hr, afterFrame.hr, t))
-        : (beforeFrame.hr ?? afterFrame.hr);
-    const interpolatedPace = estimateDisplayPaceAtTime(frames, gpxTime)
-        ?? interpolateOptionalValue(
-            beforeFrame.paceSecondsPerKm,
-            afterFrame.paceSecondsPerKm,
-            t,
-        );
-
-    const interpolatedDist = lerp(beforeFrame.distanceKm, afterFrame.distanceKm, t);
-    const interpolatedMovingTime = lerp(beforeFrame.movingTimeSeconds, afterFrame.movingTimeSeconds, t);
-    const interpolatedElevation = (beforeFrame.elevationM !== undefined && afterFrame.elevationM !== undefined)
-        ? lerp(beforeFrame.elevationM, afterFrame.elevationM, t)
-        : (beforeFrame.elevationM ?? afterFrame.elevationM);
+function createInterpolatedFrame(
+    beforeFrame: TelemetryFrame,
+    afterFrame: TelemetryFrame,
+    t: number,
+    gpxTime: number,
+    allFrames: TelemetryFrame[],
+): TelemetryFrame {
+    if (t === 0) return beforeFrame;
 
     return {
         timeOffset: gpxTime,
-        hr: interpolatedHr,
-        paceSecondsPerKm: interpolatedPace,
-        distanceKm: interpolatedDist,
-        elevationM: interpolatedElevation,
+        hr: interpolateHeartRate(beforeFrame, afterFrame, t),
+        paceSecondsPerKm: interpolatePace(beforeFrame, afterFrame, t, allFrames, gpxTime),
+        distanceKm: lerp(beforeFrame.distanceKm, afterFrame.distanceKm, t),
+        elevationM: interpolateElevation(beforeFrame, afterFrame, t),
         elapsedTime: formatElapsedTime(gpxTime),
-        movingTimeSeconds: interpolatedMovingTime,
+        movingTimeSeconds: lerp(beforeFrame.movingTimeSeconds, afterFrame.movingTimeSeconds, t),
     };
+}
+
+function interpolateHeartRate(before: TelemetryFrame, after: TelemetryFrame, t: number): number | undefined {
+    if (before.hr !== undefined && after.hr !== undefined) {
+        return Math.round(lerp(before.hr, after.hr, t));
+    }
+    return before.hr ?? after.hr;
+}
+
+function interpolatePace(
+    before: TelemetryFrame,
+    after: TelemetryFrame,
+    t: number,
+    frames: TelemetryFrame[],
+    gpxTime: number,
+): number | undefined {
+    return estimateDisplayPaceAtTime(frames, gpxTime)
+        ?? interpolateOptionalValue(before.paceSecondsPerKm, after.paceSecondsPerKm, t);
+}
+
+function interpolateElevation(before: TelemetryFrame, after: TelemetryFrame, t: number): number | undefined {
+    if (before.elevationM !== undefined && after.elevationM !== undefined) {
+        return lerp(before.elevationM, after.elevationM, t);
+    }
+    return before.elevationM ?? after.elevationM;
 }

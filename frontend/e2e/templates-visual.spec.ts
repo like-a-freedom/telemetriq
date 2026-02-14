@@ -83,10 +83,8 @@ async function forceOverlayDraw(page: Page): Promise<void> {
     });
 }
 
-test.describe('Template visual baselines', () => {
-    test('captures visual state for all extended templates', async ({ page, browserName }, testInfo) => {
-        test.skip(browserName !== 'chromium' || testInfo.project.name !== 'chromium',
-            'Visual baseline is fixed in Desktop Chromium only');
+test.describe('Template visual baselines (chromium only)', () => {
+    test('captures visual state for all extended templates', async ({ page }) => {
 
         await page.setViewportSize({ width: 1440, height: 900 });
         await seedPreviewStores(page);

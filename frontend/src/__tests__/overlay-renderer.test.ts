@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderOverlay, DEFAULT_OVERLAY_CONFIG } from '../modules/overlay-renderer';
+import { renderOverlay, buildMetrics, DEFAULT_OVERLAY_CONFIG } from '../modules/overlay-renderer';
 import type { TelemetryFrame } from '../core/types';
 
 type StubContext = {
@@ -178,5 +178,139 @@ describe('Overlay Renderer', () => {
 
         expect((ctx2 as unknown as StubContext).drawImage).toHaveBeenCalledTimes(1);
         expect(offscreenCreateCount).toBeGreaterThan(createdAfterFirstRender);
+    });
+});
+
+describe('buildMetrics', () => {
+    it('should build all metrics when all options enabled', () => {
+        const frame: TelemetryFrame = {
+            distanceKm: 5.5,
+            elapsedTime: '30:00',
+            paceSecondsPerKm: 300,
+            hr: 145,
+            lat: 55.75,
+            lon: 37.61,
+            ele: 150,
+        };
+
+        const config = {
+            ...DEFAULT_OVERLAY_CONFIG,
+            showPace: true,
+            showHr: true,
+            showDistance: true,
+            showTime: true,
+        };
+
+        const metrics = buildMetrics(frame, config);
+
+        expect(metrics.length).toBeGreaterThan(0);
+        expect(metrics.some(m => m.label === 'Heart Rate')).toBe(true);
+        expect(metrics.some(m => m.label === 'Distance')).toBe(true);
+        expect(metrics.some(m => m.label === 'Time')).toBe(true);
+    });
+
+    it('should exclude pace when disabled', () => {
+        const frame: TelemetryFrame = {
+            distanceKm: 5.5,
+            elapsedTime: '30:00',
+            paceSecondsPerKm: 300,
+            hr: 145,
+        };
+
+        const config = {
+            ...DEFAULT_OVERLAY_CONFIG,
+            showPace: false,
+            showHr: true,
+            showDistance: true,
+            showTime: true,
+        };
+
+        const metrics = buildMetrics(frame, config);
+
+        expect(metrics.some(m => m.label === 'Pace')).toBe(false);
+    });
+
+    it('should exclude heart rate when disabled', () => {
+        const frame: TelemetryFrame = {
+            distanceKm: 5.5,
+            elapsedTime: '30:00',
+            paceSecondsPerKm: 300,
+            hr: 145,
+        };
+
+        const config = {
+            ...DEFAULT_OVERLAY_CONFIG,
+            showPace: true,
+            showHr: false,
+            showDistance: true,
+            showTime: true,
+        };
+
+        const metrics = buildMetrics(frame, config);
+
+        expect(metrics.some(m => m.label === 'Heart Rate')).toBe(false);
+    });
+
+    it('should handle undefined pace', () => {
+        const frame: TelemetryFrame = {
+            distanceKm: 5.5,
+            elapsedTime: '30:00',
+            paceSecondsPerKm: undefined,
+            hr: 145,
+        };
+
+        const config = {
+            ...DEFAULT_OVERLAY_CONFIG,
+            showPace: true,
+            showHr: true,
+            showDistance: true,
+            showTime: true,
+        };
+
+        const metrics = buildMetrics(frame, config);
+
+        expect(metrics.some(m => m.label === 'Pace')).toBe(false);
+    });
+
+    it('should handle undefined heart rate', () => {
+        const frame: TelemetryFrame = {
+            distanceKm: 5.5,
+            elapsedTime: '30:00',
+            paceSecondsPerKm: 300,
+            hr: undefined,
+        };
+
+        const config = {
+            ...DEFAULT_OVERLAY_CONFIG,
+            showPace: true,
+            showHr: true,
+            showDistance: true,
+            showTime: true,
+        };
+
+        const metrics = buildMetrics(frame, config);
+
+        expect(metrics.some(m => m.label === 'Heart Rate')).toBe(false);
+    });
+
+    it('should return empty array when all metrics disabled', () => {
+        const frame: TelemetryFrame = {
+            distanceKm: 5.5,
+            elapsedTime: '30:00',
+            paceSecondsPerKm: 300,
+            hr: 145,
+        };
+
+        const config = {
+            ...DEFAULT_OVERLAY_CONFIG,
+            showPace: false,
+            showHr: false,
+            showDistance: false,
+            showTime: false,
+        };
+
+        const metrics = buildMetrics(frame, config);
+
+        expect(metrics).toHaveLength(0);
     });
 });
