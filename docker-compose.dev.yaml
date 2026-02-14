@@ -13,3 +13,4 @@ services:
     environment:
       - NODE_ENV=development
       - SITE_URL=${SITE_URL:-http://localhost:5173}
+    command: /bin/sh -c 'export VITE_SITE_URL="${SITE_URL:-http://localhost:5173}" && bun run dev --host'
