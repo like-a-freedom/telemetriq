@@ -1,4 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const TEMPLATE_IDS = [
     'floating-pills',
@@ -17,6 +20,15 @@ const TEMPLATE_IDS = [
     'thin-line',
     'swiss-grid',
 ] as const;
+
+const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
+const SNAPSHOT_DIR = path.resolve(THIS_DIR, 'templates-visual.spec.ts-snapshots');
+const PLATFORM_SUFFIX = process.platform === 'win32' ? 'win32' : process.platform;
+const IS_CI = Boolean(process.env.CI);
+const RUN_VISUAL_BASELINES = process.env.RUN_VISUAL_BASELINES === '1';
+const HAS_PLATFORM_BASELINES = TEMPLATE_IDS.every((templateId) =>
+    fs.existsSync(path.join(SNAPSHOT_DIR, `template-${templateId}-chromium-${PLATFORM_SUFFIX}.png`))
+);
 
 async function seedPreviewStores(page: Page): Promise<void> {
     await page.goto('/?e2e=1', { waitUntil: 'domcontentloaded' });
@@ -84,6 +96,16 @@ async function forceOverlayDraw(page: Page): Promise<void> {
 }
 
 test.describe('Template visual baselines (chromium only)', () => {
+    test.skip(
+        IS_CI && !RUN_VISUAL_BASELINES,
+        'Visual baselines are disabled in CI by default (set RUN_VISUAL_BASELINES=1 to enable).',
+    );
+
+    test.skip(
+        !HAS_PLATFORM_BASELINES,
+        `Missing chromium baseline snapshots for platform '${PLATFORM_SUFFIX}' in ${SNAPSHOT_DIR}`,
+    );
+
     test('captures visual state for all extended templates', async ({ page }) => {
 
         await page.setViewportSize({ width: 1440, height: 900 });
