@@ -118,7 +118,7 @@ jobs:
         run: bunx playwright install --with-deps chromium
 
       - name: Run E2E tests
-        run: bun run test:e2e
+        run: bun run test:e2e -- --project=chromium
 
       - name: Upload test results
         if: always()

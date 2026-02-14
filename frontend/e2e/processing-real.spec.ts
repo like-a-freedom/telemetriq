@@ -12,6 +12,8 @@ const HAS_FIXTURES = fs.existsSync(VIDEO_PATH) && fs.existsSync(GPX_PATH);
 
 
 test.describe('Real processing flow (chromium only)', () => {
+    test.skip(!HAS_FIXTURES, 'Missing real processing fixtures (test_data/test.mp4 and/or test_data/test.gpx).');
+
     test('should process real DJI video and open result page with valid output', async ({ page }) => {
         test.setTimeout(240_000);
 
