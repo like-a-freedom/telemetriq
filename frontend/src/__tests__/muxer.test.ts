@@ -6,9 +6,9 @@ import type { DemuxedMedia } from '../modules/video-processing-types';
 import type { VideoMeta } from '../core/types';
 
 // Mock mediabunny module to control EncodedPacket behavior
-class MockBufferTarget {}
+class MockBufferTarget { }
 
-class MockMp4OutputFormat {}
+class MockMp4OutputFormat { }
 
 class MockEncodedVideoPacketSource {
     add = vi.fn().mockResolvedValue(undefined);
@@ -19,7 +19,7 @@ class MockEncodedAudioPacketSource {
 }
 
 class MockOutput {
-    target = { buffer: new Uint8Array([1, 2, 3, 4, 5]).buffer };
+    target: { buffer: ArrayBuffer | null } = { buffer: new Uint8Array([1, 2, 3, 4, 5]).buffer };
     start = vi.fn().mockResolvedValue(undefined);
     finalize = vi.fn().mockResolvedValue(undefined);
     addVideoTrack = vi.fn();
@@ -190,7 +190,7 @@ describe('muxer', () => {
             vi.doMock('mediabunny', () => ({
                 EncodedPacket: mockEncodedPacket,
                 Output: class extends MockOutput {
-                    target = { buffer: null };
+                    target: { buffer: ArrayBuffer | null } = { buffer: null };
                 },
                 EncodedVideoPacketSource: MockEncodedVideoPacketSource,
                 EncodedAudioPacketSource: MockEncodedAudioPacketSource,
