@@ -132,7 +132,7 @@ Create `.env` / `.env.local` in `frontend/` to override defaults if needed.
 
 - `SITE_URL` — public base URL for the site (used in `robots.txt`, `sitemap.xml`, canonical/OG tags and LLM discovery files). Defaults to `https://telemetriq.app`.
 
-  Only `SITE_URL` needs to be set. The build and Dockerfile automatically propagate `SITE_URL` to `VITE_SITE_URL` for client code during the image build, so you don't have to set `VITE_SITE_URL` yourself.
+  Only `SITE_URL` needs to be set. The server injects the runtime `SITE_URL` (used for canonical/OG/robots/sitemap) so you can change it without rebuilding the image. The client can also read `SITE_URL` at runtime via `window.__SITE_URL__` (exposed by `/site-config.js`); `VITE_SITE_URL` is no longer required.
 
 Examples:
 
@@ -152,7 +152,7 @@ SITE_URL=https://telemetriq.like-a-freedom.ru
 docker compose -f docker-compose.yaml up --build -d
 ```
 
-The `SITE_URL` value is injected at build time so generated files (robots/sitemap) will contain correct absolute URLs.
+robots/sitemap are generated at runtime by the server from `SITE_URL` (Caddy in production; Vite dev middleware locally). The build still emits static copies for convenience, but the server will serve the up‑to‑date files from the single `SITE_URL` value so you can change it without rebuilding.
 
 ---
 

@@ -1,10 +1,6 @@
-ARG SITE_URL="https://telemetriq.app"
 FROM oven/bun:alpine AS base
 
 WORKDIR /app
-
-# expose SITE_URL to build/runtime inside image (default)
-ENV SITE_URL="https://telemetriq.app"
 
 # Install dependencies
 COPY package.json bun.lock ./
@@ -23,8 +19,7 @@ CMD ["bun", "run", "dev", "--host"]
 FROM base AS build
 ARG SITE_URL
 ENV SITE_URL=${SITE_URL}
-# Make SITE_URL available to Vite/client code as VITE_SITE_URL during the build
-ENV VITE_SITE_URL=${SITE_URL}
+# Build the client bundle; runtime SITE_URL is provided to the server (Caddy) at container start
 RUN bun run build
 
 # Production stage - serve with Caddy
