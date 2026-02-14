@@ -84,7 +84,7 @@ export class VideoProcessor {
 
         onProgress?.({ phase: 'demuxing', percent: 0, framesProcessed: 0, totalFrames: 0 });
 
-        let sourceFile = videoFile;
+        const sourceFile = videoFile;
         let demuxed = await this.demuxer.demuxWithFallback(sourceFile, onProgress);
 
         demuxed = await this.ensureDecodableTrack(demuxed, sourceFile, videoMeta, onProgress);
@@ -255,7 +255,7 @@ export class VideoProcessor {
             encoderDecoderConfig: undefined,
             error: undefined,
             streamingMuxSession: undefined,
-            recordError: () => {},
+            recordError: () => { },
             frameProcessingQueue: Promise.resolve(),
             framesProcessed: 0,
         };

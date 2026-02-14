@@ -38,7 +38,6 @@ const videoWidth = ref(640);
 const videoHeight = ref(360);
 const currentTime = ref(0);
 
-let animationFrameId: number | null = null;
 let videoFrameHandle: number | null = null;
 
 function onLoaded(): void {
@@ -126,9 +125,6 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  if (animationFrameId !== null) {
-    cancelAnimationFrame(animationFrameId);
-  }
   if (videoFrameHandle !== null && videoRef.value) {
     const video = videoRef.value as HTMLVideoElement & {
       cancelVideoFrameCallback?: (handle: number) => void;
