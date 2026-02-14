@@ -184,13 +184,12 @@ describe('Overlay Renderer', () => {
 describe('buildMetrics', () => {
     it('should build all metrics when all options enabled', () => {
         const frame: TelemetryFrame = {
+            timeOffset: 0,
             distanceKm: 5.5,
             elapsedTime: '30:00',
             paceSecondsPerKm: 300,
             hr: 145,
-            lat: 55.75,
-            lon: 37.61,
-            ele: 150,
+            movingTimeSeconds: 1800,
         };
 
         const config = {
@@ -211,10 +210,12 @@ describe('buildMetrics', () => {
 
     it('should exclude pace when disabled', () => {
         const frame: TelemetryFrame = {
+            timeOffset: 0,
             distanceKm: 5.5,
             elapsedTime: '30:00',
             paceSecondsPerKm: 300,
             hr: 145,
+            movingTimeSeconds: 1800,
         };
 
         const config = {
@@ -232,10 +233,12 @@ describe('buildMetrics', () => {
 
     it('should exclude heart rate when disabled', () => {
         const frame: TelemetryFrame = {
+            timeOffset: 0,
             distanceKm: 5.5,
             elapsedTime: '30:00',
             paceSecondsPerKm: 300,
             hr: 145,
+            movingTimeSeconds: 1800,
         };
 
         const config = {
@@ -253,10 +256,12 @@ describe('buildMetrics', () => {
 
     it('should handle undefined pace', () => {
         const frame: TelemetryFrame = {
+            timeOffset: 0,
             distanceKm: 5.5,
             elapsedTime: '30:00',
             paceSecondsPerKm: undefined,
             hr: 145,
+            movingTimeSeconds: 1800,
         };
 
         const config = {
@@ -274,10 +279,12 @@ describe('buildMetrics', () => {
 
     it('should handle undefined heart rate', () => {
         const frame: TelemetryFrame = {
+            timeOffset: 0,
             distanceKm: 5.5,
             elapsedTime: '30:00',
             paceSecondsPerKm: 300,
             hr: undefined,
+            movingTimeSeconds: 1800,
         };
 
         const config = {
@@ -295,10 +302,12 @@ describe('buildMetrics', () => {
 
     it('should return empty array when all metrics disabled', () => {
         const frame: TelemetryFrame = {
+            timeOffset: 0,
             distanceKm: 5.5,
             elapsedTime: '30:00',
             paceSecondsPerKm: 300,
             hr: 145,
+            movingTimeSeconds: 1800,
         };
 
         const config = {
