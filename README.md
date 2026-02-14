@@ -108,6 +108,14 @@ The dev compose brings up the frontend with volume mounting (port 5173):
 docker-compose -f docker-compose.dev.yaml up --build
 ```
 
+CI also builds and publishes a production Docker image to GitHub Container Registry (GHCR) for the `like-a-freedom/telemetriq` repository. Example pull commands:
+
+```bash
+docker pull ghcr.io/like-a-freedom/telemetriq:latest
+# or pinned to commit
+docker pull ghcr.io/like-a-freedom/telemetriq:<commit-sha>
+```
+
 ---
 
 ## Architecture & stack 🔭
