@@ -8,14 +8,6 @@ export default defineConfig({
     target: 'esnext',
     minify: 'terser',
     sourcemap: false,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['vue', 'vue-router', 'pinia'],
-          wasm: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],
-        },
-      },
-    },
   },
   optimizeDeps: {
     exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util'],

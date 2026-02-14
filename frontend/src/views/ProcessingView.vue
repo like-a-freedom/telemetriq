@@ -119,9 +119,17 @@ import { normalizeProcessingError } from "../stores/store-utils";
 import { buildTelemetryTimeline } from "../modules/telemetry-core";
 import { VideoProcessor } from "../modules/video-processor";
 import { getWebGPUStatus, toggleWebGPU } from "../modules/webgpu";
+import { useSeo } from "../composables/useSeo";
 
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
 import ProgressBar from "../components/ProgressBar.vue";
+
+// SEO
+useSeo({
+  title: "Processing Video",
+  description:
+    "Your video is being processed with telemetry overlay. Browser-based encoding with WebGPU acceleration.",
+});
 
 const router = useRouter();
 const filesStore = useFilesStore();

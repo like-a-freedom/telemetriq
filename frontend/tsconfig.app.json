@@ -6,7 +6,8 @@
       "vite/client",
       "dom-webcodecs",
       "vue",
-      "@webgpu/types"
+      "@webgpu/types",
+      "vite-ssg"
     ],
     /* Linting */
     "strict": true,

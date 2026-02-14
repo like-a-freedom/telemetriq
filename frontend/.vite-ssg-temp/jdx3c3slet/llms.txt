@@ -1,0 +1,66 @@
+# Telemetriq
+
+> Sports Telemetry Overlay — Create stunning overlay videos with GPS data, heart rate, and metrics from your workout recordings.
+
+## What is Telemetriq?
+
+Telemetriq is a browser-based web application that overlays sports telemetry data (from GPX files) onto workout videos. It processes everything client-side using WebAssembly and WebGPU — no server upload required, your data stays private.
+
+## Key Features
+
+- **GPX Telemetry Import**: Supports GPX 1.0/1.1 with extensions for heart rate (Garmin, Strava, Polar, Suunto formats)
+- **Video Processing**: MP4/MOV support with H.264/H.265 codecs, up to 4K 60fps
+- **Overlay Templates**: Customizable layouts for running, cycling, triathlon
+- **Metrics Display**: Speed, pace, distance, heart rate, elevation, cadence
+- **WebGPU/WebGL Rendering**: Hardware-accelerated overlay generation
+- **Browser-Based Export**: FFmpeg WASM for video encoding, no server needed
+- **Privacy-First**: All processing happens in your browser
+
+## Target Users
+
+- Runners, cyclists, triathletes
+- Sports coaches and trainers
+- Fitness content creators
+- GPS watch users (Garmin, Suunto, Polar, Coros, Apple Watch)
+
+## Technology Stack
+
+- Vue 3 + Pinia + Vue Router
+- Vite (build tool)
+- WebGPU / WebGL (rendering)
+- FFmpeg WASM (video encoding)
+- GPX parsing with XML DOM
+
+## Getting Started
+
+```bash
+# Clone and run
+git clone https://github.com/like-a-freedom/telemetriq
+cd telemetriq/frontend
+bun install
+bun run dev
+```
+
+## Usage Flow
+
+1. **Upload**: Import your GPX file and video
+2. **Sync**: Automatic GPS/time synchronization or manual offset
+3. **Preview**: Customize overlay template and position
+4. **Process**: Generate video with telemetry overlay
+5. **Download**: Export the final video
+
+## File Size Limits
+
+- Maximum video size: 4 GB
+- Maximum duration: 60 minutes
+- Recommended resolution: up to 4K 60fps
+
+## Optional. Links
+
+- [GitHub Repository](https://github.com/like-a-freedom/telemetriq)
+- [Specification](https://github.com/like-a-freedom/telemetriq/blob/main/docs/SPECIFICATION.md)
+- [AGENTS.md](https://github.com/like-a-freedom/telemetriq/blob/main/AGENTS.md) — Development guidelines
+
+## Optional. Contact
+
+- GitHub Issues: https://github.com/like-a-freedom/telemetriq/issues

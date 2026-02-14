@@ -113,10 +113,18 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useFilesStore, useSettingsStore } from "../stores";
 import { checkBrowserCapabilities } from "../modules/file-validation";
+import { useSeo } from "../composables/useSeo";
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
 import UploadZone from "../components/UploadZone.vue";
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
 import FileInfo from "../components/FileInfo.vue";
+
+// SEO
+useSeo({
+  title: "Upload Files",
+  description:
+    "Upload your GPX telemetry and video files to create sports overlay videos. Browser-based processing, no upload required.",
+});
 
 const router = useRouter();
 const filesStore = useFilesStore();
