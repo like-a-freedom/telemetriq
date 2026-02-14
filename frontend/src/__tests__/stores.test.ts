@@ -99,7 +99,6 @@ describe('Pinia Stores', () => {
 
         it('should set loading state during video file processing', async () => {
             const store = useFilesStore();
-            const file = new File(['invalid'], 'test.mp4');
 
             // Set loading state manually to test the state management
             store.isLoadingVideo = true;
@@ -112,7 +111,6 @@ describe('Pinia Stores', () => {
 
         it('should set loading state during GPX file processing', async () => {
             const store = useFilesStore();
-            const file = new File(['invalid'], 'test.gpx');
 
             // Set loading state manually to test the state management
             store.isLoadingGpx = true;
