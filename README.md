@@ -59,6 +59,21 @@ Add a GIF or screenshot here to showcase the main flows.
 - Template-driven, customizable overlay layouts
 - Unit + E2E tests (Vitest + Playwright)
 
+## Value proposition & use cases
+
+Telemetriq helps athletes, coaches and content creators quickly extract actionable insights from training sessions and turn them into clear, telemetry‑overlaid videos. The app saves time on annotation and preparation, improves feedback quality, and simplifies production of instructional or promotional material.
+
+Who benefits:
+- Athletes who want to analyze workouts and track progress
+- Coaches who need to mark segments and provide visual feedback quickly
+- Content creators and marketers producing clips with telemetry (speed, distance, elevation, etc.)
+
+Example use cases:
+- Workout analysis: upload GPX + video, align metrics with the timeline, and find sections with speed drops or heart‑rate spikes — focus your coaching and save analysis time.
+- Coaching feedback: mark key intervals and export videos with visual cues for athletes — clearer guidance and faster improvement.
+- Content creation: auto‑generate short clips and infographics for social media or training materials — reduce prep time and increase engagement.
+- Export & reporting: export videos and metadata for analytics, publishing, or archival — easy integration into workflows.
+
 ---
 
 ## Run & Build 🔧
@@ -106,7 +121,30 @@ docker-compose -f docker-compose.dev.yaml up --build
 
 ## Environment variables
 Create `.env` / `.env.local` in `frontend/` to override defaults if needed.
-(See `vite.config.ts` for environment usage.)
+
+- `SITE_URL` — public base URL for the site (used in `robots.txt`, `sitemap.xml`, canonical/OG tags and LLM discovery files). Defaults to `https://telemetriq.app`.
+
+  Only `SITE_URL` needs to be set. The build and Dockerfile automatically propagate `SITE_URL` to `VITE_SITE_URL` for client code during the image build, so you don't have to set `VITE_SITE_URL` yourself.
+
+Examples:
+
+- Local dev (shell):
+
+```bash
+export SITE_URL=http://localhost:5173
+bun run dev
+```
+
+- Docker Compose (override in `.env` or shell):
+
+```bash
+# .env
+SITE_URL=https://telemetriq.like-a-freedom.ru
+
+docker compose -f docker-compose.yaml up --build -d
+```
+
+The `SITE_URL` value is injected at build time so generated files (robots/sitemap) will contain correct absolute URLs.
 
 ---
 

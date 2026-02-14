@@ -52,8 +52,16 @@ import {
   useSettingsStore,
   useSyncStore,
 } from "../stores";
+import { useSeo } from "../composables/useSeo";
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
 import FileInfo from "../components/FileInfo.vue";
+
+// SEO
+useSeo({
+  title: "Download Result",
+  description:
+    "Download your video with telemetry overlay. Share your sports achievements with professional-looking visualizations.",
+});
 
 const router = useRouter();
 const filesStore = useFilesStore();

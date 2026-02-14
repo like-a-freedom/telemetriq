@@ -1,0 +1,205 @@
+# Telemetriq — Full Documentation for LLMs
+
+> This file provides comprehensive information about Telemetriq for LLM indexing and AI assistants.
+
+## Project Overview
+
+**Name**: Telemetriq
+**Type**: Web Application (SPA) / Tauri Desktop App
+**License**: MIT
+**Repository**: https://github.com/like-a-freedom/telemetriq
+
+### Purpose
+
+Telemetriq enables athletes to visualize their sports telemetry data (GPS tracks, heart rate, speed, elevation) as overlays on workout videos. The application processes everything client-side, ensuring privacy and eliminating the need for server uploads.
+
+## Architecture
+
+### Frontend Stack
+- **Framework**: Vue 3 with Composition API
+- **State Management**: Pinia
+- **Routing**: Vue Router 5
+- **Build Tool**: Vite 7
+- **Runtime**: Bun (not npm)
+
+### Key Technologies
+- **WebGPU**: Hardware-accelerated rendering for overlay graphics
+- **WebGL**: Fallback rendering when WebGPU unavailable
+- **FFmpeg WASM**: Browser-based video encoding
+- **XML DOM**: GPX file parsing
+
+### Project Structure
+
+```
+frontend/
+├── src/
+│   ├── App.vue              # Root component
+│   ├── main.ts              # Application entry (ViteSSG)
+│   ├── router/              # Vue Router configuration
+│   ├── stores/              # Pinia stores
+│   │   ├── filesStore       # File upload state
+│   │   ├── syncStore        # Telemetry sync state
+│   │   ├── processingStore  # Video processing state
+│   │   └── settingsStore    # User preferences
+│   ├── views/               # Page components
+│   │   ├── UploadView       # File upload page
+│   │   ├── PreviewView      # Overlay customization
+│   │   ├── ProcessingView   # Video processing
+│   │   └── ResultView       # Download result
+│   ├── modules/             # Core functionality
+│   │   ├── gpx-parser       # GPX parsing logic
+│   │   ├── sync-engine      # Telemetry sync
+│   │   ├── overlay-renderer # WebGPU/WebGL rendering
+│   │   └── video-codec      # Video encoding
+│   ├── composables/         # Vue composables
+│   └── components/          # UI components
+└── public/
+    ├── robots.txt           # SEO
+    ├── sitemap.xml          # SEO
+    └── llms.txt             # LLM discovery
+```
+
+## Features Detail
+
+### 1. GPX Parsing
+
+Supports GPX 1.0 and 1.1 formats with telemetry extensions:
+
+| Vendor | Extension Format |
+|--------|-----------------|
+| Garmin | `<gpxtpx:hr>` |
+| Strava | `<heartrate>` |
+| Polar | `<hr>` |
+| Suunto | `<suunto:hr>` |
+| Generic | `<extensions><heart_rate>` |
+
+Extracted data:
+- Coordinates (latitude, longitude, elevation)
+- Timestamps
+- Heart rate
+- Cadence (when available)
+- Speed/pace (calculated)
+
+### 2. Video Processing
+
+Supported formats:
+- MP4 (H.264, H.265)
+- MOV (H.264, H.265)
+
+Limits:
+- Max file size: 4 GB
+- Max duration: 60 minutes
+- Recommended: 4K 60fps
+
+### 3. Synchronization
+
+Methods (in order of priority):
+1. **GPS matching**: Compare video GPS with GPX coordinates
+2. **Time matching**: Use video creation time + GPX start time
+3. **Filename parsing**: Extract time from DJI filenames (DJI_YYYYMMDD_HHMMSS)
+4. **Manual offset**: User-adjustable slider
+
+### 4. Overlay Templates
+
+Available templates:
+- Running (pace-focused)
+- Cycling (speed-focused)
+- Triathlon (multi-sport)
+- Minimal (clean design)
+
+Customizable elements:
+- Position (corners, center)
+- Size and opacity
+- Color scheme
+- Metric selection
+
+### 5. Export
+
+- Format: MP4 (H.264)
+- Quality: Configurable (720p to 4K)
+- Processing: Client-side via FFmpeg WASM
+
+## API Reference (Internal)
+
+### Stores
+
+#### filesStore
+```typescript
+interface FilesState {
+  videoFile: File | null
+  gpxFile: File | null
+  videoUrl: string | null
+  gpxData: GpxData | null
+}
+```
+
+#### syncStore
+```typescript
+interface SyncState {
+  offset: number        // Time offset in seconds
+  syncMethod: string    // 'gps' | 'time' | 'manual'
+  isSynced: boolean
+}
+```
+
+#### processingStore
+```typescript
+interface ProcessingState {
+  progress: number      // 0-100
+  status: string        // 'idle' | 'processing' | 'complete' | 'error'
+  outputUrl: string | null
+}
+```
+
+## Development Commands
+
+```bash
+# Development
+bun run dev              # Start dev server
+
+# Build
+bun run build            # Build for production (SSG)
+
+# Testing
+bun run test             # Unit tests (Vitest)
+bun run test:e2e         # E2E tests (Playwright)
+bun run test:coverage    # Coverage report
+
+# Linting
+bun run lint             # ESLint
+bun run lint:fix         # Auto-fix
+
+# FFmpeg
+bun run fetch-ffmpeg-core  # Download FFmpeg WASM
+```
+
+## Environment Variables
+
+None required — application is fully client-side.
+
+## Browser Support
+
+- Chrome 94+ (WebGPU)
+- Firefox 115+ (WebGL fallback)
+- Safari 17+ (WebGPU on macOS)
+- Edge 94+
+
+## Privacy & Security
+
+- No server uploads
+- No telemetry collection
+- No cookies (except session)
+- All processing in browser
+- Source code auditable
+
+## Contributing
+
+See AGENTS.md for development guidelines and coding standards.
+
+## Roadmap
+
+- [ ] Tauri desktop app
+- [ ] FIT file support
+- [ ] Multi-segment videos
+- [ ] Cloud export options
+- [ ] Mobile app (PWA)

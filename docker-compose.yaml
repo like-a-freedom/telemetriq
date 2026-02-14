@@ -4,8 +4,12 @@ services:
     build:
       context: ./frontend
       target: production
+      args:
+        SITE_URL: ${SITE_URL:-https://telemetriq.like-a-freedom.ru}
     ports:
       - "80:80"
+    environment:
+      - SITE_URL=${SITE_URL:-https://telemetriq.like-a-freedom.ru}
     healthcheck:
       test: [ "CMD-SHELL", "test -f /usr/share/caddy/index.html" ]
       interval: 30s

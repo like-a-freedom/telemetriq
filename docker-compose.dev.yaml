@@ -12,3 +12,4 @@ services:
       - ./frontend/index.html:/app/index.html
     environment:
       - NODE_ENV=development
+      - SITE_URL=${SITE_URL:-http://localhost:5173}

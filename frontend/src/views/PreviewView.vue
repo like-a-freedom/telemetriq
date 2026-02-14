@@ -160,12 +160,20 @@ import { useRouter } from "vue-router";
 import { useFilesStore, useSyncStore, useSettingsStore } from "../stores";
 import { buildTelemetryTimeline } from "../modules/telemetry-core";
 import type { TelemetryFrame } from "../core/types";
+import { useSeo } from "../composables/useSeo";
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
 import VideoPlayer from "../components/VideoPlayer.vue";
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
 import SyncSlider from "../components/SyncSlider.vue";
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
 import TemplateSelector from "../components/TemplateSelector.vue";
+
+// SEO
+useSeo({
+  title: "Preview & Customize",
+  description:
+    "Preview and customize your telemetry overlay. Adjust sync, select templates, and position metrics before processing.",
+});
 
 const router = useRouter();
 const filesStore = useFilesStore();
