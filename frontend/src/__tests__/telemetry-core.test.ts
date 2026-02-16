@@ -612,11 +612,11 @@ describe('Telemetry Core', () => {
 
             // Steady running: ~3.33 m/s = 5:00 min/km
             // Add small GPS noise (±1m) to simulate real GPS data
-            const noisePattern = [0, 0.000008, -0.000003, 0.000005, -0.000007, 
-                                  0.000004, -0.000006, 0.000002, -0.000004, 0.000003,
-                                  0.000007, -0.000005, 0.000004, -0.000008, 0.000006,
-                                  -0.000003, 0.000005, -0.000004, 0.000007, -0.000006,
-                                  0.000002]; // ±~1m noise
+            const noisePattern = [0, 0.000008, -0.000003, 0.000005, -0.000007,
+                0.000004, -0.000006, 0.000002, -0.000004, 0.000003,
+                0.000007, -0.000005, 0.000004, -0.000008, 0.000006,
+                -0.000003, 0.000005, -0.000004, 0.000007, -0.000006,
+                0.000002]; // ±~1m noise
 
             for (let s = 0; s <= 20; s++) {
                 // Base movement: ~3.33m/s (0.000030° lat/s)
@@ -630,7 +630,7 @@ describe('Telemetry Core', () => {
             }
 
             const frames = buildTelemetryTimeline(points);
-            
+
             // Collect pace values from second 3 to second 17 (avoid start/end effects)
             const paceValues: number[] = [];
             for (let sec = 3; sec <= 17; sec++) {
