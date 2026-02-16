@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { validateVideoFile } from '../modules/file-validation';
+import {
+    validateVideoFile,
+} from '../modules/file-validation';
 
 describe('File Validation', () => {
     describe('validateVideoFile', () => {
@@ -50,6 +52,53 @@ describe('File Validation', () => {
 
         it('should handle file without type', () => {
             const file = new File(['data'], 'video.mp4');
+            const result = validateVideoFile(file);
+            expect(result.valid).toBe(true);
+        });
+
+        it('should reject files over 4GB', () => {
+            const file = new File(['data'], 'huge.mp4', { type: 'video/mp4' });
+            Object.defineProperty(file, 'size', { value: 4 * 1024 * 1024 * 1024 + 1 });
+
+            const result = validateVideoFile(file);
+            expect(result.valid).toBe(false);
+            expect(result.errors[0]).toContain('too large');
+        });
+
+        it('should accept files exactly at size limit', () => {
+            const file = new File(['data'], 'limit.mp4', { type: 'video/mp4' });
+            Object.defineProperty(file, 'size', { value: 4 * 1024 * 1024 * 1024 });
+
+            const result = validateVideoFile(file);
+            expect(result.valid).toBe(true);
+        });
+
+        it('should handle files with uppercase extension', () => {
+            const file = new File(['data'], 'video.MP4', { type: 'video/mp4' });
+            const result = validateVideoFile(file);
+            expect(result.valid).toBe(true);
+        });
+
+        it('should handle files with mixed case extension', () => {
+            const file = new File(['data'], 'video.Mp4', { type: 'video/mp4' });
+            const result = validateVideoFile(file);
+            expect(result.valid).toBe(true);
+        });
+
+        it('should handle files with no extension', () => {
+            const file = new File(['data'], 'video', { type: 'video/mp4' });
+            const result = validateVideoFile(file);
+            expect(result.valid).toBe(false);
+        });
+
+        it('should handle files with multiple dots in name', () => {
+            const file = new File(['data'], 'my.video.backup.mp4', { type: 'video/mp4' });
+            const result = validateVideoFile(file);
+            expect(result.valid).toBe(true);
+        });
+
+        it('should handle files with whitespace in name', () => {
+            const file = new File(['data'], 'my video.mp4', { type: 'video/mp4' });
             const result = validateVideoFile(file);
             expect(result.valid).toBe(true);
         });
