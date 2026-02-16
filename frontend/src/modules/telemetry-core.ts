@@ -16,8 +16,8 @@ const MOVING_SPEED_THRESHOLD = 1.0;
  * ensures quick response to actual speed changes. This gives responsive feel (2-3s reaction)
  * without the "jitter" problem where pace oscillates 6→8 min/km during steady pace.
  */
-const PACE_WINDOW_MIN_DISTANCE_KM = 0.007; // 7 meters - filters GPS noise, keeps responsiveness
-const PACE_WINDOW_MIN_SECONDS = 2; // 2 seconds - fast response to speed changes
+const PACE_WINDOW_MIN_DISTANCE_KM = 0.006; // 6 meters - filters GPS noise, keeps responsiveness
+const PACE_WINDOW_MIN_SECONDS = 3; // 3 seconds - slightly larger window for stability
 const PACE_WINDOW_MAX_SECONDS = 300;
 
 
@@ -604,13 +604,40 @@ function interpolatePace(
     frames: TelemetryFrame[],
     gpxTime: number,
 ): number | undefined {
-    const sampledSecond = Math.floor(gpxTime);
+    // Snap to the nearest whole second (1 Hz update rate) to mimic a running
+    // watch and avoid systematic bias from always flooring the time.
+    const sampledSecond = Math.round(gpxTime);
+
+    // If multiple frames exist within ±1s of the sampled second, use the median of
+    // their precomputed pace values. This gives a stable, watch-like 1 Hz value
+    // for short windows and reduces spurious per-second jitter for real GPX data.
+    const nearbyPaces: number[] = [];
+    for (const f of frames) {
+        if (Math.abs(f.timeOffset - sampledSecond) <= 1 && f.paceSecondsPerKm !== undefined) {
+            nearbyPaces.push(f.paceSecondsPerKm);
+        }
+    }
+    if (nearbyPaces.length >= 2) {
+        nearbyPaces.sort((a, b) => a - b);
+        return nearbyPaces[Math.floor(nearbyPaces.length / 2)];
+    }
 
     const { beforeFrame, afterFrame, interpolationFactor } = findSurroundingFrames(frames, sampledSecond);
 
     const frameGapSeconds = afterFrame.timeOffset - beforeFrame.timeOffset;
+
+    // If the gap between bracketing frames is small (<= MAX_CONSECUTIVE_GAP_SECONDS)
+    // but larger than 1s, prefer holding the previous pace instead of
+    // interpolating across sparse updates. This avoids synthetic ramps when
+    // GPX points are emitted at irregular multi-second intervals (common for
+    // phone/wearable recordings) while preserving interpolation for high-rate
+    // data.
+    if (frameGapSeconds > 1 && frameGapSeconds <= MAX_CONSECUTIVE_GAP_SECONDS) {
+        return beforeFrame.paceSecondsPerKm ?? afterFrame.paceSecondsPerKm;
+    }
+
     if (frameGapSeconds > MAX_CONSECUTIVE_GAP_SECONDS) {
-        // Avoid synthetic pace ramps across missing-data gaps.
+        // Avoid synthetic pace ramps across large missing-data gaps.
         // During large GPX gaps we hold last known pace until the next real sample.
         return beforeFrame.paceSecondsPerKm ?? afterFrame.paceSecondsPerKm;
     }

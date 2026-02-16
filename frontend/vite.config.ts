@@ -62,7 +62,6 @@ export default defineConfig({
     globals: true,
     include: ['src/__tests__/**/*.{test,spec}.{ts,tsx}'],
     exclude: [
-      'src/__tests__/pace-real-gpx-regression.test.ts',
       '**/e2e/**',
       '**/e2e',
     ],
