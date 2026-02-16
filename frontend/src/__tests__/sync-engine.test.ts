@@ -75,6 +75,7 @@ describe('Sync Engine', () => {
             ];
 
             // Video started 2 minutes after GPX start
+            // offset = videoStart - gpxStart = +120s (positive = video after GPX)
             const videoTime = new Date('2024-01-15T10:02:00Z');
             const result = autoSync(points, videoTime);
             expect(result.autoSynced).toBe(true);
@@ -88,6 +89,7 @@ describe('Sync Engine', () => {
             ];
 
             // Video started 10 minutes before GPX start
+            // offset = videoStart - gpxStart = -600s (negative = video before GPX)
             const videoTime = new Date('2024-01-15T09:50:00Z');
             const result = autoSync(points, videoTime);
             // Now syncs with warning instead of failing
@@ -114,6 +116,7 @@ describe('Sync Engine', () => {
         it('should sync DJI video time correctly - GPX starts after video', () => {
             // GPX: 2026-02-11T05:55:25Z (first point)
             // DJI video: 2026-02-11T09:24:25Z (from filename)
+            // offset = videoStart - gpxStart = +12540s (positive = video after GPX)
             const points = [
                 makePoint(56.026587, 37.85473, '2026-02-11T05:55:25Z'),
                 makePoint(56.026577, 37.854697, '2026-02-11T05:55:26Z'),
@@ -132,6 +135,7 @@ describe('Sync Engine', () => {
         it('should sync DJI video time correctly - GPX starts before video', () => {
             // GPX: 2026-02-11T09:24:00Z
             // DJI video: 2026-02-11T05:55:00Z (video was taken earlier)
+            // offset = videoStart - gpxStart = -12540s (negative = video before GPX)
             const points = [
                 makePoint(56.026587, 37.85473, '2026-02-11T09:24:00Z'),
                 makePoint(56.026577, 37.854697, '2026-02-11T09:25:00Z'),
@@ -231,6 +235,7 @@ describe('Sync Engine', () => {
             ];
 
             // Video started 5 minutes before GPX
+            // offset = videoStart - gpxStart = -300s (negative = video before GPX)
             const videoTime = new Date('2024-01-15T10:00:00Z');
             const result = autoSync(points, videoTime);
 
@@ -288,6 +293,9 @@ describe('Sync Engine', () => {
             const xml = fs.readFileSync(IPHONE_GPX_PATH, 'utf-8');
             const gpx = parseGpx(xml);
 
+            // Video: 2026-02-15T09:01:13Z
+            // GPX:   2026-02-15T09:02:07Z (starts 54 seconds after video)
+            // offset = videoStart - gpxStart = -54s (negative = video before GPX)
             const videoCreationTime = new Date('2026-02-15T09:01:13.000Z');
             const videoStartLat = 54.7602;
             const videoStartLon = 35.6026;

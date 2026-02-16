@@ -16,6 +16,9 @@
     <div class="sync-slider__controls">
       <label class="sync-slider__label">
         Offset: <strong>{{ formattedOffset }}</strong>
+        <span class="sync-slider__hint" title="Positive = video starts after GPX (GPX begins first). Negative = video starts before GPX (video has no telemetry initially).">
+          (?)
+        </span>
       </label>
       <input
         type="range"
@@ -219,5 +222,12 @@ function resetOffset(): void {
   color: #ffb74d;
   font-size: 0.85rem;
   margin: 0.75rem 0 0;
+}
+
+.sync-slider__hint {
+  color: var(--color-text-secondary, #888);
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+  cursor: help;
 }
 </style>

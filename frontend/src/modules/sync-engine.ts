@@ -204,6 +204,9 @@ function syncByGpsCoordinatesNearOffset(
 
 /**
  * Sync by matching video creation time with GPX timestamps.
+ * Calculates offset as videoStartTime - gpxStartTime.
+ * Positive offset means video started after GPX (GPX data exists before video).
+ * Negative offset means video started before GPX (video begins without GPX data).
  */
 function syncByTime(
     gpxPoints: TrackPoint[],
@@ -214,7 +217,9 @@ function syncByTime(
     // Applying timezone offset again shifts time twice and breaks auto-sync.
     const videoMs = videoTime.getTime();
     const gpxStartMs = gpxPoints[0]!.time.getTime();
-    // Calculate how far into the GPX track the video starts
+    // offset = videoStart - gpxStart
+    // Positive: video starts after GPX (skip beginning of GPX)
+    // Negative: video starts before GPX (wait for GPX to start)
     const offsetMs = videoMs - gpxStartMs;
     const offsetSeconds = offsetMs / 1000;
 
