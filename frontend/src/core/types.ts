@@ -158,7 +158,14 @@ export type OverlayLayoutMode =
 
 /** Sync configuration */
 export interface SyncConfig {
-    /** Manual offset in seconds (positive = GPX ahead of video) */
+    /**
+     * Offset in seconds to align GPX timeline with video.
+     * Calculated as: videoStartTime - gpxStartTime
+     * - Positive: video started AFTER GPX (GPX data exists before video)
+     * - Negative: video started BEFORE GPX (video has no GPX data initially)
+     * - Zero: video and GPX started at the same time
+     * To get GPX time: gpxTime = videoTime + offsetSeconds
+     */
     offsetSeconds: number;
     /** Whether auto-sync was used */
     autoSynced: boolean;
