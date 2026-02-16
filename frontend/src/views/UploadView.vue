@@ -228,6 +228,43 @@ function goToPreview(): void {
   }
 }
 
+@media (max-width: 640px) {
+  .upload-view {
+    padding: 1.5rem 0.75rem;
+  }
+
+  .upload-view__title {
+    font-size: 1.75rem;
+  }
+
+  .upload-view__description {
+    font-size: 0.9rem;
+  }
+
+  .upload-view__zones {
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .upload-view__summary {
+    padding: 1rem;
+  }
+
+  .upload-view__info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .upload-view__btn {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  .upload-view__warning {
+    padding: 0.75rem;
+    font-size: 0.85rem;
+  }
+}
+
 .upload-view__summary {
   background: var(--color-bg-secondary, #1a1a1a);
   border-radius: 12px;

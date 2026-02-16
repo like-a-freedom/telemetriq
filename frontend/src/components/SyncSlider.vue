@@ -230,4 +230,61 @@ function resetOffset(): void {
   margin-left: 0.5rem;
   cursor: help;
 }
+
+@media (max-width: 640px) {
+  .sync-slider {
+    padding: 1rem;
+  }
+
+  .sync-slider__fine-controls {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .sync-slider__btn {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.75rem;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .sync-slider__range {
+    height: 24px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+  }
+
+  .sync-slider__range::-webkit-slider-runnable-track {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--color-bg-tertiary, #2a2a2a);
+  }
+
+  .sync-slider__range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--color-primary, #646cff);
+    margin-top: -8px;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  }
+
+  .sync-slider__range::-moz-range-track {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--color-bg-tertiary, #2a2a2a);
+  }
+
+  .sync-slider__range::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--color-primary, #646cff);
+    border: none;
+    cursor: pointer;
+  }
+}
 </style>

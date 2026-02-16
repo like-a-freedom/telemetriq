@@ -181,4 +181,27 @@ function startOver(): void {
   background: #43a047;
   transform: translateY(-1px);
 }
+
+@media (max-width: 640px) {
+  .result-view {
+    padding: 1.5rem 0.75rem;
+  }
+
+  .result-view__header h2 {
+    font-size: 1.5rem;
+  }
+
+  .result-view__actions {
+    flex-direction: column;
+  }
+
+  .result-view__btn {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  .result-view__info {
+    padding: 0.75rem 1rem;
+  }
+}
 </style>

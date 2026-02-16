@@ -41,5 +41,19 @@ export default {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--color-text, #fff);
+  word-break: break-word;
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .file-info__row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+
+  .file-info__value {
+    text-align: left;
+  }
 }
 </style>
