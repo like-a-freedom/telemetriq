@@ -521,6 +521,56 @@ describe('Telemetry Core', () => {
             expect(slow!.paceSecondsPerKm!).toBeGreaterThan(fast!.paceSecondsPerKm!);
         });
 
+        it('should respond quickly to speed increase (walking → running)', () => {
+            // Simulating: athlete walks slowly (10+ min/km) for first 5 seconds,
+            // then starts running (7 min/km) from second 5 onwards
+            // With 2-second window, pace should update within 2-3 seconds after speed change
+            const t0 = new Date('2024-01-15T10:00:00Z').getTime();
+            const points: TrackPoint[] = [];
+
+            // Walking phase: ~2 m/s = ~8:20 min/km = 500 sec/km
+            // Move 2m per second (0.000018° lat approx)
+            for (let s = 0; s <= 5; s++) {
+                points.push(makePoint(
+                    55.0 + s * 0.000018,
+                    37.0,
+                    new Date(t0 + s * 1000).toISOString()
+                ));
+            }
+
+            // Running phase: ~4 m/s = ~4:10 min/km = 250 sec/km
+            // Move 4m per second (0.000036° lat approx)
+            for (let s = 1; s <= 8; s++) {
+                points.push(makePoint(
+                    55.0 + 5 * 0.000018 + s * 0.000036,
+                    37.0,
+                    new Date(t0 + (5 + s) * 1000).toISOString()
+                ));
+            }
+
+            const frames = buildTelemetryTimeline(points);
+
+            // Check pace at second 4 (still walking)
+            const walkingPace = getTelemetryAtTime(frames, 4, 0);
+            expect(walkingPace).not.toBeNull();
+            expect(walkingPace!.paceSecondsPerKm).toBeDefined();
+
+            // Check pace at second 7 (3 seconds after speed change, should reflect running)
+            // With 2-second minimum window, we should see significant speedup by now
+            const runningPace = getTelemetryAtTime(frames, 7, 0);
+            expect(runningPace).not.toBeNull();
+            expect(runningPace!.paceSecondsPerKm).toBeDefined();
+
+            // Running should be significantly faster than walking
+            // Walking ~500 sec/km, running ~250 sec/km
+            // With 2s window and transition, running pace should be at least 20% faster
+            expect(runningPace!.paceSecondsPerKm!).toBeLessThan(walkingPace!.paceSecondsPerKm! * 0.8);
+
+            // By second 8, pace should be very close to true running pace
+            const settledPace = getTelemetryAtTime(frames, 8, 0);
+            expect(settledPace!.paceSecondsPerKm!).toBeLessThan(350); // Close to 250 sec/km
+        });
+
         it('should compute stable valid pace for 9-second clip window', () => {
             const points = [
                 // pre-roll low movement before clip start

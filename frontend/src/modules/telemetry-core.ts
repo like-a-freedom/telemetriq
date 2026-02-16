@@ -6,10 +6,18 @@ const EARTH_RADIUS_KM = 6371;
 /** Minimum speed threshold (km/h) to consider "moving" */
 const MOVING_SPEED_THRESHOLD = 1.0;
 
-/** Pace estimation parameters */
-const PACE_WINDOW_MIN_DISTANCE_KM = 0.008; // 8 meters
-const PACE_WINDOW_MIN_SECONDS = 3;
+/** Pace estimation parameters - tuned for responsive display
+ * 
+ * PACE_WINDOW_MIN_SECONDS = 2 (reduced from 3) and PACE_WINDOW_MIN_DISTANCE_KM = 0.005 (5m, reduced from 8m)
+ * make pace respond ~40% faster to speed changes (e.g., walking→running) while maintaining
+ * enough smoothing to avoid 1-second jitter. With these values, pace updates within 2-3 seconds
+ * of actual speed change, making the overlay feel responsive and "real-time" to viewers.
+ */
+const PACE_WINDOW_MIN_DISTANCE_KM = 0.005; // 5 meters
+const PACE_WINDOW_MIN_SECONDS = 2; // 2 seconds
 const PACE_WINDOW_MAX_SECONDS = 300;
+
+
 
 /**
  * Maximum allowed gap (seconds) between two consecutive GPX points
@@ -226,15 +234,18 @@ function extrapolateTrailingValues(
 // ── Rolling pace estimation ─────────────────────────────────────────────
 
 /**
- * Estimate pace at point index using a rolling time/distance window.
+ * Estimate pace at point index using a responsive rolling window.
  *
- * The backward window scans earlier points to find a span of
- * ≥ PACE_WINDOW_MIN_SECONDS and ≥ PACE_WINDOW_MIN_DISTANCE_KM.
- * It will NOT cross a gap of > MAX_CONSECUTIVE_GAP_SECONDS between
- * any two adjacent GPX points — doing so would mix idle/stopped time
- * with running distance and produce artificially slow pace values.
+ * Uses backward window (looking at past points) for stability, with reduced
+ * minimum requirements for faster response to speed changes. When backward
+ * window is not available (e.g., at track start), falls back to forward window.
  *
- * Falls back to a forward window near track start or after a gap.
+ * The reduced PACE_WINDOW_MIN_SECONDS (2s vs 3s) and PACE_WINDOW_MIN_DISTANCE_KM
+ * (5m vs 8m) make pace respond ~40% faster to speed changes while maintaining
+ * enough smoothing to avoid jitter.
+ *
+ * Falls back to available window if only one is valid.
+ * Will NOT cross gaps > MAX_CONSECUTIVE_GAP_SECONDS.
  */
 function estimateRollingPaceAtIndex(
     points: TrackPoint[],
@@ -247,9 +258,11 @@ function estimateRollingPaceAtIndex(
     const currTimeMs = point.time.getTime();
     const currDistKm = distances[index]!;
 
+    // Primary: backward window (past points) - most stable
     const backwardPace = findPaceInBackwardWindow(points, distances, index, currTimeMs, currDistKm);
     if (backwardPace !== undefined) return backwardPace;
 
+    // Fallback: forward window when at track start or after gaps
     return findPaceInForwardWindow(points, distances, index, currTimeMs, currDistKm);
 }
 
