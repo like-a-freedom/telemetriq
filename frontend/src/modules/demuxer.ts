@@ -20,70 +20,40 @@ export interface Demuxer {
 export function createDemuxer(): Demuxer {
     return {
         async demux(file: File): Promise<DemuxedMedia> {
-            const input = new Input({
-                formats: ALL_FORMATS,
-                source: new BlobSource(file),
-            });
+            return withSuppressedUnsupportedAudioCodecWarnings(async () => {
+                const input = new Input({
+                    formats: ALL_FORMATS,
+                    source: new BlobSource(file),
+                });
 
-            try {
-                const videoTrack = await input.getPrimaryVideoTrack();
-                const audioTrack = await input.getPrimaryAudioTrack();
-
-                if (!videoTrack) {
-                    throw new ProcessingError('No video track found in the file');
-                }
-
-                const videoCodecString =
-                    (await videoTrack.getCodecParameterString())
-                    ?? (await videoTrack.getDecoderConfig())?.codec
-                    ?? 'unknown';
-                let videoDecoderConfig: VideoDecoderConfig | undefined;
                 try {
-                    videoDecoderConfig = await videoTrack.getDecoderConfig() ?? undefined;
-                } catch {
-                    videoDecoderConfig = undefined;
-                }
-                const videoCodecName = String(videoTrack.codec ?? '').toLowerCase();
+                    const videoTrack = await input.getPrimaryVideoTrack();
+                    const audioTrack = await readPrimaryAudioTrack(input);
 
-                const videoSink = new EncodedPacketSink(videoTrack);
-                const videoSamples: Mp4Sample[] = [];
-                for await (const packet of videoSink.packets()) {
-                    const timestampUs = Math.round(packet.timestamp * 1_000_000);
-                    const durationUs = Math.max(1, Math.round(packet.duration * 1_000_000));
-                    const data = toTightArrayBuffer(packet.data);
-                    videoSamples.push({
-                        data,
-                        duration: durationUs,
-                        dts: timestampUs,
-                        cts: timestampUs,
-                        timescale: 1_000_000,
-                        is_rap: packet.type === 'key',
-                    });
-                }
-                const videoSinkClosable = videoSink as unknown as { close?: () => void };
-                videoSinkClosable.close?.();
-
-                let parsedAudioTrack: DemuxedMedia['audioTrack'];
-                const audioSamples: Mp4Sample[] = [];
-
-                if (audioTrack) {
-                    const audioCodecString =
-                        (await audioTrack.getCodecParameterString())
-                        ?? (await audioTrack.getDecoderConfig())?.codec
-                        ?? 'unknown';
-                    let audioDecoderConfig: AudioDecoderConfig | undefined;
-                    try {
-                        audioDecoderConfig = await audioTrack.getDecoderConfig() ?? undefined;
-                    } catch {
-                        audioDecoderConfig = undefined;
+                    if (!videoTrack) {
+                        throw new ProcessingError('No video track found in the file');
                     }
 
-                    const audioSink = new EncodedPacketSink(audioTrack);
-                    for await (const packet of audioSink.packets()) {
+                    const videoCodecString =
+                        (await videoTrack.getCodecParameterString())
+                        ?? (await videoTrack.getDecoderConfig())?.codec
+                        ?? 'unknown';
+                    let videoDecoderConfig: VideoDecoderConfig | undefined;
+                    try {
+                        videoDecoderConfig = await videoTrack.getDecoderConfig() ?? undefined;
+                    } catch {
+                        videoDecoderConfig = undefined;
+                    }
+                    const videoCodecName = String(videoTrack.codec ?? '').toLowerCase();
+                    const rotation = normalizeRotation(videoTrack.rotation);
+
+                    const videoSink = new EncodedPacketSink(videoTrack);
+                    const videoSamples: Mp4Sample[] = [];
+                    for await (const packet of videoSink.packets()) {
                         const timestampUs = Math.round(packet.timestamp * 1_000_000);
                         const durationUs = Math.max(1, Math.round(packet.duration * 1_000_000));
                         const data = toTightArrayBuffer(packet.data);
-                        audioSamples.push({
+                        videoSamples.push({
                             data,
                             duration: durationUs,
                             dts: timestampUs,
@@ -92,50 +62,84 @@ export function createDemuxer(): Demuxer {
                             is_rap: packet.type === 'key',
                         });
                     }
-                    const audioSinkClosable = audioSink as unknown as { close?: () => void };
-                    audioSinkClosable.close?.();
+                    const videoSinkClosable = videoSink as unknown as { close?: () => void };
+                    videoSinkClosable.close?.();
 
-                    parsedAudioTrack = {
-                        id: 2,
-                        codec: audioCodecString,
-                        codecName: String(audioTrack.codec ?? '').toLowerCase(),
-                        timescale: 1_000_000,
-                        decoderConfig: audioDecoderConfig,
-                        audio: {
-                            channel_count: audioTrack.numberOfChannels,
-                            sample_rate: audioTrack.sampleRate,
+                    let parsedAudioTrack: DemuxedMedia['audioTrack'];
+                    const audioSamples: Mp4Sample[] = [];
+
+                    if (audioTrack) {
+                        const audioCodecString =
+                            (await audioTrack.getCodecParameterString())
+                            ?? (await audioTrack.getDecoderConfig())?.codec
+                            ?? 'unknown';
+                        let audioDecoderConfig: AudioDecoderConfig | undefined;
+                        try {
+                            audioDecoderConfig = await audioTrack.getDecoderConfig() ?? undefined;
+                        } catch {
+                            audioDecoderConfig = undefined;
+                        }
+
+                        const audioSink = new EncodedPacketSink(audioTrack);
+                        for await (const packet of audioSink.packets()) {
+                            const timestampUs = Math.round(packet.timestamp * 1_000_000);
+                            const durationUs = Math.max(1, Math.round(packet.duration * 1_000_000));
+                            const data = toTightArrayBuffer(packet.data);
+                            audioSamples.push({
+                                data,
+                                duration: durationUs,
+                                dts: timestampUs,
+                                cts: timestampUs,
+                                timescale: 1_000_000,
+                                is_rap: packet.type === 'key',
+                            });
+                        }
+                        const audioSinkClosable = audioSink as unknown as { close?: () => void };
+                        audioSinkClosable.close?.();
+
+                        parsedAudioTrack = {
+                            id: 2,
+                            codec: audioCodecString,
+                            codecName: String(audioTrack.codec ?? '').toLowerCase(),
+                            timescale: 1_000_000,
+                            decoderConfig: audioDecoderConfig,
+                            audio: {
+                                channel_count: audioTrack.numberOfChannels,
+                                sample_rate: audioTrack.sampleRate,
+                            },
+                        };
+                    }
+
+                    return {
+                        videoTrack: {
+                            id: 1,
+                            codec: videoCodecString,
+                            codecName: videoCodecName,
+                            rotation,
+                            description: videoDecoderConfig?.description,
+                            timescale: 1_000_000,
+                            decoderConfig: videoDecoderConfig,
                         },
+                        audioTrack: parsedAudioTrack,
+                        videoSamples,
+                        audioSamples,
                     };
+                } catch (error) {
+                    const details = error instanceof Error
+                        ? { cause: error.message }
+                        : { cause: String(error) };
+                    throw error instanceof ProcessingError
+                        ? error
+                        : new ProcessingError('Failed to parse media tracks with Mediabunny', details);
+                } finally {
+                    const disposable = input as unknown as { [Symbol.dispose]?: () => void };
+                    try {
+                        disposable[Symbol.dispose]?.();
+                    } catch {
+                        // no-op
+                    }
                 }
-
-                return {
-                    videoTrack: {
-                        id: 1,
-                        codec: videoCodecString,
-                        codecName: videoCodecName,
-                        description: videoDecoderConfig?.description,
-                        timescale: 1_000_000,
-                        decoderConfig: videoDecoderConfig,
-                    },
-                    audioTrack: parsedAudioTrack,
-                    videoSamples,
-                    audioSamples,
-                };
-            } catch (error) {
-                const details = error instanceof Error
-                    ? { cause: error.message }
-                    : { cause: String(error) };
-                throw error instanceof ProcessingError
-                    ? error
-                    : new ProcessingError('Failed to parse media tracks with Mediabunny', details);
-            } finally {
-                const disposable = input as unknown as { [Symbol.dispose]?: () => void };
-                try {
-                    disposable[Symbol.dispose]?.();
-                } catch {
-                    // no-op
-                }
-            }
+            });
         },
 
         async demuxWithFallback(
@@ -170,6 +174,52 @@ export function createDemuxer(): Demuxer {
             }
         },
     };
+}
+
+async function readPrimaryAudioTrack(
+    input: Input,
+): Promise<Awaited<ReturnType<Input['getPrimaryAudioTrack']>> | undefined> {
+    try {
+        return await input.getPrimaryAudioTrack();
+    } catch (error) {
+        if (!isUnsupportedAudioCodecError(error)) {
+            console.warn('[demux] Primary audio track is unsupported and will be skipped');
+        }
+        return undefined;
+    }
+}
+
+function normalizeRotation(value: unknown): 0 | 90 | 180 | 270 {
+    if (value === 90 || value === 180 || value === 270) return value;
+    return 0;
+}
+
+function isUnsupportedAudioCodecError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return /Unsupported audio codec/i.test(message);
+}
+
+async function withSuppressedUnsupportedAudioCodecWarnings<T>(
+    operation: () => Promise<T>,
+): Promise<T> {
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+        const text = args
+            .map((arg) => (typeof arg === 'string' ? arg : String(arg ?? '')))
+            .join(' ');
+
+        if (/Unsupported audio codec/i.test(text)) {
+            return;
+        }
+
+        originalWarn(...args);
+    };
+
+    try {
+        return await operation();
+    } finally {
+        console.warn = originalWarn;
+    }
 }
 
 function toTightArrayBuffer(data: Uint8Array): ArrayBuffer {

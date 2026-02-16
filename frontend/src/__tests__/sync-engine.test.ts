@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
 import {
     autoSync,
     clampSyncOffset,
@@ -9,6 +11,12 @@ import {
 } from '../modules/sync-engine';
 import type { TrackPoint } from '../core/types';
 import { SyncError } from '../core/errors';
+import { parseGpx } from '../modules/gpx-parser';
+
+const IPHONE_GPX_PATH = path.resolve(
+    path.dirname(new URL(import.meta.url).pathname),
+    '../../../test_data/iphone/iphone-track.gpx',
+);
 
 function makePoint(lat: number, lon: number, timeStr: string): TrackPoint {
     return {
@@ -153,18 +161,54 @@ describe('Sync Engine', () => {
             expect(result.offsetSeconds).toBe(0);
         });
 
-        it('should handle GPS priority over time when both available', () => {
+        it('should prefer GPS when GPS/time offsets are consistent', () => {
             const points = [
                 makePoint(55.7558, 37.6173, '2024-01-15T10:00:00Z'),
                 makePoint(55.7567, 37.6173, '2024-01-15T10:01:00Z'),
             ];
 
             // GPS coords are available
-            const result = autoSync(points, new Date('2024-01-15T10:05:00Z'), 55.7558, 37.6173);
+            const result = autoSync(points, new Date('2024-01-15T10:00:00Z'), 55.7558, 37.6173);
 
-            // Should use GPS, not time
+            // Should use GPS when it agrees with time-based sync.
             expect(result.autoSynced).toBe(true);
             expect(result.offsetSeconds).toBe(0); // GPS matched to first point
+        });
+
+        it('should prefer time-based sync when GPS points to a far timeline segment', () => {
+            const points = [
+                // Slightly away from GPS to avoid matching the first point
+                makePoint(55.7559, 37.6174, '2024-01-15T10:00:00Z'),
+                // Video starts here by time
+                makePoint(55.7560, 37.6175, '2024-01-15T10:01:00Z'),
+                // Same GPS position appears much later in the track (loop)
+                makePoint(55.7558, 37.6173, '2024-01-15T10:20:00Z'),
+            ];
+
+            const result = autoSync(points, new Date('2024-01-15T10:01:00Z'), 55.7558, 37.6173);
+
+            // Time says +60s, GPS says +1200s; mismatch is too large, so time wins.
+            expect(result.autoSynced).toBe(true);
+            expect(result.offsetSeconds).toBe(60);
+            expect(result.warning).toContain('GPS near start differs from video time');
+            expect(result.warning).toContain('Time-based sync was applied');
+        });
+
+        it('should fall back to GPS when video time is far outside GPX range', () => {
+            const points = [
+                makePoint(55.7558, 37.6173, '2024-01-15T10:00:00Z'),
+                makePoint(55.7567, 37.6173, '2024-01-15T10:01:00Z'),
+                makePoint(55.7576, 37.6173, '2024-01-15T10:02:00Z'),
+            ];
+
+            // 3+ hours away from GPX: time-based offset is implausible for this track.
+            const result = autoSync(points, new Date('2024-01-15T13:20:00Z'), 55.7567, 37.6173);
+
+            // GPS should be used in this case.
+            expect(result.autoSynced).toBe(true);
+            expect(result.offsetSeconds).toBe(60);
+            expect(result.warning).toContain('Video time appears outside GPX range');
+            expect(result.warning).toContain('GPS-based sync was applied');
         });
 
         it('should handle video time exactly matching GPX start', () => {
@@ -238,6 +282,29 @@ describe('Sync Engine', () => {
 
             expect(result.autoSynced).toBe(true);
             expect(result.offsetSeconds).toBeCloseTo(-299, 0); // ~299 seconds
+        });
+
+        it('should not snap to distant GPS loop segment on real iPhone track', () => {
+            const xml = fs.readFileSync(IPHONE_GPX_PATH, 'utf-8');
+            const gpx = parseGpx(xml);
+
+            const videoCreationTime = new Date('2026-02-15T09:01:13.000Z');
+            const videoStartLat = 54.7602;
+            const videoStartLon = 35.6026;
+
+            const result = autoSync(
+                gpx.points,
+                videoCreationTime,
+                videoStartLat,
+                videoStartLon,
+            );
+
+            // The GPX starts at 09:02:07Z, so expected offset is about -54 seconds.
+            // GPS-only nearest match appears ~6h later in this track and must be ignored.
+            expect(result.autoSynced).toBe(true);
+            expect(result.offsetSeconds).toBeGreaterThan(-120);
+            expect(result.offsetSeconds).toBeLessThan(0);
+            expect(result.warning).toContain('Time-based sync was applied');
         });
     });
 

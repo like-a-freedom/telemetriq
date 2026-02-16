@@ -430,7 +430,7 @@ describe('Pinia Stores', () => {
             expect(store.isAutoSyncing).toBe(false);
         });
 
-        it('should prioritize GPS over time when both provided', async () => {
+        it('should prioritize time when GPS candidate is far from video start time', async () => {
             const store = useSyncStore();
 
             await store.performAutoSync(
@@ -440,11 +440,12 @@ describe('Pinia Stores', () => {
                 ],
                 new Date('2024-01-15T10:05:00Z'), // video time suggests 5 min offset
                 55.7558,
-                37.6173 // GPS matches first point -> offset = 0
+                37.6173 // GPS matches first point -> offset = 0, but far from time-based +300s
             );
 
-            expect(store.offsetSeconds).toBe(0);
+            expect(store.offsetSeconds).toBe(300);
             expect(store.isAutoSynced).toBe(true);
+            expect(store.syncWarning).toContain('Time-based sync was applied');
         });
 
         it('should handle negative offset correctly', async () => {

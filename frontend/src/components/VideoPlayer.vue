@@ -30,6 +30,7 @@ const props = defineProps<{
   telemetryFrames: TelemetryFrame[];
   overlayConfig: ExtendedOverlayConfig;
   syncOffset: number;
+  videoDurationSeconds?: number;
 }>();
 
 const videoRef = ref<HTMLVideoElement | null>(null);
@@ -89,7 +90,8 @@ async function drawOverlay(): Promise<void> {
   const frame = getTelemetryAtTime(
     props.telemetryFrames,
     currentTime.value,
-    props.syncOffset
+    props.syncOffset,
+    props.videoDurationSeconds
   );
 
   if (frame) {

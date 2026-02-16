@@ -16,6 +16,7 @@ export type DemuxedMedia = {
         id: number;
         codec: string;
         codecName: string;
+        rotation?: 0 | 90 | 180 | 270;
         description?: AllowSharedBufferSource;
         timescale: number;
         decoderConfig?: VideoDecoderConfig;

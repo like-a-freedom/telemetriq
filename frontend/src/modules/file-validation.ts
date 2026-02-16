@@ -177,46 +177,79 @@ async function extractMp4Metadata(file: File): Promise<{
     fps?: number;
     width?: number;
     height?: number;
+    rotation?: 0 | 90 | 180 | 270;
     duration?: number;
 }> {
-    const input = new Input({
-        formats: ALL_FORMATS,
-        source: new BlobSource(file),
+    return withSuppressedUnsupportedAudioCodecWarnings(async () => {
+        const input = new Input({
+            formats: ALL_FORMATS,
+            source: new BlobSource(file),
+        });
+
+        try {
+            const videoTrack = await input.getPrimaryVideoTrack();
+            const codec = videoTrack
+                ? ((await videoTrack.getCodecParameterString()) ?? (await videoTrack.getDecoderConfig())?.codec)
+                : undefined;
+
+            const fps = videoTrack
+                ? (await videoTrack.computePacketStats(120)).averagePacketRate
+                : undefined;
+
+            const width = videoTrack?.displayWidth;
+            const height = videoTrack?.displayHeight;
+            const rotation = normalizeRotation(videoTrack?.rotation);
+
+            const tags = await input.getMetadataTags();
+            const created = tags.date;
+            const gps = findIso6709Location(tags.raw);
+
+            return {
+                codec,
+                fps,
+                width,
+                height,
+                rotation,
+                startTime: created,
+                timezoneOffsetMinutes: created ? 0 : undefined, // MP4 creation_time is UTC
+                gps,
+            };
+        } finally {
+            const disposable = input as unknown as { [Symbol.dispose]?: () => void };
+            try {
+                disposable[Symbol.dispose]?.();
+            } catch {
+                // no-op
+            }
+        }
     });
+}
+
+function normalizeRotation(value: unknown): 0 | 90 | 180 | 270 {
+    if (value === 90 || value === 180 || value === 270) return value;
+    return 0;
+}
+
+async function withSuppressedUnsupportedAudioCodecWarnings<T>(
+    operation: () => Promise<T>,
+): Promise<T> {
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+        const text = args
+            .map((arg) => (typeof arg === 'string' ? arg : String(arg ?? '')))
+            .join(' ');
+
+        if (/Unsupported audio codec/i.test(text)) {
+            return;
+        }
+
+        originalWarn(...args);
+    };
 
     try {
-        const videoTrack = await input.getPrimaryVideoTrack();
-        const codec = videoTrack
-            ? ((await videoTrack.getCodecParameterString()) ?? (await videoTrack.getDecoderConfig())?.codec)
-            : undefined;
-
-        const fps = videoTrack
-            ? (await videoTrack.computePacketStats(120)).averagePacketRate
-            : undefined;
-
-        const width = videoTrack?.displayWidth;
-        const height = videoTrack?.displayHeight;
-
-        const tags = await input.getMetadataTags();
-        const created = tags.date;
-        const gps = findIso6709Location(tags.raw);
-
-        return {
-            codec,
-            fps,
-            width,
-            height,
-            startTime: created,
-            timezoneOffsetMinutes: created ? 0 : undefined, // MP4 creation_time is UTC
-            gps,
-        };
+        return await operation();
     } finally {
-        const disposable = input as unknown as { [Symbol.dispose]?: () => void };
-        try {
-            disposable[Symbol.dispose]?.();
-        } catch {
-            // no-op
-        }
+        console.warn = originalWarn;
     }
 }
 
