@@ -114,6 +114,10 @@ describe('muxer', () => {
                     this.duration = init?.duration ?? 0;
                 }
 
+                get byteLength(): number {
+                    return this.data instanceof Uint8Array ? this.data.byteLength : (this.data ? this.data.byteLength : 0);
+                }
+
                 copyTo(dest: Uint8Array) {
                     const src = this.data instanceof Uint8Array ? this.data : new Uint8Array(this.data || 0);
                     const len = Math.min(src.length, dest.length);
@@ -190,6 +194,10 @@ describe('muxer', () => {
                     this.type = init?.type ?? 'key';
                     this.timestamp = init?.timestamp ?? 0;
                     this.duration = init?.duration ?? 0;
+                }
+
+                get byteLength(): number {
+                    return this.data instanceof Uint8Array ? this.data.byteLength : (this.data ? this.data.byteLength : 0);
                 }
 
                 copyTo(dest: Uint8Array) {

@@ -10,6 +10,12 @@
       "vite-ssg"
     ],
     "skipLibCheck": true,
+    "lib": [
+      "esnext",
+      "dom",
+      "dom.iterable"
+    ],
+    "target": "es2024",
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,

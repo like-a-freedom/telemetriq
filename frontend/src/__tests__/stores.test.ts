@@ -178,7 +178,7 @@ describe('Pinia Stores', () => {
             store.gpxFile = new File([xml], 'iphone-track.gpx', { type: 'application/gpx+xml' });
             store.gpxData = gpx;
 
-            // Simulate video meta with DJI creation_time
+            // Simulate video meta with DJI startTime (creation_time)
             store.videoFile = new File([], 'DJI_20260211092425_0002_D.MP4');
             store.videoMeta = {
                 duration: 90,
@@ -188,16 +188,17 @@ describe('Pinia Stores', () => {
                 codec: 'hvc1',
                 fileName: 'DJI_20260211092425_0002_D.MP4',
                 fileSize: 1024,
-                creationTime: new Date('2026-02-15T14:25:00Z'),
+                startTime: new Date('2026-02-15T14:25:00Z'),
             };
 
             // Trigger auto-sync
             const syncStore = useSyncStore();
+            const videoTime = store.videoMeta!.startTime!;
             await syncStore.performAutoSync(
                 gpx.points,
-                store.videoMeta.creationTime,
+                videoTime,
                 undefined,
-                store.videoMeta.duration,
+                store.videoMeta!.duration,
                 true,
             );
 
