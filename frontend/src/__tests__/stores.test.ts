@@ -257,7 +257,6 @@ describe('Pinia Stores', () => {
                 new Date('2024-01-15T10:02:00Z'),
                 undefined,
                 undefined,
-                undefined,
                 true,
             );
 
@@ -269,7 +268,7 @@ describe('Pinia Stores', () => {
             const store = useSyncStore();
             store.setManualOffset(25);
 
-            await store.performAutoSync([], new Date('2024-01-15T10:00:00Z'), undefined, undefined, undefined, true);
+            await store.performAutoSync([], new Date('2024-01-15T10:00:00Z'), undefined, undefined, true);
 
             expect(store.offsetSeconds).toBe(0);
             expect(store.isAutoSynced).toBe(false);
@@ -327,7 +326,7 @@ describe('Pinia Stores', () => {
             expect(store.offsetSeconds).toBe(-600);
             expect(store.isAutoSynced).toBe(true);
             expect(store.syncError).toBeNull();
-            expect(store.syncWarning).toContain('Large time difference');
+            expect(store.syncWarning).toContain('Video time is outside GPX range');
         });
 
         it('should handle auto-sync failure (no GPS/time) and set error', async () => {
@@ -354,7 +353,7 @@ describe('Pinia Stores', () => {
                 [{ lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:00:00Z') }],
                 new Date('2024-01-15T09:40:00Z')
             );
-            expect(store.syncWarning).toContain('Large time difference');
+            expect(store.syncWarning).toContain('Video time is outside GPX range');
 
             // Second sync without warning
             await store.performAutoSync(
@@ -393,7 +392,6 @@ describe('Pinia Stores', () => {
             await store.performAutoSync(
                 [{ lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:00:00Z') }],
                 new Date('2024-01-15T10:00:00Z'),
-                undefined,
                 undefined,
                 undefined,
                 true // allow override
@@ -492,7 +490,7 @@ describe('Pinia Stores', () => {
 
             expect(store.offsetSeconds).toBeCloseTo(-301, 0);
             expect(store.isAutoSynced).toBe(true);
-            expect(store.syncWarning).toContain('Large time difference');
+            expect(store.syncWarning).toContain('Video time is outside GPX range');
         });
 
         it('should not apply timezone offset twice (absolute Date)', async () => {
@@ -504,16 +502,13 @@ describe('Pinia Stores', () => {
                     { lat: 55.75, lon: 37.61, time: new Date('2026-02-11T10:00:00Z') },
                 ],
                 new Date('2026-02-11T10:00:00Z'),
-                undefined,
-                undefined,
-                -180 // timezone offset should be ignored
             );
 
             expect(store.offsetSeconds).toBe(0);
             expect(store.isAutoSynced).toBe(true);
         });
 
-        it('should keep large auto-sync offset even when video duration is passed', async () => {
+        it('should apply large offset and warn when outside GPX range', async () => {
             const store = useSyncStore();
 
             await store.performAutoSync(
@@ -521,16 +516,11 @@ describe('Pinia Stores', () => {
                     { lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:00:00Z') },
                 ],
                 new Date('2024-01-15T10:10:00Z'),
-                undefined,
-                undefined,
-                undefined,
-                false,
-                120,
             );
 
             expect(store.offsetSeconds).toBe(600);
             expect(store.isAutoSynced).toBe(true);
-            expect(store.syncWarning).toContain('Large time difference');
+            expect(store.syncWarning).toContain('Video time is outside GPX range');
         });
     });
 

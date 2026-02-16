@@ -17,6 +17,8 @@ vi.mock('mediabunny', () => {
         duration: 120,
         date: new Date('2026-02-11T10:00:00Z'),
         raw: { location: '+55.7558+037.6176/' },
+        throwPrimaryTrack: false,
+        throwMetadataTags: false,
     };
 
     class BlobSource {
@@ -33,6 +35,10 @@ vi.mock('mediabunny', () => {
         }
 
         async getPrimaryVideoTrack() {
+            if (state.throwPrimaryTrack) {
+                throw new Error('unsupported codec in side stream');
+            }
+
             return {
                 displayWidth: state.width,
                 displayHeight: state.height,
@@ -47,6 +53,10 @@ vi.mock('mediabunny', () => {
         }
 
         async getMetadataTags() {
+            if (state.throwMetadataTags) {
+                throw new Error('failed to read metadata tags');
+            }
+
             return {
                 date: state.date,
                 raw: state.raw,
@@ -96,6 +106,42 @@ function createMockVideoElement(params: {
     return video;
 }
 
+function createMp4WithMvhdCreationTime(isoTime: string): Uint8Array {
+    const date = new Date(isoTime);
+    const unixSec = Math.floor(date.getTime() / 1000);
+    const mp4Sec = unixSec + 2_082_844_800; // seconds since 1904-01-01
+
+    // Simple mvhd box (version 0)
+    const boxSize = 32;
+    const bytes = new Uint8Array(boxSize);
+
+    // size (big-endian)
+    bytes[0] = 0;
+    bytes[1] = 0;
+    bytes[2] = 0;
+    bytes[3] = boxSize;
+
+    // type 'mvhd'
+    bytes[4] = 'm'.charCodeAt(0);
+    bytes[5] = 'v'.charCodeAt(0);
+    bytes[6] = 'h'.charCodeAt(0);
+    bytes[7] = 'd'.charCodeAt(0);
+
+    // version (0) + flags (0,0,0)
+    bytes[8] = 0;
+    bytes[9] = 0;
+    bytes[10] = 0;
+    bytes[11] = 0;
+
+    // creation_time (4 bytes, BE)
+    bytes[12] = (mp4Sec >>> 24) & 0xff;
+    bytes[13] = (mp4Sec >>> 16) & 0xff;
+    bytes[14] = (mp4Sec >>> 8) & 0xff;
+    bytes[15] = mp4Sec & 0xff;
+
+    return bytes;
+}
+
 describe('extractVideoMeta', () => {
     beforeEach(async () => {
         const mediabunny = await import('mediabunny') as any;
@@ -107,6 +153,8 @@ describe('extractVideoMeta', () => {
             duration: 120,
             date: new Date('2026-02-11T10:00:00Z'),
             raw: { location: '+55.7558+037.6176/' },
+            throwPrimaryTrack: false,
+            throwMetadataTags: false,
         });
 
         vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test-url');
@@ -206,5 +254,87 @@ describe('extractVideoMeta', () => {
         expect(meta.codec).toBe('unknown');
         expect(meta.fps).toBe(30);
         expect(meta.gps).toBeUndefined();
+    });
+
+    it('should keep startTime from metadata tags when primary track probing fails', async () => {
+        const mediabunny = await import('mediabunny') as any;
+        const expectedDate = new Date('2026-02-15T14:25:00.000Z');
+        mediabunny.__setMockMp4Meta({
+            throwPrimaryTrack: true,
+            date: expectedDate,
+            raw: {
+                creation_time: '2026-02-15T14:25:00.000000Z',
+            },
+        });
+
+        vi.spyOn(document, 'createElement').mockReturnValue(
+            createMockVideoElement({ width: 1920, height: 1080, duration: 120, trigger: 'loaded' }),
+        );
+
+        const file = new File([new Uint8Array([1, 2, 3])], 'dji-90sec-video.MP4', { type: 'video/mp4' });
+        const meta = await extractVideoMeta(file);
+
+        expect(meta.startTime?.toISOString()).toBe(expectedDate.toISOString());
+    });
+
+    it('should extract startTime from raw metadata when tags.date is missing', async () => {
+        const mediabunny = await import('mediabunny') as any;
+        mediabunny.__setMockMp4Meta({
+            date: undefined,
+            raw: {
+                creation_time: '2026-02-15T14:25:00.000000Z',
+            },
+        });
+
+        vi.spyOn(document, 'createElement').mockReturnValue(
+            createMockVideoElement({ width: 1920, height: 1080, duration: 120, trigger: 'loaded' }),
+        );
+
+        const file = new File([new Uint8Array([1, 2, 3])], 'dji-90sec-video.MP4', { type: 'video/mp4' });
+        const meta = await extractVideoMeta(file);
+
+        expect(meta.startTime?.toISOString()).toBe('2026-02-15T14:25:00.000Z');
+    });
+
+    it('should not infer startTime from arbitrary numeric raw metadata fields', async () => {
+        const mediabunny = await import('mediabunny') as any;
+        mediabunny.__setMockMp4Meta({
+            date: undefined,
+            raw: {
+                lat: 54.76189,
+                lon: 35.630005,
+                speed: 4.2,
+                altitude: 139.4,
+            },
+        });
+
+        vi.spyOn(document, 'createElement').mockReturnValue(
+            createMockVideoElement({ width: 1920, height: 1080, duration: 120, trigger: 'loaded' }),
+        );
+
+        const file = new File([new Uint8Array([1, 2, 3])], 'dji-90sec-video.MP4', { type: 'video/mp4' });
+        const meta = await extractVideoMeta(file);
+
+        expect(meta.startTime).toBeUndefined();
+    });
+
+    it('should extract startTime from mvhd when mediabunny metadata is unavailable', async () => {
+        const mediabunny = await import('mediabunny') as any;
+        mediabunny.__setMockMp4Meta({
+            throwPrimaryTrack: true,
+            throwMetadataTags: true,
+            date: undefined,
+            raw: undefined,
+        });
+
+        vi.spyOn(document, 'createElement').mockReturnValue(
+            createMockVideoElement({ width: 1920, height: 1080, duration: 120, trigger: 'loaded' }),
+        );
+
+        const fileBytes = createMp4WithMvhdCreationTime('2026-02-15T14:25:00Z');
+        const file = new File([fileBytes], 'dji-90sec-video.MP4', { type: 'video/mp4' });
+
+        const meta = await extractVideoMeta(file);
+        expect(meta.startTime?.toISOString()).toBe('2026-02-15T14:25:00.000Z');
     });
 });
