@@ -65,6 +65,8 @@ function onTemplateChange(event: Event): void {
 
 .template-dropdown__select {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--color-border, #404040);
   background: var(--color-bg-tertiary, #242424);
@@ -73,6 +75,11 @@ function onTemplateChange(event: Event): void {
   font-size: 0.9rem;
   cursor: pointer;
   transition: border-color 0.2s;
+
+  /* prevent the selected value from expanding the control on small screens */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .template-dropdown__select:hover,
