@@ -126,5 +126,18 @@ describe('layout modules', () => {
                 renderHorizonLayout(mockCtx, [], 1920, 1080, horizonConfig);
             }).not.toThrow();
         });
+
+        it('should render units for landscape videos', () => {
+            renderHorizonLayout(mockCtx, sampleMetrics, 1920, 1080, horizonConfig);
+            // unit strings must be rendered for Heart Rate and Pace
+            expect(mockCtx.fillText).toHaveBeenCalledWith('bpm', expect.any(Number), expect.any(Number));
+            expect(mockCtx.fillText).toHaveBeenCalledWith('min/km', expect.any(Number), expect.any(Number));
+        });
+
+        it('should still render units on very wide (ultra-landscape) frames', () => {
+            renderHorizonLayout(mockCtx, sampleMetrics, 3840, 720, horizonConfig);
+            expect(mockCtx.fillText).toHaveBeenCalledWith('bpm', expect.any(Number), expect.any(Number));
+            expect(mockCtx.fillText).toHaveBeenCalledWith('min/km', expect.any(Number), expect.any(Number));
+        });
     });
 });
