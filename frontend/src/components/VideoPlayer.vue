@@ -162,4 +162,14 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
 }
+
+@media (max-width: 640px) {
+  .video-player {
+    border-radius: 6px;
+  }
+
+  .video-player__video::-webkit-media-controls {
+    display: flex !important;
+  }
+}
 </style>

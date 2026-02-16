@@ -217,4 +217,26 @@ export default {
   font-size: 0.85rem;
   margin: 0.5rem 0 0;
 }
+
+@media (max-width: 640px) {
+  .upload-zone {
+    padding: 1.25rem;
+    min-height: 150px;
+    touch-action: manipulation;
+  }
+
+  .upload-zone__icon {
+    font-size: 2rem;
+  }
+
+  .upload-zone__title {
+    font-size: 1rem;
+  }
+
+  .upload-zone__remove {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0.5rem 0.75rem;
+  }
+}
 </style>

@@ -400,4 +400,28 @@ watch(
 .webgpu-badge--active .webgpu-badge__toggle:hover {
   background: rgba(100, 108, 255, 0.5);
 }
+
+@media (max-width: 640px) {
+  .processing-view {
+    padding: 1.5rem 0.75rem;
+  }
+
+  .processing-view__hint {
+    padding: 0.75rem;
+  }
+
+  .processing-view__hint ol {
+    padding-left: 1.25rem;
+  }
+
+  .processing-view__hint code {
+    font-size: 0.8rem;
+    word-break: break-all;
+  }
+
+  .processing-view__btn {
+    min-height: 44px;
+    padding: 0.75rem 1rem;
+  }
+}
 </style>
