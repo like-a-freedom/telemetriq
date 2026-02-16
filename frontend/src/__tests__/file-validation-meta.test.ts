@@ -332,8 +332,110 @@ describe('extractVideoMeta', () => {
         );
 
         const fileBytes = createMp4WithMvhdCreationTime('2026-02-15T14:25:00Z');
-        const file = new File([fileBytes], 'dji-90sec-video.MP4', { type: 'video/mp4' });
+        const file = new File([fileBytes.buffer as unknown as ArrayBuffer], 'dji-90sec-video.MP4', { type: 'video/mp4' });
 
+        const meta = await extractVideoMeta(file);
+        expect(meta.startTime?.toISOString()).toBe('2026-02-15T14:25:00.000Z');
+    });
+
+    it('should use DJI filename startTime when MP4 metadata is missing', async () => {
+        const mediabunny = await import('mediabunny') as any;
+        mediabunny.__setMockMp4Meta({ date: undefined, raw: undefined });
+
+        vi.spyOn(document, 'createElement').mockReturnValue(
+            createMockVideoElement({ width: 1920, height: 1080, duration: 60, trigger: 'loaded' }),
+        );
+
+        const file = new File([new Uint8Array([1, 2, 3])], 'DJI_20260215_142500.mp4', { type: 'video/mp4' });
+        const meta = await extractVideoMeta(file);
+
+        const expectedLocal = new Date(2026, 1, 15, 14, 25, 0);
+        expect(meta.startTime).not.toBeUndefined();
+        expect(meta.startTime!.getTime()).toBe(expectedLocal.getTime());
+        expect(meta.timezoneOffsetMinutes).toBe(-meta.startTime!.getTimezoneOffset());
+    });
+
+    it('should prefer MP4 creation_time over DJI filename and set timezoneOffsetMinutes=0', async () => {
+        const mediabunny = await import('mediabunny') as any;
+        const mp4Date = new Date('2026-02-15T14:25:00Z');
+        mediabunny.__setMockMp4Meta({ date: mp4Date, raw: { creation_time: mp4Date.toISOString() } });
+
+        vi.spyOn(document, 'createElement').mockReturnValue(
+            createMockVideoElement({ width: 1920, height: 1080, duration: 60, trigger: 'loaded' }),
+        );
+
+        const file = new File([new Uint8Array([1, 2, 3])], 'DJI_20260215_142500.mp4', { type: 'video/mp4' });
+        const meta = await extractVideoMeta(file);
+
+        expect(meta.startTime).not.toBeUndefined();
+        expect(meta.startTime!.toISOString()).toBe(mp4Date.toISOString());
+        expect(meta.timezoneOffsetMinutes).toBe(0);
+    });
+
+    it('should use DJI filename for very large files (skip deep mp4 parsing)', async () => {
+        const mediabunny = await import('mediabunny') as any;
+        mediabunny.__setMockMp4Meta({ date: undefined, raw: undefined });
+
+        vi.spyOn(document, 'createElement').mockReturnValue(
+            createMockVideoElement({ width: 1280, height: 720, duration: 30, trigger: 'loaded' }),
+        );
+
+        const file = new File([new Uint8Array([1, 2, 3])], 'DJI_20260215_142500.mp4', { type: 'video/mp4' });
+        Object.defineProperty(file, 'size', { value: FAST_METADATA_THRESHOLD_BYTES + 1 });
+
+        const meta = await extractVideoMeta(file);
+        const expectedLocal = new Date(2026, 1, 15, 14, 25, 0);
+        expect(meta.startTime).not.toBeUndefined();
+        expect(meta.startTime!.getTime()).toBe(expectedLocal.getTime());
+        expect(meta.codec).toBe('unknown');
+    });
+
+    it('should find mvhd creation_time in file tail (non-faststart MP4)', async () => {
+        const mediabunny = await import('mediabunny') as any;
+        mediabunny.__setMockMp4Meta({ throwPrimaryTrack: true, throwMetadataTags: true, date: undefined, raw: undefined });
+
+        vi.spyOn(document, 'createElement').mockReturnValue(
+            createMockVideoElement({ width: 1920, height: 1080, duration: 120, trigger: 'loaded' }),
+        );
+
+        const mvhd = createMp4WithMvhdCreationTime('2026-02-15T14:25:00Z');
+        const leading = new Uint8Array(1024);
+        const combined = new Uint8Array(leading.length + mvhd.length);
+        combined.set(leading, 0);
+        combined.set(mvhd, leading.length);
+
+        const file = new File([combined.buffer as unknown as ArrayBuffer], 'video.mp4', { type: 'video/mp4' });
+        const meta = await extractVideoMeta(file);
+        expect(meta.startTime?.toISOString()).toBe('2026-02-15T14:25:00.000Z');
+    });
+
+    it('should extract mvhd creation_time (version 1, 64-bit)', async () => {
+        const mediabunny = await import('mediabunny') as any;
+        mediabunny.__setMockMp4Meta({ throwPrimaryTrack: true, throwMetadataTags: true, date: undefined, raw: undefined });
+
+        vi.spyOn(document, 'createElement').mockReturnValue(
+            createMockVideoElement({ width: 1920, height: 1080, duration: 120, trigger: 'loaded' }),
+        );
+
+        // build mvhd v1 with 64-bit creation_time
+        function createMvhdV1(iso: string) {
+            const date = new Date(iso);
+            const unixSec = Math.floor(date.getTime() / 1000);
+            const mp4Sec = unixSec + 2_082_844_800;
+            const boxSize = 40;
+            const b = new Uint8Array(boxSize);
+            b[0] = 0; b[1] = 0; b[2] = 0; b[3] = boxSize;
+            b[4] = 'm'.charCodeAt(0); b[5] = 'v'.charCodeAt(0); b[6] = 'h'.charCodeAt(0); b[7] = 'd'.charCodeAt(0);
+            b[8] = 1; b[9] = 0; b[10] = 0; b[11] = 0; // version 1
+            const high = Math.floor(mp4Sec / 2 ** 32) >>> 0;
+            const low = mp4Sec >>> 0;
+            b[12] = (high >>> 24) & 0xff; b[13] = (high >>> 16) & 0xff; b[14] = (high >>> 8) & 0xff; b[15] = high & 0xff;
+            b[16] = (low >>> 24) & 0xff; b[17] = (low >>> 16) & 0xff; b[18] = (low >>> 8) & 0xff; b[19] = low & 0xff;
+            return b;
+        }
+
+        const mvhdV1 = createMvhdV1('2026-02-15T14:25:00Z');
+        const file = new File([mvhdV1.buffer as unknown as ArrayBuffer], 'video.mp4', { type: 'video/mp4' });
         const meta = await extractVideoMeta(file);
         expect(meta.startTime?.toISOString()).toBe('2026-02-15T14:25:00.000Z');
     });

@@ -9,6 +9,7 @@
       "@webgpu/types",
       "vite-ssg"
     ],
+    "skipLibCheck": true,
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,
