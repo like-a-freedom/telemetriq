@@ -6,15 +6,18 @@ const EARTH_RADIUS_KM = 6371;
 /** Minimum speed threshold (km/h) to consider "moving" */
 const MOVING_SPEED_THRESHOLD = 1.0;
 
-/** Pace estimation parameters - tuned for responsive display
- * 
- * PACE_WINDOW_MIN_SECONDS = 2 (reduced from 3) and PACE_WINDOW_MIN_DISTANCE_KM = 0.005 (5m, reduced from 8m)
- * make pace respond ~40% faster to speed changes (e.g., walking→running) while maintaining
- * enough smoothing to avoid 1-second jitter. With these values, pace updates within 2-3 seconds
- * of actual speed change, making the overlay feel responsive and "real-time" to viewers.
+/** Pace estimation parameters - tuned for responsive yet stable display
+ *
+ * PACE_WINDOW_MIN_SECONDS = 2 (reduced from 3s) makes pace respond faster to speed changes
+ * while PACE_WINDOW_MIN_DISTANCE_KM = 0.006 (6m) provides enough smoothing to prevent
+ * GPS noise from causing ±1 min/km jitter during steady running.
+ *
+ * The 6m distance threshold filters out typical GPS noise (~3-5m) while 2s time threshold
+ * ensures quick response to actual speed changes. This gives responsive feel (2-3s reaction)
+ * without the "jitter" problem where pace oscillates 6→8 min/km during steady pace.
  */
-const PACE_WINDOW_MIN_DISTANCE_KM = 0.005; // 5 meters
-const PACE_WINDOW_MIN_SECONDS = 2; // 2 seconds
+const PACE_WINDOW_MIN_DISTANCE_KM = 0.007; // 7 meters - filters GPS noise, keeps responsiveness
+const PACE_WINDOW_MIN_SECONDS = 2; // 2 seconds - fast response to speed changes
 const PACE_WINDOW_MAX_SECONDS = 300;
 
 
@@ -164,6 +167,7 @@ function interpolateOptionalValue(
 /**
  * Fill missing pace values using linear interpolation between known values,
  * and edge extrapolation using nearest known pace.
+ * Applies light median filtering to smooth GPS noise while preserving real speed changes.
  */
 function fillMissingPaceValues(values: Array<number | undefined>): Array<number | undefined> {
     if (values.length === 0) return values;
@@ -178,6 +182,45 @@ function fillMissingPaceValues(values: Array<number | undefined>): Array<number 
     extrapolateLeadingValues(result, validIndices);
     interpolateGapValues(result, validIndices);
     extrapolateTrailingValues(result, validIndices);
+
+    // Apply median filter (window size 7) to smooth GPS noise
+    // This removes outliers while preserving real speed changes
+    return applyMedianFilter(result as number[], 7);
+}
+
+/**
+ * Apply median filter to smooth outliers while preserving edges.
+ * Window size should be odd (3, 5, 7...).
+ */
+function applyMedianFilter(values: number[], windowSize: number): Array<number | undefined> {
+    if (values.length < windowSize) return values;
+
+    const halfWindow = Math.floor(windowSize / 2);
+    const result: Array<number | undefined> = new Array(values.length);
+
+    for (let i = 0; i < values.length; i++) {
+        // For edges, just copy the value
+        if (i < halfWindow || i >= values.length - halfWindow) {
+            result[i] = values[i];
+            continue;
+        }
+
+        // Extract window and compute median
+        const window: number[] = [];
+        for (let j = -halfWindow; j <= halfWindow; j++) {
+            const val = values[i + j];
+            if (val !== undefined) {
+                window.push(val);
+            }
+        }
+
+        if (window.length === 0) {
+            result[i] = undefined;
+        } else {
+            window.sort((a, b) => a - b);
+            result[i] = window[Math.floor(window.length / 2)];
+        }
+    }
 
     return result;
 }

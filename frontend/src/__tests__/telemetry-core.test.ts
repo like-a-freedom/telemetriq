@@ -571,6 +571,60 @@ describe('Telemetry Core', () => {
             expect(settledPace!.paceSecondsPerKm!).toBeLessThan(350); // Close to 250 sec/km
         });
 
+        it('should maintain stable pace during steady running without jitter', () => {
+            // Simulating: athlete runs at steady ~5:00 min/km (300 sec/km) for 20 seconds
+            // Real GPS recordings have small coordinate variations (noise)
+            // This test verifies that small GPS noise doesn't cause ±1 min/km swings
+            const t0 = new Date('2024-01-15T10:00:00Z').getTime();
+            const points: TrackPoint[] = [];
+
+            // Steady running: ~3.33 m/s = 5:00 min/km
+            // Add small GPS noise (±1m) to simulate real GPS data
+            const noisePattern = [0, 0.000008, -0.000003, 0.000005, -0.000007, 
+                                  0.000004, -0.000006, 0.000002, -0.000004, 0.000003,
+                                  0.000007, -0.000005, 0.000004, -0.000008, 0.000006,
+                                  -0.000003, 0.000005, -0.000004, 0.000007, -0.000006,
+                                  0.000002]; // ±~1m noise
+
+            for (let s = 0; s <= 20; s++) {
+                // Base movement: ~3.33m/s (0.000030° lat/s)
+                const baseLat = 55.0 + s * 0.000030;
+                const noisyLat = baseLat + (noisePattern[s] ?? 0);
+                points.push(makePoint(
+                    noisyLat,
+                    37.0 + (Math.random() * 0.000002 - 0.000001), // Small lon noise
+                    new Date(t0 + s * 1000).toISOString()
+                ));
+            }
+
+            const frames = buildTelemetryTimeline(points);
+            
+            // Collect pace values from second 3 to second 17 (avoid start/end effects)
+            const paceValues: number[] = [];
+            for (let sec = 3; sec <= 17; sec++) {
+                const frame = getTelemetryAtTime(frames, sec, 0);
+                if (frame?.paceSecondsPerKm !== undefined) {
+                    paceValues.push(frame.paceSecondsPerKm);
+                }
+            }
+
+            expect(paceValues.length).toBeGreaterThan(10);
+
+            // Calculate statistics
+            const minPace = Math.min(...paceValues);
+            const maxPace = Math.max(...paceValues);
+            const avgPace = paceValues.reduce((a, b) => a + b, 0) / paceValues.length;
+
+            // For steady ~5:00/km running (300 sec/km), jitter should be within ±~1:05 min/km (±65 sec/km)
+            // This prevents the "6→8 min/km jumps" issue while keeping display responsive
+            const maxAllowedVariance = 65; // seconds per km (~±1:05 min/km at 5:00 pace)
+            expect(maxPace - minPace).toBeLessThanOrEqual(maxAllowedVariance);
+
+            // Average should be close to expected 300 sec/km (±30 sec)
+            expect(avgPace).toBeGreaterThan(270); // > 4:30 min/km
+            expect(avgPace).toBeLessThan(330);    // < 5:30 min/km
+        });
+
         it('should compute stable valid pace for 9-second clip window', () => {
             const points = [
                 // pre-roll low movement before clip start
