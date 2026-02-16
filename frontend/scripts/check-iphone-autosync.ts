@@ -3,21 +3,21 @@ import path from 'path';
 import { autoSync } from '../src/modules/sync-engine';
 
 function parseGpxMinimal(xml: string) {
-  const pts = [];
-  const re = /<trkpt\s+lat="([^"]+)"\s+lon="([^"]+)"[^>]*>([\s\S]*?)<\/trkpt>/g;
-  let m;
-  while ((m = re.exec(xml)) !== null) {
-    const lat = parseFloat(m[1]);
-    const lon = parseFloat(m[2]);
-    const body = m[3];
-    const timeMatch = body.match(/<time>([^<]+)<\/time>/);
-    const hrMatch = body.match(/<gpxtpx:hr>(\d+)<\/gpxtpx:hr>/);
-    if (!timeMatch) continue;
-    const time = new Date(timeMatch[1]);
-    pts.push({ lat, lon, time, hr: hrMatch ? Number(hrMatch[1]) : undefined });
-    if (pts.length >= 10) break; // enough for sync
-  }
-  return pts;
+    const pts = [];
+    const re = /<trkpt\s+lat="([^"]+)"\s+lon="([^"]+)"[^>]*>([\s\S]*?)<\/trkpt>/g;
+    let m;
+    while ((m = re.exec(xml)) !== null) {
+        const lat = parseFloat(m[1]);
+        const lon = parseFloat(m[2]);
+        const body = m[3];
+        const timeMatch = body.match(/<time>([^<]+)<\/time>/);
+        const hrMatch = body.match(/<gpxtpx:hr>(\d+)<\/gpxtpx:hr>/);
+        if (!timeMatch) continue;
+        const time = new Date(timeMatch[1]);
+        pts.push({ lat, lon, time, hr: hrMatch ? Number(hrMatch[1]) : undefined });
+        if (pts.length >= 10) break; // enough for sync
+    }
+    return pts;
 }
 
 const gpxPath = path.resolve(__dirname, '../../test_data/iphone/iphone-track.gpx');
