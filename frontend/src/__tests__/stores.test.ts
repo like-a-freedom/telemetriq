@@ -9,6 +9,7 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { parseGpx } from '../modules/gpx-parser';
 
 const IPHONE_GPX_PATH = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../test_data/iphone/iphone-track.gpx');
+const HAS_IPHONE_GPX = fs.existsSync(IPHONE_GPX_PATH);
 
 describe('Pinia Stores', () => {
     beforeEach(() => {
@@ -167,7 +168,7 @@ describe('Pinia Stores', () => {
             expect(store.isReady).toBe(true); // Both loaded
         });
 
-        it('should auto-sync when GPX and DJI creation_time are present (integration)', async () => {
+        (HAS_IPHONE_GPX ? it : it.skip)('should auto-sync when GPX and DJI creation_time are present (integration)', async () => {
             // Load real iPhone GPX and simulate DJI video with creation_time
             const xml = fs.readFileSync(IPHONE_GPX_PATH, 'utf-8');
             const gpx = parseGpx(xml);
