@@ -99,15 +99,6 @@ describe('progress-utils', () => {
     });
 
     describe('createEtaCalculator', () => {
-        beforeEach(() => {
-            vi.useFakeTimers();
-            vi.setSystemTime(new Date('2024-01-01T00:00:00Z'));
-        });
-
-        afterEach(() => {
-            vi.useRealTimers();
-        });
-
         it('should return undefined when startedAtMs is null', () => {
             const calculator = createEtaCalculator(null);
             expect(calculator.update(50)).toBeUndefined();
@@ -126,8 +117,8 @@ describe('progress-utils', () => {
         });
 
         it('should calculate ETA based on elapsed time', () => {
-            const startedAtMs = Date.now() - 10000;
-            vi.advanceTimersByTime(10000);
+            const now = Date.now();
+            const startedAtMs = now - 10000; // Started 10 seconds ago
 
             const calculator = createEtaCalculator(startedAtMs);
             const eta = calculator.update(50);
@@ -137,8 +128,8 @@ describe('progress-utils', () => {
         });
 
         it('should smooth ETA over multiple updates', () => {
-            const startedAtMs = Date.now() - 10000;
-            vi.advanceTimersByTime(10000);
+            const now = Date.now();
+            const startedAtMs = now - 10000;
 
             const calculator = createEtaCalculator(startedAtMs);
 

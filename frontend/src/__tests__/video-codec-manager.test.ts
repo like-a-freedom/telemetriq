@@ -17,12 +17,18 @@ describe('video-codec-manager', () => {
         fileSize: 1000000,
     };
 
+    let originalVideoDecoder: typeof VideoDecoder;
+    let originalVideoEncoder: typeof VideoEncoder;
+
     beforeEach(() => {
         manager = createVideoCodecManager();
+        originalVideoDecoder = globalThis.VideoDecoder;
+        originalVideoEncoder = globalThis.VideoEncoder;
     });
 
     afterEach(() => {
-        vi.unstubAllGlobals();
+        globalThis.VideoDecoder = originalVideoDecoder;
+        globalThis.VideoEncoder = originalVideoEncoder;
     });
 
     describe('createDecoder', () => {
@@ -30,9 +36,9 @@ describe('video-codec-manager', () => {
             const onFrame = vi.fn();
             const onError = vi.fn();
 
-            vi.stubGlobal('VideoDecoder', class {
+            globalThis.VideoDecoder = class MockVideoDecoder {
                 configure = vi.fn();
-            });
+            } as any;
 
             const decoder = manager.createDecoder('avc1.640028', undefined, onFrame, onError);
 
@@ -43,11 +49,11 @@ describe('video-codec-manager', () => {
             const description = new Uint8Array([1, 2, 3]).buffer;
             const configureSpy = vi.fn();
 
-            vi.stubGlobal('VideoDecoder', class {
+            globalThis.VideoDecoder = class MockVideoDecoder {
                 configure = configureSpy;
                 set output(_: any) { }
                 set error(_: any) { }
-            });
+            } as any;
 
             manager.createDecoder('avc1.640028', description, vi.fn(), vi.fn());
 
@@ -60,27 +66,27 @@ describe('video-codec-manager', () => {
 
     describe('isVideoTrackDecodable', () => {
         it('should return true when config is supported', async () => {
-            vi.stubGlobal('VideoDecoder', {
+            globalThis.VideoDecoder = {
                 isConfigSupported: vi.fn().mockResolvedValue({ supported: true }),
-            });
+            } as any;
 
             const result = await manager.isVideoTrackDecodable('avc1.640028');
             expect(result).toBe(true);
         });
 
         it('should return false when config is not supported', async () => {
-            vi.stubGlobal('VideoDecoder', {
+            globalThis.VideoDecoder = {
                 isConfigSupported: vi.fn().mockResolvedValue({ supported: false }),
-            });
+            } as any;
 
             const result = await manager.isVideoTrackDecodable('unsupported');
             expect(result).toBe(false);
         });
 
         it('should return false when check throws', async () => {
-            vi.stubGlobal('VideoDecoder', {
+            globalThis.VideoDecoder = {
                 isConfigSupported: vi.fn().mockRejectedValue(new Error('error')),
-            });
+            } as any;
 
             const result = await manager.isVideoTrackDecodable('avc1.640028');
             expect(result).toBe(false);
@@ -89,17 +95,13 @@ describe('video-codec-manager', () => {
 
     describe('createEncoder', () => {
         it('should throw when no codec is supported', async () => {
-            vi.stubGlobal('VideoEncoder', {
-                isConfigSupported: vi.fn().mockResolvedValue({ supported: false }),
-            });
-
-            vi.stubGlobal('VideoEncoder', class {
+            globalThis.VideoEncoder = class MockVideoEncoder {
                 static isConfigSupported = vi.fn().mockResolvedValue({ supported: false });
                 state = 'unconfigured';
                 configure() { }
                 set output(_: any) { }
                 set error(_: any) { }
-            });
+            } as any;
 
             await expect(
                 manager.createEncoder(mockVideoMeta, 'avc1.640028', vi.fn(), vi.fn())
