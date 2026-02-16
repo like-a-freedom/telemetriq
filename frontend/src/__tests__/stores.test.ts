@@ -1,10 +1,15 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { vi } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
 import { setActivePinia, createPinia } from 'pinia';
 import { useFilesStore } from '../stores/filesStore';
 import { useSyncStore } from '../stores/syncStore';
 import { useProcessingStore } from '../stores/processingStore';
 import { useSettingsStore } from '../stores/settingsStore';
+import { parseGpx } from '../modules/gpx-parser';
+
+const IPHONE_GPX_PATH = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../test_data/iphone/iphone-track.gpx');
 
 describe('Pinia Stores', () => {
     beforeEach(() => {
@@ -163,9 +168,42 @@ describe('Pinia Stores', () => {
             expect(store.isReady).toBe(true); // Both loaded
         });
 
-        it.skip('should auto-sync when GPX and DJI creation_time are present (integration)', async () => {
-            // Skipped - requires browser environment with DOMParser for GPX parsing
-            // This is an E2E/integration test that should run in Playwright
+        it('should auto-sync when GPX and DJI creation_time are present (integration)', async () => {
+            // Load real iPhone GPX and simulate DJI video with creation_time
+            const xml = fs.readFileSync(IPHONE_GPX_PATH, 'utf-8');
+            const gpx = parseGpx(xml);
+
+            // Simulate a DJI video file with creation_time
+            const store = useFilesStore();
+            store.gpxFile = new File([xml], 'iphone-track.gpx', { type: 'application/gpx+xml' });
+            store.gpxData = gpx;
+
+            // Simulate video meta with DJI creation_time
+            store.videoFile = new File([], 'DJI_20260211092425_0002_D.MP4');
+            store.videoMeta = {
+                duration: 90,
+                width: 1728,
+                height: 3072,
+                fps: 30,
+                codec: 'hvc1',
+                fileName: 'DJI_20260211092425_0002_D.MP4',
+                fileSize: 1024,
+                creationTime: new Date('2026-02-15T14:25:00Z'),
+            };
+
+            // Trigger auto-sync
+            const syncStore = useSyncStore();
+            await syncStore.performAutoSync(
+                gpx.points,
+                store.videoMeta.creationTime,
+                undefined,
+                store.videoMeta.duration,
+                true,
+            );
+
+            expect(syncStore.offsetSeconds).toBeGreaterThan(0);
+            expect(syncStore.isAutoSynced).toBe(true);
+            expect(syncStore.syncError).toBeNull();
         });
 
         it('should add warning for long videos', async () => {

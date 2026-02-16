@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
 import {
     autoSync,
     clampSyncOffset,
@@ -9,6 +11,9 @@ import {
 } from '../modules/sync-engine';
 import type { TrackPoint } from '../core/types';
 import { SyncError } from '../core/errors';
+import { parseGpx } from '../modules/gpx-parser';
+
+const IPHONE_GPX_PATH = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../test_data/iphone/iphone-track.gpx');
 
 function makePoint(lat: number, lon: number, timeStr: string): TrackPoint {
     return {
@@ -293,17 +298,37 @@ describe('Sync Engine', () => {
             expect(result.warning).toBeUndefined();
         });
 
-        // Note: Tests using real GPX files require DOMParser which is only available in browsers
-        // These integration tests are run in E2E test environment
+        // Integration tests using real GPX files (happy-dom provides DOMParser)
+        it('should not snap to distant GPS loop segment on real iPhone track', () => {
+            // Load real iPhone GPX and verify GPS refinement doesn't jump to a far-away loop segment
+            const xml = fs.readFileSync(IPHONE_GPX_PATH, 'utf-8');
+            const gpx = parseGpx(xml);
+            const points = gpx.points;
 
-        it.skip('should not snap to distant GPS loop segment on real iPhone track', () => {
-            // Requires DOMParser - run in E2E tests
-            // Tests GPS refinement logic with real iPhone GPX data
+            // Use a coordinate that is near the middle of the track
+            const midIdx = Math.floor(points.length / 2);
+            const target = points[midIdx]!;
+
+            const result = autoSync(points, undefined, target.lat, target.lon);
+            expect(result.autoSynced).toBe(true);
+            // Offset should be close to the time of that middle point (within a few minutes)
+            const expectedOffset = (target.time.getTime() - points[0]!.time.getTime()) / 1000;
+            expect(Math.abs(result.offsetSeconds - expectedOffset)).toBeLessThan(30);
         });
 
-        it.skip('should sync DJI creation_time to real iPhone GPX mid-track without warning', () => {
-            // Requires DOMParser - run in E2E tests
-            // Tests time-based sync with real iPhone GPX data
+        it('should sync DJI creation_time to real iPhone GPX mid-track without warning', () => {
+            // Simulate DJI video creation_time (2026-02-15T14:25:00Z) and iPhone GPX track
+            // The iPhone track starts at 2026-02-15T09:02:07Z. The offset should be ~19273 seconds.
+            const xml = fs.readFileSync(IPHONE_GPX_PATH, 'utf-8');
+            const gpx = parseGpx(xml);
+            const points = gpx.points;
+
+            const djiCreationTime = new Date('2026-02-15T14:25:00Z');
+            const result = autoSync(points, djiCreationTime);
+
+            expect(result.autoSynced).toBe(true);
+            expect(result.offsetSeconds).toBeCloseTo(19373, -1); // within ±10s
+            expect(result.warning).toBeUndefined();
         });
     });
 
