@@ -1,12 +1,16 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 describe('webgpu-adapter status helpers', () => {
     const storage = new Map<string, string>();
+    let originalNavigator: Navigator;
+    let originalLocalStorage: Storage;
 
     beforeEach(() => {
-        vi.resetModules();
+        originalNavigator = globalThis.navigator;
+        originalLocalStorage = globalThis.localStorage;
         storage.clear();
-        vi.stubGlobal('localStorage', {
+        
+        globalThis.localStorage = {
             getItem: (key: string) => storage.get(key) ?? null,
             setItem: (key: string, value: string) => {
                 storage.set(key, value);
@@ -17,16 +21,18 @@ describe('webgpu-adapter status helpers', () => {
             clear: () => {
                 storage.clear();
             },
-        });
+            length: 0,
+            key: () => null,
+        } as Storage;
     });
 
     afterEach(() => {
-        vi.unstubAllGlobals();
-        vi.restoreAllMocks();
+        globalThis.navigator = originalNavigator;
+        globalThis.localStorage = originalLocalStorage;
     });
 
     it('returns unavailable status when navigator.gpu is absent', async () => {
-        vi.stubGlobal('navigator', {} as Navigator);
+        globalThis.navigator = {} as Navigator;
 
         const mod = await import('../modules/webgpu/webgpu-adapter');
         const status = mod.getWebGPUStatus();
@@ -38,7 +44,7 @@ describe('webgpu-adapter status helpers', () => {
     });
 
     it('toggles availability when gpu is supported', async () => {
-        vi.stubGlobal('navigator', { gpu: {} } as Navigator);
+        globalThis.navigator = { gpu: {} } as Navigator;
 
         const mod = await import('../modules/webgpu/webgpu-adapter');
 

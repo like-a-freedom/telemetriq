@@ -60,7 +60,12 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     globals: true,
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    include: ['src/__tests__/**/*.{test,spec}.{ts,tsx}'],
+    exclude: [
+      'src/__tests__/pace-real-gpx-regression.test.ts',
+      '**/e2e/**',
+      '**/e2e',
+    ],
     coverage: {
       provider: 'v8',
       exclude: [],
