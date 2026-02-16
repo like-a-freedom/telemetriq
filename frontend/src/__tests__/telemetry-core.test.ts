@@ -257,6 +257,38 @@ describe('Telemetry Core', () => {
             expect(timeline[2]!.movingTimeSeconds).toBeGreaterThan(0); // Moving
         });
 
+        it('should not count auto-pause as moving time and resume correctly', () => {
+            // Simulate run -> pause (many stationary points) -> resume
+            const t0 = new Date('2024-01-15T10:00:00Z').getTime();
+            const points = [
+                // moving initially
+                makePoint(55.0000, 37.0000, new Date(t0).toISOString()),
+                makePoint(55.00003, 37.0000, new Date(t0 + 1000).toISOString()),
+                // pause: repeated identical positions every 10s for 30s
+                makePoint(55.00003, 37.0000, new Date(t0 + 11000).toISOString()),
+                makePoint(55.00003, 37.0000, new Date(t0 + 21000).toISOString()),
+                makePoint(55.00003, 37.0000, new Date(t0 + 31000).toISOString()),
+                // resume moving
+                makePoint(55.00006, 37.0000, new Date(t0 + 32000).toISOString()),
+                makePoint(55.00009, 37.0000, new Date(t0 + 33000).toISOString()),
+            ];
+
+            const timeline = buildTelemetryTimeline(points);
+
+            // After initial move (index 1) movingTime > 0
+            expect(timeline[1]!.movingTimeSeconds).toBeGreaterThan(0);
+            const movingBeforePause = timeline[1]!.movingTimeSeconds;
+
+            // During pause (indices 2-4) movingTime should NOT increase
+            expect(timeline[2]!.movingTimeSeconds).toBeCloseTo(movingBeforePause, 3);
+            expect(timeline[3]!.movingTimeSeconds).toBeCloseTo(movingBeforePause, 3);
+            expect(timeline[4]!.movingTimeSeconds).toBeCloseTo(movingBeforePause, 3);
+
+            // After resume (index 5+) movingTime must increase relative to before-pause
+            expect(timeline[5]!.movingTimeSeconds).toBeGreaterThan(movingBeforePause);
+            expect(timeline[6]!.movingTimeSeconds).toBeGreaterThan(timeline[5]!.movingTimeSeconds);
+        });
+
         it('should propagate elevation from GPX points into telemetry frames', () => {
             const points = [
                 makePointWithElevation(55.7558, 37.6173, '2024-01-15T10:00:00Z', 120, 140),
