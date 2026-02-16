@@ -163,6 +163,41 @@ describe('Pinia Stores', () => {
             expect(store.isReady).toBe(true); // Both loaded
         });
 
+        it('should auto-sync when GPX and DJI creation_time are present (integration)', async () => {
+            const files = useFilesStore();
+            const sync = useSyncStore();
+
+            // Load real GPX fixture
+            const gpxXml = await (await import('fs')).promises.readFile(
+                require('path').resolve(__dirname, '../../../test_data/iphone/iphone-track.gpx'),
+                'utf-8',
+            );
+
+            await files.setGpxFile(new File([gpxXml], 'iphone-track.gpx', { type: 'application/gpx+xml' }));
+            expect(files.hasGpx).toBe(true);
+
+            // Simulate video meta coming from MVHD/extraction (DJI creation_time)
+            const djiStart = new Date('2026-02-15T14:25:00Z');
+            files.videoMeta = {
+                duration: 90,
+                width: 1920,
+                height: 1080,
+                fps: 30,
+                codec: 'hvc1',
+                fileName: 'dji-90sec-video.MP4',
+                fileSize: 1000,
+                startTime: djiStart,
+            };
+
+            // Perform auto-sync using store API
+            await sync.performAutoSync(files.gpxData!.points, files.videoMeta!.startTime);
+
+            const expectedOffset = Math.round((djiStart.getTime() - files.gpxData!.points[0]!.time.getTime()) / 1000);
+            expect(sync.offsetSeconds).toBe(expectedOffset);
+            expect(sync.syncWarning).toBeNull();
+            expect(sync.isAutoSynced).toBe(true);
+        });
+
         it('should add warning for long videos', async () => {
             const store = useFilesStore();
 

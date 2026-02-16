@@ -323,6 +323,22 @@ describe('Sync Engine', () => {
             expect(result.offsetSeconds).toBeGreaterThan(-120);
             expect(result.offsetSeconds).toBeLessThan(0);
         });
+
+        it('should sync DJI creation_time to real iPhone GPX mid-track without warning', () => {
+            const xml = fs.readFileSync(IPHONE_GPX_PATH, 'utf-8');
+            const gpx = parseGpx(xml);
+
+            // DJI creation_time from the user's data
+            const djiVideoTime = new Date('2026-02-15T14:25:00Z');
+
+            const result = autoSync(gpx.points, djiVideoTime);
+
+            const expectedOffset = Math.round((djiVideoTime.getTime() - gpx.points[0]!.time.getTime()) / 1000);
+
+            expect(result.autoSynced).toBe(true);
+            expect(result.offsetSeconds).toBe(expectedOffset);
+            expect(result.warning).toBeUndefined();
+        });
     });
 
     describe('clampSyncOffset', () => {
