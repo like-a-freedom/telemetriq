@@ -607,5 +607,36 @@ function applyManualTime(): void {
   .preview-view__card {
     padding: 1rem;
   }
+
+  .preview-view__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .preview-view__header h2 {
+    font-size: 1.2rem;
+  }
+
+  .preview-view__back {
+    width: 100%;
+    text-align: center;
+  }
+
+  .preview-view__field-row {
+    flex-direction: column;
+  }
+
+  .preview-view__field-row .preview-view__btn {
+    width: 100%;
+  }
+
+  .preview-view__btn {
+    min-height: 48px;
+  }
+
+  .preview-view__checkbox {
+    padding: 0.75rem 0.5rem;
+  }
 }
 </style>
