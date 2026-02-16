@@ -114,8 +114,6 @@ export class VideoProcessor {
         onProgress?.({ phase: 'processing', percent: 0, framesProcessed: 0, totalFrames: makeProcessingParams(demuxed).totalFrames });
 
         // Try processing once; on a runtime decoder failure attempt an automatic transcode + retry.
-        let attemptedDecoderRecovery = false;
-
         const runProcessing = async (paramsForRun: ProcessFramesParams) => {
             return await this.processFrames(paramsForRun);
         };
@@ -126,8 +124,7 @@ export class VideoProcessor {
             const text = error instanceof Error ? error.message : String(error);
             const isDecoderFailure = /decoder failure|video decoding error/i.test(text);
 
-            if (isDecoderFailure && !attemptedDecoderRecovery) {
-                attemptedDecoderRecovery = true;
+            if (isDecoderFailure) {
                 console.warn('[VideoProcessor] Decoder failure detected — attempting FFmpeg fallback and retry', error);
 
                 // show encoding progress to the user while we transcode
