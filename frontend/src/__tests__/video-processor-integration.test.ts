@@ -13,7 +13,7 @@ import { ALL_FORMATS, BlobSource, EncodedPacketSink, Input } from 'mediabunny';
 import { createDemuxer } from '../modules/demuxer';
 import { createKeyframeDetector } from '../modules/keyframe-detector';
 
-const DJI_FILE_PATH = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../test_data/DJI_20260211092425_0002_D.MP4');
+const DJI_FILE_PATH = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../test_data/dji/dji-osmo-pocket-3.MP4');
 
 const FILE_EXISTS = fs.existsSync(DJI_FILE_PATH);
 const describeWithFile = FILE_EXISTS ? describe : describe.skip;
