@@ -208,4 +208,54 @@ describe('VideoProcessor', () => {
 
         expect(processor).toBeInstanceOf(VideoProcessor);
     });
+
+    it('recovers from decoder failure by transcoding and retrying', async () => {
+        // make codec manager return a decoder that fails on the first run and succeeds on retry
+        const codecModule = await import('../modules/video-codec-manager');
+        let createDecoderCall = 0;
+        (codecModule.createVideoCodecManager as vi.Mock).mockImplementation(() => ({
+            createDecoder: (codec: string, description: any, onFrame: any, onError: any) => {
+                createDecoderCall++;
+                if (createDecoderCall === 1) {
+                    return {
+                        state: 'configured',
+                        decode: () => onError(new Error('Decoder failure')),
+                        flush: () => Promise.resolve(),
+                        close: () => { },
+                    };
+                }
+
+                return {
+                    state: 'configured',
+                    decode: vi.fn(),
+                    flush: () => Promise.resolve(),
+                    close: () => { },
+                };
+            },
+            isVideoTrackDecodable: vi.fn().mockResolvedValue(true),
+            createEncoder: vi.fn().mockResolvedValue({
+                encoder: {
+                    state: 'configured',
+                    encode: vi.fn(),
+                    flush: vi.fn().mockResolvedValue(undefined),
+                    close: vi.fn(),
+                },
+                encodeMeta: { width: 1920, height: 1080, fps: 30, duration: 10, codec: 'avc1.640028', fileName: 'test.mp4', fileSize: 1000 },
+            }),
+        }));
+
+        const file = new File([], 'test.mp4');
+        const processor = new VideoProcessor({
+            videoFile: file,
+            videoMeta: createMockVideoMeta(),
+            telemetryFrames: [],
+            syncOffsetSeconds: 0,
+        });
+
+        const blob = await processor.process();
+        expect(blob).toBeInstanceOf(Blob);
+
+        const ffmpeg = await import('../modules/ffmpeg-utils');
+        expect(ffmpeg.transcodeWithForcedKeyframes).toHaveBeenCalled();
+    });
 });

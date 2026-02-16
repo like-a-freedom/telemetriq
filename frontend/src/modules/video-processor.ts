@@ -91,27 +91,72 @@ export class VideoProcessor {
         demuxed = await this.ensureDecodableTrack(demuxed, sourceFile, videoMeta, onProgress);
         demuxed = await this.ensureKeyframes(demuxed, sourceFile, videoMeta, onProgress);
 
-        const videoSamples = this.sliceFromFirstKeyframe(demuxed.videoSamples);
-        const totalFrames = videoSamples.length;
-        const gopFrames = detectSourceGopSize(videoSamples, videoMeta.fps);
+        // prepare processing helpers (extracted so we can retry on decoder failure)
+        const makeProcessingParams = (demux: typeof demuxed) => {
+            const videoSamplesLocal = this.sliceFromFirstKeyframe(demux.videoSamples);
+            const totalFramesLocal = videoSamplesLocal.length;
+            const gopFramesLocal = detectSourceGopSize(videoSamplesLocal, videoMeta.fps);
 
-        const reportProcessingProgress = createProcessingProgressReporter(onProgress, totalFrames);
-        const reportMuxProgress = createMuxProgressReporter(onProgress, totalFrames);
+            return {
+                demuxed: demux,
+                videoSamples: videoSamplesLocal,
+                totalFrames: totalFramesLocal,
+                gopFrames: gopFramesLocal,
+                videoMeta,
+                telemetryFrames,
+                safeSyncOffsetSeconds,
+                config,
+                reportProcessingProgress: createProcessingProgressReporter(onProgress, totalFramesLocal),
+                reportMuxProgress: createMuxProgressReporter(onProgress, totalFramesLocal),
+            } as ProcessFramesParams;
+        };
 
-        onProgress?.({ phase: 'processing', percent: 0, framesProcessed: 0, totalFrames });
+        onProgress?.({ phase: 'processing', percent: 0, framesProcessed: 0, totalFrames: makeProcessingParams(demuxed).totalFrames });
 
-        return await this.processFrames({
-            demuxed,
-            videoSamples,
-            totalFrames,
-            gopFrames,
-            videoMeta,
-            telemetryFrames,
-            safeSyncOffsetSeconds,
-            config,
-            reportProcessingProgress,
-            reportMuxProgress,
-        });
+        // Try processing once; on a runtime decoder failure attempt an automatic transcode + retry.
+        let attemptedDecoderRecovery = false;
+
+        const runProcessing = async (paramsForRun: ProcessFramesParams) => {
+            return await this.processFrames(paramsForRun);
+        };
+
+        try {
+            return await runProcessing(makeProcessingParams(demuxed));
+        } catch (error) {
+            const text = error instanceof Error ? error.message : String(error);
+            const isDecoderFailure = /decoder failure|video decoding error/i.test(text);
+
+            if (isDecoderFailure && !attemptedDecoderRecovery) {
+                attemptedDecoderRecovery = true;
+                console.warn('[VideoProcessor] Decoder failure detected — attempting FFmpeg fallback and retry', error);
+
+                // show encoding progress to the user while we transcode
+                onProgress?.({ phase: 'encoding', percent: 0, framesProcessed: 0, totalFrames: 0 });
+
+                // transcode with forced keyframes (same params as other recovery paths)
+                const transcodedFile = await transcodeWithForcedKeyframes(
+                    sourceFile,
+                    { fps: videoMeta.fps, duration: videoMeta.duration },
+                    {
+                        gopSize: Math.max(1, Math.round(videoMeta.fps)),
+                        onProgress: (percent) => onProgress?.({ phase: 'encoding', percent, framesProcessed: 0, totalFrames: 0 }),
+                    },
+                );
+
+                // Reset abort controller so retry can run (previous run aborted on error)
+                this.abortController = new AbortController();
+
+                // demux the newly transcoded file and re-run the standard validations
+                let recoveredDemux = await this.demuxer.demuxWithFallback(transcodedFile, onProgress);
+                recoveredDemux = await this.ensureDecodableTrack(recoveredDemux, transcodedFile, videoMeta, onProgress);
+                recoveredDemux = await this.ensureKeyframes(recoveredDemux, transcodedFile, videoMeta, onProgress);
+
+                // retry processing once with the recovered file
+                return await runProcessing(makeProcessingParams(recoveredDemux));
+            }
+
+            throw error;
+        }
     }
 
     /**
