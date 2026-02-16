@@ -14,6 +14,7 @@ import { SyncError } from '../core/errors';
 import { parseGpx } from '../modules/gpx-parser';
 
 const IPHONE_GPX_PATH = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../test_data/iphone/iphone-track.gpx');
+const HAS_IPHONE_GPX = fs.existsSync(IPHONE_GPX_PATH);
 
 function makePoint(lat: number, lon: number, timeStr: string): TrackPoint {
     return {
@@ -299,7 +300,7 @@ describe('Sync Engine', () => {
         });
 
         // Integration tests using real GPX files (happy-dom provides DOMParser)
-        it('should not snap to distant GPS loop segment on real iPhone track', () => {
+        (HAS_IPHONE_GPX ? it : it.skip)('should not snap to distant GPS loop segment on real iPhone track', () => {
             // Load real iPhone GPX and verify GPS refinement doesn't jump to a far-away loop segment
             const xml = fs.readFileSync(IPHONE_GPX_PATH, 'utf-8');
             const gpx = parseGpx(xml);
@@ -316,7 +317,7 @@ describe('Sync Engine', () => {
             expect(Math.abs(result.offsetSeconds - expectedOffset)).toBeLessThan(30);
         });
 
-        it('should sync DJI creation_time to real iPhone GPX mid-track without warning', () => {
+        (HAS_IPHONE_GPX ? it : it.skip)('should sync DJI creation_time to real iPhone GPX mid-track without warning', () => {
             // Simulate DJI video creation_time (2026-02-15T14:25:00Z) and iPhone GPX track
             // The iPhone track starts at 2026-02-15T09:02:07Z. The offset should be ~19273 seconds.
             const xml = fs.readFileSync(IPHONE_GPX_PATH, 'utf-8');

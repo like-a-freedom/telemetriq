@@ -10,10 +10,13 @@ import { buildTelemetryTimeline, getTelemetryAtTime } from '../modules/telemetry
 const DJI_GPX_PATH = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../test_data/dji/dji-track.gpx');
 const IPHONE_GPX_PATH = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../test_data/iphone/iphone-track.gpx');
 
+const HAS_DJI_GPX = fs.existsSync(DJI_GPX_PATH);
+const HAS_IPHONE_GPX = fs.existsSync(IPHONE_GPX_PATH);
 
+const describeWithData = (HAS_DJI_GPX || HAS_IPHONE_GPX) ? describe : describe.skip;
 
-describe('pace real GPX regression', () => {
-    it('dji track should not produce running pace in walking range (20+ min/km) within active segment', () => {
+describeWithData('pace real GPX regression', () => {
+    (HAS_DJI_GPX ? it : it.skip)('dji track should not produce running pace in walking range (20+ min/km) within active segment', () => {
         const xml = fs.readFileSync(DJI_GPX_PATH, 'utf-8');
         const gpx = parseGpx(xml);
         const frames = buildTelemetryTimeline(gpx.points);
@@ -35,7 +38,7 @@ describe('pace real GPX regression', () => {
         expect(maxPace).toBeLessThan(20 * 60);
     });
 
-    it('iphone track pace fallback should stay stable within one second', () => {
+    (HAS_IPHONE_GPX ? it : it.skip)('iphone track pace fallback should stay stable within one second', () => {
         const xml = fs.readFileSync(IPHONE_GPX_PATH, 'utf-8');
         const gpx = parseGpx(xml);
         const frames = buildTelemetryTimeline(gpx.points);
