@@ -13,6 +13,7 @@ import {
 } from './progress-utils';
 import { isCodecQueuePressureHigh, waitForCodecQueues } from './video-processing-types';
 import type { DemuxedMedia, StreamingMuxSession } from './video-processing-types';
+import { drawVideoFrameWithRotation } from './frame-orientation';
 
 export interface VideoProcessorOptions {
     videoFile: File;
@@ -358,6 +359,7 @@ export class VideoProcessor {
                     canvas,
                     ctx,
                     videoMeta: encodeMeta,
+                    videoRotation: params.demuxed.videoTrack.rotation,
                     telemetryFrames: params.telemetryFrames,
                     safeSyncOffsetSeconds: params.safeSyncOffsetSeconds,
                     config: params.config,
@@ -455,6 +457,7 @@ export class VideoProcessor {
         canvas: OffscreenCanvas;
         ctx: OffscreenCanvasRenderingContext2D;
         videoMeta: VideoMeta;
+        videoRotation?: 0 | 90 | 180 | 270;
         telemetryFrames: TelemetryFrame[];
         safeSyncOffsetSeconds: number;
         config: ExtendedOverlayConfig;
@@ -463,14 +466,19 @@ export class VideoProcessor {
         encodedFrameCount: number;
     }): Promise<void> {
         const {
-            frame, canvas, ctx, videoMeta, telemetryFrames,
+            frame, canvas, ctx, videoMeta, videoRotation, telemetryFrames,
             safeSyncOffsetSeconds, config, encoder, gopFrames, encodedFrameCount,
         } = params;
 
         const videoTimeSec = (frame.timestamp ?? 0) / 1_000_000;
-        const telemetry = getTelemetryAtTime(telemetryFrames, videoTimeSec, safeSyncOffsetSeconds);
+        const telemetry = getTelemetryAtTime(
+            telemetryFrames,
+            videoTimeSec,
+            safeSyncOffsetSeconds,
+            videoMeta.duration,
+        );
 
-        ctx.drawImage(frame, 0, 0, videoMeta.width, videoMeta.height);
+        drawVideoFrameWithRotation(ctx, frame, videoMeta.width, videoMeta.height, videoRotation);
         if (telemetry) {
             await renderOverlay(ctx, telemetry, videoMeta.width, videoMeta.height, config);
         }
@@ -493,11 +501,17 @@ export class VideoProcessor {
     private createVideoChunk(sample: DemuxedMedia['videoSamples'][number]): EncodedVideoChunk {
         const timestampUs = (sample.cts / sample.timescale) * 1_000_000;
         const durationUs = (sample.duration / sample.timescale) * 1_000_000;
+        const sanitizedTimestampUs = Number.isFinite(timestampUs)
+            ? Math.max(0, Math.round(timestampUs))
+            : 0;
+        const sanitizedDurationUs = Number.isFinite(durationUs)
+            ? Math.max(1, Math.round(durationUs))
+            : 1;
 
         return new EncodedVideoChunk({
             type: sample.is_rap ? 'key' : 'delta',
-            timestamp: Math.round(timestampUs),
-            duration: Math.round(durationUs),
+            timestamp: sanitizedTimestampUs,
+            duration: sanitizedDurationUs,
             data: new Uint8Array(sample.data),
         });
     }

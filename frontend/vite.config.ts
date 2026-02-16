@@ -51,6 +51,7 @@ export default defineConfig({
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Permissions-Policy': 'accelerometer=(), camera=(), geolocation=(), microphone=()',
     },
     // Serve robots.txt and sitemap.xml dynamically in dev so SITE_URL can change without rebuild
     middlewareMode: false,

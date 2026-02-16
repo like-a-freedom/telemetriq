@@ -5,6 +5,12 @@ import { haversineDistance } from './telemetry-core';
 /** Maximum auto-sync offset in seconds */
 const MAX_AUTO_OFFSET_SECONDS = 300; // 5 minutes
 
+/** Maximum allowed divergence between GPS- and time-based offsets */
+const MAX_GPS_TIME_OFFSET_DIVERGENCE_SECONDS = 300;
+
+/** Maximum delta where GPS is allowed to refine a plausible time-based offset */
+const MAX_GPS_REFINEMENT_DELTA_SECONDS = 30;
+
 /** Manual sync range in seconds (±30 minutes) */
 export const MANUAL_SYNC_RANGE_SECONDS = 1800;
 
@@ -36,7 +42,67 @@ export function autoSync(
         throw new SyncError('No track points for synchronization');
     }
 
-    // If we have video GPS coordinates, find nearest point
+    // If both GPS and video start time are available, cross-check both strategies.
+    // On long tracks with loops, global nearest-by-GPS can snap to a later segment.
+    // Therefore, when video time looks plausible, only consider GPS near that time.
+    if (videoStartLat !== undefined && videoStartLon !== undefined && videoStartTime) {
+        const timeSync = syncByTime(gpxPoints, videoStartTime, videoTimezoneOffsetMinutes);
+        const trackDurationSeconds =
+            (gpxPoints[gpxPoints.length - 1]!.time.getTime() - gpxPoints[0]!.time.getTime()) / 1000;
+
+        const isTimePlausible =
+            timeSync.offsetSeconds >= -MAX_GPS_TIME_OFFSET_DIVERGENCE_SECONDS
+            && timeSync.offsetSeconds <= trackDurationSeconds + MAX_GPS_TIME_OFFSET_DIVERGENCE_SECONDS;
+
+        if (isTimePlausible) {
+            const gpsNearTime = syncByGpsCoordinatesNearOffset(
+                gpxPoints,
+                videoStartLat,
+                videoStartLon,
+                timeSync.offsetSeconds,
+                MAX_GPS_TIME_OFFSET_DIVERGENCE_SECONDS,
+            );
+
+            if (!gpsNearTime) {
+                return {
+                    ...timeSync,
+                    warning: mergeWarnings(
+                        timeSync.warning,
+                        'Video GPS does not align near the video start time. Time-based sync was applied.',
+                    ),
+                };
+            }
+
+            const nearDivergence = Math.abs(gpsNearTime.offsetSeconds - timeSync.offsetSeconds);
+            if (nearDivergence <= MAX_GPS_REFINEMENT_DELTA_SECONDS) {
+                return gpsNearTime;
+            }
+
+            return {
+                ...timeSync,
+                warning: mergeWarnings(
+                    timeSync.warning,
+                    `GPS near start differs from video time (${formatTimeDiff(nearDivergence)}). Time-based sync was applied.`,
+                ),
+            };
+        }
+
+        // If video time is implausible for this GPX, fall back to GPS-only matching.
+        const gpsSync = syncByGpsCoordinates(gpxPoints, videoStartLat, videoStartLon);
+
+        return {
+            ...gpsSync,
+            warning: mergeWarnings(
+                gpsSync.warning,
+                mergeWarnings(
+                    timeSync.warning,
+                    'Video time appears outside GPX range. GPS-based sync was applied.',
+                ),
+            ),
+        };
+    }
+
+    // If we only have video GPS coordinates, find nearest point.
     if (videoStartLat !== undefined && videoStartLon !== undefined) {
         return syncByGpsCoordinates(gpxPoints, videoStartLat, videoStartLon);
     }
@@ -52,6 +118,12 @@ export function autoSync(
         autoSynced: false,
         warning: 'Auto-sync is not possible without GPS or the video start time.',
     };
+}
+
+function mergeWarnings(primary?: string, secondary?: string): string | undefined {
+    if (!primary) return secondary;
+    if (!secondary) return primary;
+    return `${primary} ${secondary}`;
 }
 
 /**
@@ -78,6 +150,51 @@ function syncByGpsCoordinates(
     const gpxStartTime = gpxPoints[0]!.time.getTime();
     const closestTime = closestPoint.time.getTime();
     const offsetSeconds = (closestTime - gpxStartTime) / 1000;
+
+    return {
+        offsetSeconds,
+        autoSynced: true,
+    };
+}
+
+/**
+ * Sync by nearest GPS point, but only inside a time-offset window around expected offset.
+ */
+function syncByGpsCoordinatesNearOffset(
+    gpxPoints: TrackPoint[],
+    lat: number,
+    lon: number,
+    expectedOffsetSeconds: number,
+    windowSeconds: number,
+): SyncConfig | undefined {
+    const gpxStartTime = gpxPoints[0]!.time.getTime();
+    const minOffset = expectedOffsetSeconds - windowSeconds;
+    const maxOffset = expectedOffsetSeconds + windowSeconds;
+
+    let minDist = Infinity;
+    let closestIdx: number | undefined;
+
+    for (let i = 0; i < gpxPoints.length; i++) {
+        const point = gpxPoints[i]!;
+        const pointOffsetSeconds = (point.time.getTime() - gpxStartTime) / 1000;
+
+        if (pointOffsetSeconds < minOffset || pointOffsetSeconds > maxOffset) {
+            continue;
+        }
+
+        const dist = haversineDistance(lat, lon, point.lat, point.lon);
+        if (dist < minDist) {
+            minDist = dist;
+            closestIdx = i;
+        }
+    }
+
+    if (closestIdx === undefined) {
+        return undefined;
+    }
+
+    const closestPoint = gpxPoints[closestIdx]!;
+    const offsetSeconds = (closestPoint.time.getTime() - gpxStartTime) / 1000;
 
     return {
         offsetSeconds,

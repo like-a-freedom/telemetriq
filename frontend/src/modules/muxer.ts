@@ -87,10 +87,12 @@ export function createMuxer(): Muxer {
                 if (audioSource && demuxed.audioSamples.length) {
                     let firstAudioPacket = true;
                     for (const sample of demuxed.audioSamples) {
+                        const sanitizedTimestamp = sanitizeTimestampUs(sample.cts);
+                        const sanitizedDuration = sanitizeDurationUs(sample.duration);
                         const chunk = new EncodedAudioChunk({
                             type: sample.is_rap ? 'key' : 'delta',
-                            timestamp: sample.cts,
-                            duration: sample.duration,
+                            timestamp: sanitizedTimestamp,
+                            duration: sanitizedDuration,
                             data: new Uint8Array(sample.data),
                         });
                         const packet = EncodedPacket.fromEncodedChunk(chunk);
@@ -224,10 +226,12 @@ export function createMuxer(): Muxer {
                     let firstAudioPacket = true;
                     let doneAudioPackets = 0;
                     for (const sample of audioSamples) {
+                        const sanitizedTimestamp = sanitizeTimestampUs(sample.cts);
+                        const sanitizedDuration = sanitizeDurationUs(sample.duration);
                         const chunk = new EncodedAudioChunk({
                             type: sample.is_rap ? 'key' : 'delta',
-                            timestamp: sample.cts,
-                            duration: sample.duration,
+                            timestamp: sanitizedTimestamp,
+                            duration: sanitizedDuration,
                             data: new Uint8Array(sample.data),
                         });
                         const packet = EncodedPacket.fromEncodedChunk(chunk);
@@ -266,4 +270,14 @@ export function createMuxer(): Muxer {
             };
         },
     };
+}
+
+function sanitizeTimestampUs(value: number): number {
+    if (!Number.isFinite(value)) return 0;
+    return Math.max(0, Math.round(value));
+}
+
+function sanitizeDurationUs(value: number): number {
+    if (!Number.isFinite(value)) return 1;
+    return Math.max(1, Math.round(value));
 }

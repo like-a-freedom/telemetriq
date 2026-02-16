@@ -6,11 +6,19 @@ const EARTH_RADIUS_KM = 6371;
 /** Minimum speed threshold (km/h) to consider "moving" */
 const MOVING_SPEED_THRESHOLD = 1.0;
 
-/** Pace estimation parameters (for stable yet responsive pace display) */
+/** Pace estimation parameters */
 const PACE_WINDOW_MIN_DISTANCE_KM = 0.008; // 8 meters
 const PACE_WINDOW_MIN_SECONDS = 3;
 const PACE_WINDOW_MAX_SECONDS = 300;
-const PACE_DISPLAY_WINDOW_SECONDS = 10;
+
+/**
+ * Maximum allowed gap (seconds) between two consecutive GPX points
+ * before the rolling pace window refuses to span across it.
+ *
+ * Large gaps typically indicate GPS signal loss or a deliberate pause.
+ * Computing pace across such gaps produces artificially slow values.
+ */
+const MAX_CONSECUTIVE_GAP_SECONDS = 5;
 
 /**
  * Calculate the distance between two GPS coordinates using the Haversine formula.
@@ -132,6 +140,8 @@ export function formatPace(secondsPerKm: number | undefined): string | undefined
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
+// ── Internal helpers ────────────────────────────────────────────────────
+
 function interpolateOptionalValue(
     before: number | undefined,
     after: number | undefined,
@@ -141,100 +151,6 @@ function interpolateOptionalValue(
         return lerp(before, after, t);
     }
     return before ?? after;
-}
-
-function interpolateDistanceAtTime(frames: TelemetryFrame[], targetTime: number): number | undefined {
-    if (frames.length === 0) return undefined;
-
-    const first = frames[0]!;
-    const last = frames[frames.length - 1]!;
-
-    if (targetTime < first.timeOffset || targetTime > last.timeOffset) return undefined;
-
-    let lo = 0;
-    let hi = frames.length - 1;
-
-    while (lo < hi - 1) {
-        const mid = Math.floor((lo + hi) / 2);
-        if (frames[mid]!.timeOffset <= targetTime) {
-            lo = mid;
-        } else {
-            hi = mid;
-        }
-    }
-
-    const before = frames[lo]!;
-    const after = frames[hi]!;
-
-    if (before.timeOffset === after.timeOffset) {
-        return before.distanceKm;
-    }
-
-    const t = (targetTime - before.timeOffset) / (after.timeOffset - before.timeOffset);
-    return lerp(before.distanceKm, after.distanceKm, t);
-}
-
-/**
- * Estimate pace for display at 1Hz (once per second) using distance delta
- * over the recent fixed lookback window.
- */
-function estimateDisplayPaceAtTime(frames: TelemetryFrame[], gpxTime: number): number | undefined {
-    const timeWindow = createPaceTimeWindow(frames, gpxTime);
-    if (timeWindow === null) return undefined;
-
-    const centeredPace = estimatePaceInWindow(frames, timeWindow.centeredStart, timeWindow.centeredEnd);
-    if (centeredPace !== undefined) return centeredPace;
-
-    const backwardPace = estimatePaceInWindow(frames, timeWindow.backwardStart, timeWindow.sampledSecond);
-    if (backwardPace !== undefined) return backwardPace;
-
-    return estimatePaceInWindow(frames, timeWindow.sampledSecond, timeWindow.forwardEnd);
-}
-
-function createPaceTimeWindow(
-    frames: TelemetryFrame[],
-    gpxTime: number,
-): { sampledSecond: number; centeredStart: number; centeredEnd: number; backwardStart: number; forwardEnd: number } | null {
-    if (frames.length === 0) return null;
-
-    const first = frames[0]!;
-    const last = frames[frames.length - 1]!;
-
-    if (gpxTime < first.timeOffset || gpxTime > last.timeOffset) {
-        return null;
-    }
-
-    const sampledSecond = Math.floor(gpxTime);
-    const halfWindow = PACE_DISPLAY_WINDOW_SECONDS / 2;
-
-    return {
-        sampledSecond,
-        centeredStart: Math.max(first.timeOffset, sampledSecond - halfWindow),
-        centeredEnd: Math.min(last.timeOffset, sampledSecond + halfWindow),
-        backwardStart: Math.max(first.timeOffset, sampledSecond - PACE_DISPLAY_WINDOW_SECONDS),
-        forwardEnd: Math.min(last.timeOffset, sampledSecond + PACE_DISPLAY_WINDOW_SECONDS),
-    };
-}
-
-function estimatePaceInWindow(
-    frames: TelemetryFrame[],
-    startTime: number,
-    endTime: number,
-): number | undefined {
-    const elapsedSec = endTime - startTime;
-    if (elapsedSec < PACE_WINDOW_MIN_SECONDS) return undefined;
-
-    const startDist = interpolateDistanceAtTime(frames, startTime);
-    const endDist = interpolateDistanceAtTime(frames, endTime);
-    if (startDist === undefined || endDist === undefined) return undefined;
-
-    const distKm = endDist - startDist;
-    if (distKm < PACE_WINDOW_MIN_DISTANCE_KM) return undefined;
-
-    const paceSecPerKm = elapsedSec / distKm;
-    if (paceSecPerKm < 120 || paceSecPerKm > 1800) return undefined;
-
-    return paceSecPerKm;
 }
 
 /**
@@ -307,10 +223,18 @@ function extrapolateTrailingValues(
     }
 }
 
+// ── Rolling pace estimation ─────────────────────────────────────────────
+
 /**
  * Estimate pace at point index using a rolling time/distance window.
- * Prefers backward window (historic pace), then falls back to forward window
- * near track start when history is insufficient.
+ *
+ * The backward window scans earlier points to find a span of
+ * ≥ PACE_WINDOW_MIN_SECONDS and ≥ PACE_WINDOW_MIN_DISTANCE_KM.
+ * It will NOT cross a gap of > MAX_CONSECUTIVE_GAP_SECONDS between
+ * any two adjacent GPX points — doing so would mix idle/stopped time
+ * with running distance and produce artificially slow pace values.
+ *
+ * Falls back to a forward window near track start or after a gap.
  */
 function estimateRollingPaceAtIndex(
     points: TrackPoint[],
@@ -336,7 +260,13 @@ function findPaceInBackwardWindow(
     currTimeMs: number,
     currDistKm: number,
 ): number | undefined {
+    const maxGapMs = MAX_CONSECUTIVE_GAP_SECONDS * 1000;
+
     for (let j = index - 1; j >= 0; j--) {
+        // Don't span across large gaps between consecutive GPX points.
+        const gapMs = points[j + 1]!.time.getTime() - points[j]!.time.getTime();
+        if (gapMs > maxGapMs) break;
+
         const prevPoint = points[j]!;
         const dtSec = (currTimeMs - prevPoint.time.getTime()) / 1000;
         if (dtSec > PACE_WINDOW_MAX_SECONDS) break;
@@ -358,7 +288,13 @@ function findPaceInForwardWindow(
     currTimeMs: number,
     currDistKm: number,
 ): number | undefined {
+    const maxGapMs = MAX_CONSECUTIVE_GAP_SECONDS * 1000;
+
     for (let j = index + 1; j < points.length; j++) {
+        // Don't span across large gaps between consecutive GPX points.
+        const gapMs = points[j]!.time.getTime() - points[j - 1]!.time.getTime();
+        if (gapMs > maxGapMs) break;
+
         const nextPoint = points[j]!;
         const dtSec = (nextPoint.time.getTime() - currTimeMs) / 1000;
         if (dtSec > PACE_WINDOW_MAX_SECONDS) break;
@@ -373,9 +309,14 @@ function findPaceInForwardWindow(
     return undefined;
 }
 
+// ── Timeline construction ───────────────────────────────────────────────
+
 /**
  * Build a complete telemetry timeline from track points.
  * Returns an array of TelemetryFrame, one per track point.
+ *
+ * Pace is computed once here from GPX data and stored per frame.
+ * Display-time lookups simply interpolate between precomputed values.
  */
 export function buildTelemetryTimeline(points: TrackPoint[]): TelemetryFrame[] {
     if (points.length === 0) return [];
@@ -490,14 +431,22 @@ function applySmoothedPaceValues(
     }));
 }
 
+// ── Display-time interpolation ──────────────────────────────────────────
+
 /**
  * Get a telemetry frame at a specific video time offset.
- * Uses binary search and linear interpolation.
+ * Uses binary search and linear interpolation between precomputed frame values.
+ *
+ * Pace is snapped to whole-second boundaries (1 Hz update rate) to avoid
+ * sub-second jitter while still reflecting speed changes across seconds.
+ *
+ * @param _videoDurationSeconds — kept for backward compatibility, not used for pace
  */
 export function getTelemetryAtTime(
     frames: TelemetryFrame[],
     videoTimeSeconds: number,
     syncOffsetSeconds: number,
+    _videoDurationSeconds?: number,
 ): TelemetryFrame | null {
     const gpxTime = calculateGpxTime(videoTimeSeconds, syncOffsetSeconds, frames);
     if (gpxTime === null) return null;
@@ -572,7 +521,7 @@ function createInterpolatedFrame(
     return {
         timeOffset: gpxTime,
         hr: interpolateHeartRate(beforeFrame, afterFrame, t),
-        paceSecondsPerKm: interpolatePace(beforeFrame, afterFrame, t, allFrames, gpxTime),
+        paceSecondsPerKm: interpolatePace(allFrames, gpxTime),
         distanceKm: lerp(beforeFrame.distanceKm, afterFrame.distanceKm, t),
         elevationM: interpolateElevation(beforeFrame, afterFrame, t),
         elapsedTime: formatElapsedTime(gpxTime),
@@ -587,15 +536,34 @@ function interpolateHeartRate(before: TelemetryFrame, after: TelemetryFrame, t: 
     return before.hr ?? after.hr;
 }
 
+/**
+ * Interpolate pace at a given GPX time by snapping to the nearest whole second.
+ *
+ * Snapping provides 1 Hz update rate: pace stays constant within the same
+ * second and changes only on second boundaries — just like a running watch.
+ * The pace values themselves come directly from the precomputed per-frame
+ * rolling window, so GPX is the single source of truth.
+ */
 function interpolatePace(
-    before: TelemetryFrame,
-    after: TelemetryFrame,
-    t: number,
     frames: TelemetryFrame[],
     gpxTime: number,
 ): number | undefined {
-    return estimateDisplayPaceAtTime(frames, gpxTime)
-        ?? interpolateOptionalValue(before.paceSecondsPerKm, after.paceSecondsPerKm, t);
+    const sampledSecond = Math.floor(gpxTime);
+
+    const { beforeFrame, afterFrame, interpolationFactor } = findSurroundingFrames(frames, sampledSecond);
+
+    const frameGapSeconds = afterFrame.timeOffset - beforeFrame.timeOffset;
+    if (frameGapSeconds > MAX_CONSECUTIVE_GAP_SECONDS) {
+        // Avoid synthetic pace ramps across missing-data gaps.
+        // During large GPX gaps we hold last known pace until the next real sample.
+        return beforeFrame.paceSecondsPerKm ?? afterFrame.paceSecondsPerKm;
+    }
+
+    return interpolateOptionalValue(
+        beforeFrame.paceSecondsPerKm,
+        afterFrame.paceSecondsPerKm,
+        interpolationFactor,
+    );
 }
 
 function interpolateElevation(before: TelemetryFrame, after: TelemetryFrame, t: number): number | undefined {

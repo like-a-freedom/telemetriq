@@ -19,6 +19,7 @@
             :telemetry-frames="telemetryFrames"
             :overlay-config="settingsStore.overlayConfig"
             :sync-offset="syncStore.offsetSeconds"
+            :video-duration-seconds="filesStore.videoMeta?.duration"
           />
         </div>
 
