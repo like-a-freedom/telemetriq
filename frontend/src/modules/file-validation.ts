@@ -90,14 +90,11 @@ export function extractVideoMeta(file: File): Promise<VideoMeta> {
         video.src = url;
 
         video.onloadedmetadata = () => {
-            // Try DJI filename first (most reliable for drone videos)
+            // Try DJI filename for start time (local time, converted via browser timezone)
             const djiParsed = parseDjiFilename(file.name);
-            const djiStartTime = djiParsed?.date;
-            // Fallback to lastModified (filesystem time)
-            const fsStartTime = file.lastModified ? new Date(file.lastModified) : undefined;
-            // Use DJI time if available, otherwise filesystem time
-            const startTime = djiStartTime ?? fsStartTime;
 
+            // NOTE: Do NOT use file.lastModified for sync — it reflects copy/transfer
+            // time, not capture time. Only DJI filename or MP4 metadata are reliable.
             const meta: VideoMeta = {
                 duration: video.duration,
                 width: video.videoWidth,
@@ -106,11 +103,10 @@ export function extractVideoMeta(file: File): Promise<VideoMeta> {
                 codec: 'unknown',
                 fileSize: file.size,
                 fileName: file.name,
-                startTime,
-                // DJI filename time is local time, convert browser offset to positive timezone
-                // getTimezoneOffset() returns negative for positive timezones (e.g., -180 for UTC+3)
-                // We invert it so that sync engine can use: localTime - offset = UTC
-                timezoneOffsetMinutes: djiParsed ? -djiParsed.date.getTimezoneOffset() : (startTime ? startTime.getTimezoneOffset() : undefined),
+                startTime: djiParsed?.date,
+                timezoneOffsetMinutes: djiParsed
+                    ? -djiParsed.date.getTimezoneOffset()
+                    : undefined,
             };
 
             URL.revokeObjectURL(url);
@@ -187,22 +183,44 @@ async function extractMp4Metadata(file: File): Promise<{
         });
 
         try {
-            const videoTrack = await input.getPrimaryVideoTrack();
-            const codec = videoTrack
-                ? ((await videoTrack.getCodecParameterString()) ?? (await videoTrack.getDecoderConfig())?.codec)
-                : undefined;
+            let videoTrack: Awaited<ReturnType<Input['getPrimaryVideoTrack']>> | undefined;
+            try {
+                videoTrack = await input.getPrimaryVideoTrack();
+            } catch {
+                // Some files contain auxiliary data streams that may fail track probing.
+                // Continue: metadata tags can still contain reliable creation_time/GPS.
+            }
 
-            const fps = videoTrack
-                ? (await videoTrack.computePacketStats(120)).averagePacketRate
-                : undefined;
-
+            let codec: string | undefined;
+            let fps: number | undefined;
             const width = videoTrack?.displayWidth;
             const height = videoTrack?.displayHeight;
             const rotation = normalizeRotation(videoTrack?.rotation);
 
-            const tags = await input.getMetadataTags();
-            const created = tags.date;
-            const gps = findIso6709Location(tags.raw);
+            if (videoTrack) {
+                try {
+                    codec = (await videoTrack.getCodecParameterString())
+                        ?? (await videoTrack.getDecoderConfig())?.codec;
+                } catch {
+                    codec = undefined;
+                }
+
+                try {
+                    fps = (await videoTrack.computePacketStats(120)).averagePacketRate;
+                } catch {
+                    fps = undefined;
+                }
+            }
+
+            let tags: Awaited<ReturnType<Input['getMetadataTags']>> | undefined;
+            try {
+                tags = await input.getMetadataTags();
+            } catch {
+                tags = undefined;
+            }
+
+            const created = findMetadataDate(tags) ?? await extractMp4CreationTimeFromMvhd(file);
+            const gps = findIso6709Location(tags?.raw);
 
             return {
                 codec,
@@ -223,6 +241,158 @@ async function extractMp4Metadata(file: File): Promise<{
             }
         }
     });
+}
+
+const MP4_EPOCH_UNIX_OFFSET_SECONDS = 2_082_844_800;
+const MP4_MVHD_TYPE = 'mvhd';
+const MP4_SCAN_WINDOW_BYTES = 16 * 1024 * 1024;
+
+async function extractMp4CreationTimeFromMvhd(file: File): Promise<Date | undefined> {
+    if (file.size <= 0) return undefined;
+
+    const headLength = Math.min(file.size, MP4_SCAN_WINDOW_BYTES);
+    const head = new Uint8Array(await file.slice(0, headLength).arrayBuffer());
+    const fromHead = findMvhdCreationTime(head);
+    if (fromHead) return fromHead;
+
+    // For non-faststart MP4, moov/mvhd may be near file end.
+    if (file.size > MP4_SCAN_WINDOW_BYTES) {
+        const tailStart = Math.max(0, file.size - MP4_SCAN_WINDOW_BYTES);
+        const tail = new Uint8Array(await file.slice(tailStart, file.size).arrayBuffer());
+        const fromTail = findMvhdCreationTime(tail);
+        if (fromTail) return fromTail;
+    }
+
+    return undefined;
+}
+
+function findMvhdCreationTime(bytes: Uint8Array): Date | undefined {
+    for (let i = 4; i <= bytes.length - 12; i++) {
+        if (!isBoxTypeAt(bytes, i, MP4_MVHD_TYPE)) continue;
+
+        const boxSize = readUInt32BE(bytes, i - 4);
+        if (!Number.isFinite(boxSize) || boxSize < 16) continue;
+
+        const boxEnd = (i - 4) + boxSize;
+        if (boxEnd > bytes.length) continue;
+
+        const version = bytes[i + 4];
+        if (version === 0) {
+            const createdSec = readUInt32BE(bytes, i + 8);
+            return mp4SecondsToDate(createdSec);
+        }
+
+        if (version === 1) {
+            const createdSec = readUInt64BEAsNumber(bytes, i + 8);
+            if (createdSec === undefined) continue;
+            return mp4SecondsToDate(createdSec);
+        }
+    }
+
+    return undefined;
+}
+
+function isBoxTypeAt(bytes: Uint8Array, index: number, type: string): boolean {
+    if (index < 0 || index + 3 >= bytes.length || type.length !== 4) return false;
+
+    return bytes[index] === type.charCodeAt(0)
+        && bytes[index + 1] === type.charCodeAt(1)
+        && bytes[index + 2] === type.charCodeAt(2)
+        && bytes[index + 3] === type.charCodeAt(3);
+}
+
+function readUInt32BE(bytes: Uint8Array, index: number): number {
+    if (index < 0 || index + 3 >= bytes.length) return Number.NaN;
+
+    return ((bytes[index]! * 2 ** 24)
+        + (bytes[index + 1]! << 16)
+        + (bytes[index + 2]! << 8)
+        + bytes[index + 3]!);
+}
+
+function readUInt64BEAsNumber(bytes: Uint8Array, index: number): number | undefined {
+    if (index < 0 || index + 7 >= bytes.length) return undefined;
+
+    const high = readUInt32BE(bytes, index);
+    const low = readUInt32BE(bytes, index + 4);
+    if (!Number.isFinite(high) || !Number.isFinite(low)) return undefined;
+
+    // Safe for realistic media dates (well below Number.MAX_SAFE_INTEGER).
+    return high * 2 ** 32 + low;
+}
+
+function mp4SecondsToDate(mp4Seconds: number): Date | undefined {
+    if (!Number.isFinite(mp4Seconds) || mp4Seconds <= 0) return undefined;
+
+    const unixSeconds = mp4Seconds - MP4_EPOCH_UNIX_OFFSET_SECONDS;
+    if (!Number.isFinite(unixSeconds)) return undefined;
+
+    const date = new Date(unixSeconds * 1000);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function findMetadataDate(tags: { date?: unknown; raw?: unknown } | undefined): Date | undefined {
+    const direct = toValidDate(tags?.date);
+    if (direct) return direct;
+
+    return findDateInUnknown(tags?.raw);
+}
+
+function findDateInUnknown(value: unknown): Date | undefined {
+    const direct = toValidDate(value);
+    if (direct) return direct;
+
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const nested = findDateInUnknown(item);
+            if (nested) return nested;
+        }
+        return undefined;
+    }
+
+    if (value && typeof value === 'object') {
+        const record = value as Record<string, unknown>;
+
+        const prioritizedKeys = [
+            'creation_time',
+            'creationTime',
+            'creationdate',
+            'creationDate',
+            'date',
+            'time',
+        ];
+
+        for (const key of prioritizedKeys) {
+            if (!(key in record)) continue;
+            const fromKey = findDateInUnknown(record[key]);
+            if (fromKey) return fromKey;
+        }
+
+        for (const nestedValue of Object.values(record)) {
+            const nested = findDateInUnknown(nestedValue);
+            if (nested) return nested;
+        }
+    }
+
+    return undefined;
+}
+
+function toValidDate(value: unknown): Date | undefined {
+    if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? undefined : value;
+    }
+
+    if (typeof value === 'string') {
+        // Fast pre-check: ignore obvious non-date strings.
+        if (!/\d{4}-\d{2}-\d{2}|\d{8}_\d{6}/.test(value)) {
+            return undefined;
+        }
+
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? undefined : date;
+    }
+
+    return undefined;
 }
 
 function normalizeRotation(value: unknown): 0 | 90 | 180 | 270 {

@@ -240,10 +240,7 @@ onMounted(() => {
       filesStore.gpxData.points,
       filesStore.videoMeta?.startTime,
       filesStore.videoMeta?.gps?.lat,
-      filesStore.videoMeta?.gps?.lon,
-      filesStore.videoMeta?.timezoneOffsetMinutes,
-      false,
-      filesStore.videoMeta?.duration
+      filesStore.videoMeta?.gps?.lon
     );
   }
 });
@@ -314,9 +311,7 @@ function applyManualTime(): void {
     manualUtcTime,
     undefined,
     undefined,
-    undefined,
-    true,
-    filesStore.videoMeta?.duration
+    true
   );
 }
 </script>

@@ -68,98 +68,91 @@ describe('Sync Engine', () => {
             expect(result.offsetSeconds).toBe(0);
         });
 
-        it('should sync by video time when within 5 minutes', () => {
+        it('should sync by video time within GPX range without warning', () => {
             const points = [
                 makePoint(55.7558, 37.6173, '2024-01-15T10:00:00Z'),
                 makePoint(55.7567, 37.6173, '2024-01-15T10:10:00Z'),
             ];
 
-            // Video started 2 minutes after GPX start
-            // offset = videoStart - gpxStart = +120s (positive = video after GPX)
+            // Video started 2 minutes after GPX start — within range
             const videoTime = new Date('2024-01-15T10:02:00Z');
             const result = autoSync(points, videoTime);
             expect(result.autoSynced).toBe(true);
             expect(result.offsetSeconds).toBe(120);
+            expect(result.warning).toBeUndefined();
         });
 
-        it('should set autoSynced=true but show warning when time difference exceeds 5 minutes', () => {
+        it('should warn when video time is outside GPX range', () => {
             const points = [
                 makePoint(55.7558, 37.6173, '2024-01-15T10:00:00Z'),
                 makePoint(55.7567, 37.6173, '2024-01-15T10:30:00Z'),
             ];
 
-            // Video started 10 minutes before GPX start
-            // offset = videoStart - gpxStart = -600s (negative = video before GPX)
+            // Video 10 minutes BEFORE GPX start → offset = -600 → outside [-300, 2100]
             const videoTime = new Date('2024-01-15T09:50:00Z');
             const result = autoSync(points, videoTime);
-            // Now syncs with warning instead of failing
             expect(result.autoSynced).toBe(true);
-            expect(result.warning).toContain('Large time difference');
-            expect(result.offsetSeconds).toBe(-600); // -10 minutes
+            expect(result.warning).toContain('Video time is outside GPX range');
+            expect(result.offsetSeconds).toBe(-600);
         });
 
-        it('should format large time difference warning in rounded human-readable form', () => {
+        it('should format outside-range warning with human-readable time', () => {
             const points = [
                 makePoint(55.7558, 37.6173, '2026-02-11T10:00:00Z'),
                 makePoint(55.7567, 37.6173, '2026-02-11T10:01:00Z'),
             ];
 
-            const videoTime = new Date('2026-02-11T10:29:04.600Z'); // 29m 4.6s -> rounds to 29m 5s
+            const videoTime = new Date('2026-02-11T10:29:04.600Z'); // 29m 4.6s → rounds to 29m 5s
             const result = autoSync(points, videoTime);
 
             expect(result.autoSynced).toBe(true);
-            expect(result.warning).toContain('Large time difference');
+            expect(result.warning).toContain('Video time is outside GPX range');
             expect(result.warning).toContain('29 min 5 sec');
         });
 
-        // DJI filename scenarios
-        it('should sync DJI video time correctly - GPX starts after video', () => {
-            // GPX: 2026-02-11T05:55:25Z (first point)
-            // DJI video: 2026-02-11T09:24:25Z (from filename)
-            // offset = videoStart - gpxStart = +12540s (positive = video after GPX)
+        // DJI video scenarios
+        it('should sync DJI video time correctly — GPX starts after video', () => {
+            // GPX: 05:55:25 to 05:55:26 (1-sec track)
+            // DJI video: 09:24:25
+            // offset = 3h29m = 12540s → outside range [−300, 1+300] → warning
             const points = [
                 makePoint(56.026587, 37.85473, '2026-02-11T05:55:25Z'),
                 makePoint(56.026577, 37.854697, '2026-02-11T05:55:26Z'),
             ];
 
             const djiVideoTime = new Date('2026-02-11T09:24:25Z');
-            const result = autoSync(points, djiVideoTime, undefined, undefined, 0);
+            const result = autoSync(points, djiVideoTime);
 
-            // Time difference is ~3.5 hours, exceeds 5 minute threshold
-            // But should still sync with warning
             expect(result.autoSynced).toBe(true);
-            expect(result.warning).toContain('Large time difference');
+            expect(result.warning).toContain('Video time is outside GPX range');
             expect(result.offsetSeconds).toBe(3 * 3600 + 29 * 60); // 12540 seconds
         });
 
-        it('should sync DJI video time correctly - GPX starts before video', () => {
-            // GPX: 2026-02-11T09:24:00Z
-            // DJI video: 2026-02-11T05:55:00Z (video was taken earlier)
-            // offset = videoStart - gpxStart = -12540s (negative = video before GPX)
+        it('should sync DJI video time correctly — GPX starts before video', () => {
+            // GPX: 09:24:00 to 09:25:00
+            // DJI video: 05:55:00 → offset = −12540s → outside range
             const points = [
                 makePoint(56.026587, 37.85473, '2026-02-11T09:24:00Z'),
                 makePoint(56.026577, 37.854697, '2026-02-11T09:25:00Z'),
             ];
 
             const djiVideoTime = new Date('2026-02-11T05:55:00Z');
-            const result = autoSync(points, djiVideoTime, undefined, undefined, 0);
+            const result = autoSync(points, djiVideoTime);
 
-            // Time difference is ~3.5 hours, but should still sync
             expect(result.autoSynced).toBe(true);
-            expect(result.warning).toContain('Large time difference');
+            expect(result.warning).toContain('Video time is outside GPX range');
             expect(result.offsetSeconds).toBe(-(3 * 3600 + 29 * 60)); // -12540 seconds
         });
 
         it('should not apply timezone shift twice for absolute video Date', () => {
-            // GPX and video start at the same UTC time
+            // GPX and video at the same UTC time → offset = 0
             const points = [
                 makePoint(55.7558, 37.6173, '2026-02-11T10:00:00Z'),
                 makePoint(55.7567, 37.6173, '2026-02-11T10:01:00Z'),
             ];
 
             const videoTime = new Date('2026-02-11T10:00:00Z');
-            // Even if timezone offset is passed from metadata, Date is already absolute.
-            const result = autoSync(points, videoTime, undefined, undefined, -180);
+            const result = autoSync(points, videoTime);
 
             expect(result.autoSynced).toBe(true);
             expect(result.offsetSeconds).toBe(0);
@@ -171,47 +164,44 @@ describe('Sync Engine', () => {
                 makePoint(55.7567, 37.6173, '2024-01-15T10:01:00Z'),
             ];
 
-            // GPS coords are available
             const result = autoSync(points, new Date('2024-01-15T10:00:00Z'), 55.7558, 37.6173);
 
-            // Should use GPS when it agrees with time-based sync.
             expect(result.autoSynced).toBe(true);
             expect(result.offsetSeconds).toBe(0); // GPS matched to first point
         });
 
-        it('should prefer time-based sync when GPS points to a far timeline segment', () => {
+        it('should prefer time when GPS points to a different timeline segment', () => {
             const points = [
-                // Slightly away from GPS to avoid matching the first point
                 makePoint(55.7559, 37.6174, '2024-01-15T10:00:00Z'),
-                // Video starts here by time
                 makePoint(55.7560, 37.6175, '2024-01-15T10:01:00Z'),
-                // Same GPS position appears much later in the track (loop)
-                makePoint(55.7558, 37.6173, '2024-01-15T10:20:00Z'),
+                // Same GPS position appears much later (loop)
+                makePoint(55.7558, 37.6173, '2024-01-15T10:04:00Z'),
             ];
 
             const result = autoSync(points, new Date('2024-01-15T10:01:00Z'), 55.7558, 37.6173);
 
-            // Time says +60s, GPS says +1200s; mismatch is too large, so time wins.
+            // Time says +60s, GPS nearest in window would be offset 0 (first point)
+            // or offset 240 (third point at 10:04, within 60±300 window)
+            // Third point is exact GPS match → divergence = |240-60| = 180 > 30 → trust time
             expect(result.autoSynced).toBe(true);
             expect(result.offsetSeconds).toBe(60);
-            expect(result.warning).toContain('GPS near start differs from video time');
+            expect(result.warning).toContain('GPS location differs from video time');
             expect(result.warning).toContain('Time-based sync was applied');
         });
 
-        it('should fall back to GPS when video time is far outside GPX range', () => {
+        it('should fall back to GPS when video time is outside GPX range', () => {
             const points = [
                 makePoint(55.7558, 37.6173, '2024-01-15T10:00:00Z'),
                 makePoint(55.7567, 37.6173, '2024-01-15T10:01:00Z'),
                 makePoint(55.7576, 37.6173, '2024-01-15T10:02:00Z'),
             ];
 
-            // 3+ hours away from GPX: time-based offset is implausible for this track.
+            // 3+ hours away from GPX range → outside range → GPS fallback
             const result = autoSync(points, new Date('2024-01-15T13:20:00Z'), 55.7567, 37.6173);
 
-            // GPS should be used in this case.
             expect(result.autoSynced).toBe(true);
-            expect(result.offsetSeconds).toBe(60);
-            expect(result.warning).toContain('Video time appears outside GPX range');
+            expect(result.offsetSeconds).toBe(60); // GPS matched second point
+            expect(result.warning).toContain('Video time is outside GPX range');
             expect(result.warning).toContain('GPS-based sync was applied');
         });
 
@@ -226,76 +216,97 @@ describe('Sync Engine', () => {
 
             expect(result.autoSynced).toBe(true);
             expect(result.offsetSeconds).toBe(0);
+            expect(result.warning).toBeUndefined();
         });
 
-        it('should handle negative offset within 5 minutes', () => {
+        it('should handle negative offset within buffer zone without warning', () => {
             const points = [
                 makePoint(55.7558, 37.6173, '2024-01-15T10:05:00Z'),
                 makePoint(55.7567, 37.6173, '2024-01-15T10:10:00Z'),
             ];
 
-            // Video started 5 minutes before GPX
-            // offset = videoStart - gpxStart = -300s (negative = video before GPX)
+            // Video started 5 minutes before GPX → offset = −300
+            // −300 >= −300 (buffer) → inside range → no warning
             const videoTime = new Date('2024-01-15T10:00:00Z');
             const result = autoSync(points, videoTime);
 
             expect(result.autoSynced).toBe(true);
-            expect(result.offsetSeconds).toBe(-300); // -5 minutes
+            expect(result.offsetSeconds).toBe(-300);
+            expect(result.warning).toBeUndefined();
         });
 
-        it('should fail with warning when offset is exactly 5 minutes', () => {
+        it('should warn when offset is just outside buffer zone', () => {
             const points = [
-                makePoint(55.7558, 37.6173, '2024-01-15T10:05:00Z'),
+                makePoint(55.7558, 37.6173, '2024-01-15T10:05:01Z'),
                 makePoint(55.7567, 37.6173, '2024-01-15T10:30:00Z'),
             ];
 
-            // Video started 5 minutes before GPX (boundary case - more than 5 min fails)
+            // Video 5m01s before GPX start → offset = −301 → outside range
             const videoTime = new Date('2024-01-15T10:00:00Z');
             const result = autoSync(points, videoTime);
 
-            // > 5 minutes (exactly 5 min = 300 sec, but we use > not >=)
-            expect(result.autoSynced).toBe(true); // 5 min = boundary, still passes
+            expect(result.autoSynced).toBe(true);
+            expect(result.warning).toContain('Video time is outside GPX range');
+            expect(result.offsetSeconds).toBeCloseTo(-301, 0);
         });
 
-        it('should handle video starting mid-GPX track', () => {
+        it('should handle video starting mid-track without warning', () => {
             const points = [
                 makePoint(55.7558, 37.6173, '2024-01-15T10:00:00Z'),
                 makePoint(55.7567, 37.6173, '2024-01-15T10:30:00Z'),
                 makePoint(55.7576, 37.6173, '2024-01-15T11:00:00Z'),
             ];
 
-            // Video starts 30 minutes into GPX - exceeds 5 min threshold
+            // Video starts 30 minutes into a 60-minute GPX track → inside range
             const videoTime = new Date('2024-01-15T10:30:00Z');
             const result = autoSync(points, videoTime);
 
-            // Should sync with warning
             expect(result.autoSynced).toBe(true);
-            expect(result.warning).toContain('Large time difference');
-            expect(result.offsetSeconds).toBe(1800); // 30 minutes
+            expect(result.offsetSeconds).toBe(1800);
+            expect(result.warning).toBeUndefined();
         });
 
-        it('should succeed for offset within 4 minutes 59 seconds', () => {
+        it('should succeed for offset within 5 minutes of GPX start', () => {
             const points = [
                 makePoint(55.7558, 37.6173, '2024-01-15T10:05:00Z'),
                 makePoint(55.7567, 37.6173, '2024-01-15T10:30:00Z'),
                 makePoint(55.7576, 37.6173, '2024-01-15T11:00:00Z'),
             ];
 
-            // Video starts 4 min 59 sec before GPX - within threshold
+            // Video 4m59s before GPX start → offset = −299 → inside range
             const videoTime = new Date('2024-01-15T10:00:01Z');
             const result = autoSync(points, videoTime);
 
             expect(result.autoSynced).toBe(true);
-            expect(result.offsetSeconds).toBeCloseTo(-299, 0); // ~299 seconds
+            expect(result.offsetSeconds).toBeCloseTo(-299, 0);
+            expect(result.warning).toBeUndefined();
+        });
+
+        it('should sync DJI video mid-track on a long GPX without warning', () => {
+            // Simulating the user's scenario: DJI video with creation_time 14:25:00Z
+            // GPX track from 09:02:07Z to 15:00:00Z (≈6 hour track)
+            // offset = 14:25:00 - 09:02:07 = 19373s → INSIDE the track range
+            const points = [
+                makePoint(54.758943, 35.604187, '2026-02-15T09:02:07Z'),
+                makePoint(54.760000, 35.620000, '2026-02-15T12:00:00Z'),
+                makePoint(54.761890, 35.630005, '2026-02-15T14:25:00Z'),
+                makePoint(54.762000, 35.631000, '2026-02-15T15:00:00Z'),
+            ];
+
+            const djiVideoTime = new Date('2026-02-15T14:25:00Z');
+            const result = autoSync(points, djiVideoTime);
+
+            expect(result.autoSynced).toBe(true);
+            expect(result.offsetSeconds).toBe(19373);
+            expect(result.warning).toBeUndefined();
         });
 
         it('should not snap to distant GPS loop segment on real iPhone track', () => {
             const xml = fs.readFileSync(IPHONE_GPX_PATH, 'utf-8');
             const gpx = parseGpx(xml);
 
-            // Video: 2026-02-15T09:01:13Z
-            // GPX:   2026-02-15T09:02:07Z (starts 54 seconds after video)
-            // offset = videoStart - gpxStart = -54s (negative = video before GPX)
+            // Video: 09:01:13Z, GPX starts: 09:02:07Z
+            // offset = −54s → inside range → no warning (time-only)
             const videoCreationTime = new Date('2026-02-15T09:01:13.000Z');
             const videoStartLat = 54.7602;
             const videoStartLon = 35.6026;
@@ -307,12 +318,10 @@ describe('Sync Engine', () => {
                 videoStartLon,
             );
 
-            // The GPX starts at 09:02:07Z, so expected offset is about -54 seconds.
-            // GPS-only nearest match appears ~6h later in this track and must be ignored.
+            // GPS-refined or time-based, but offset should be near −54
             expect(result.autoSynced).toBe(true);
             expect(result.offsetSeconds).toBeGreaterThan(-120);
             expect(result.offsetSeconds).toBeLessThan(0);
-            expect(result.warning).toContain('Time-based sync was applied');
         });
     });
 

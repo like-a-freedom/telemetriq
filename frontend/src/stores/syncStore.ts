@@ -39,9 +39,7 @@ export const useSyncStore = defineStore('sync', () => {
         videoStartTime?: Date,
         videoStartLat?: number,
         videoStartLon?: number,
-        videoTimezoneOffsetMinutes?: number,
         allowOverrideManual = false,
-        _videoDurationSeconds?: number,
     ): Promise<void> {
         if (manualOverrideActive.value && !allowOverrideManual) {
             return;
@@ -57,7 +55,6 @@ export const useSyncStore = defineStore('sync', () => {
                 videoStartTime,
                 videoStartLat,
                 videoStartLon,
-                videoTimezoneOffsetMinutes,
             );
 
             syncConfig.value = result;
