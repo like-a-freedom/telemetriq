@@ -1,7 +1,7 @@
 /**
  * Unit tests for file validation module.
  */
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import {
     validateVideoFile,
     isWebCodecsSupported,
@@ -98,23 +98,23 @@ describe('file-validation', () => {
         });
 
         it('isWebCodecsSupported should return true when all APIs exist', () => {
-            (globalThis as any).VideoDecoder = class {};
-            (globalThis as any).VideoEncoder = class {};
-            (globalThis as any).VideoFrame = class {};
+            (globalThis as any).VideoDecoder = class { };
+            (globalThis as any).VideoEncoder = class { };
+            (globalThis as any).VideoFrame = class { };
 
             expect(isWebCodecsSupported()).toBe(true);
         });
 
         it('isWebCodecsSupported should return false when one API is missing', () => {
-            (globalThis as any).VideoDecoder = class {};
-            (globalThis as any).VideoEncoder = class {};
+            (globalThis as any).VideoDecoder = class { };
+            (globalThis as any).VideoEncoder = class { };
             (globalThis as any).VideoFrame = undefined;
 
             expect(isWebCodecsSupported()).toBe(false);
         });
 
         it('isSharedArrayBufferSupported should reflect runtime', () => {
-            (globalThis as any).SharedArrayBuffer = class {};
+            (globalThis as any).SharedArrayBuffer = class { };
             expect(isSharedArrayBufferSupported()).toBe(true);
 
             (globalThis as any).SharedArrayBuffer = undefined;
@@ -137,11 +137,11 @@ describe('file-validation', () => {
         });
 
         it('checkBrowserCapabilities should pass when all features exist', () => {
-            (globalThis as any).VideoDecoder = class {};
-            (globalThis as any).VideoEncoder = class {};
-            (globalThis as any).VideoFrame = class {};
-            (globalThis as any).SharedArrayBuffer = class {};
-            (globalThis as any).OffscreenCanvas = class {};
+            (globalThis as any).VideoDecoder = class { };
+            (globalThis as any).VideoEncoder = class { };
+            (globalThis as any).VideoFrame = class { };
+            (globalThis as any).SharedArrayBuffer = class { };
+            (globalThis as any).OffscreenCanvas = class { };
 
             const result = checkBrowserCapabilities();
 

@@ -1,7 +1,7 @@
 /**
  * Unit tests for progress-utils module.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
     createProcessingProgressReporter,
     createMuxProgressReporter,

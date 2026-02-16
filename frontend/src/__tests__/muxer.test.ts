@@ -1,7 +1,7 @@
 /**
  * Unit tests for muxer module.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { DemuxedMedia } from '../modules/video-processing-types';
 import type { VideoMeta } from '../core/types';
 
