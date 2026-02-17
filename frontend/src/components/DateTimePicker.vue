@@ -112,7 +112,7 @@ watch(
   () => props.modelValue,
   (v) => {
     if (v) {
-      const [d = '', t = ''] = v.split('T');
+      const [d = "", t = ""] = v.split("T");
       selected.value = d ? new Date(d + "T00:00:00Z") : null;
       if (t) {
         const [hh = "0", mm = "0", ss = "0"] = t.split(":");
@@ -254,7 +254,7 @@ function closePopup() {
 const displayValue = computed(() => {
   if (!props.modelValue) return "";
   // show human-friendly date + time (guard d/t with defaults so TS doesn't complain)
-  const [d = '', t = ''] = props.modelValue.split('T');
+  const [d = "", t = ""] = props.modelValue.split("T");
   return `${d.replace(/-/g, ".")} ${t ?? ""}`.trim();
 });
 
