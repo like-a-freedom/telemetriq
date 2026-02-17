@@ -24,54 +24,69 @@
         </div>
 
         <div class="preview-view__sync-controls">
-          <h3>Synchronization</h3>
+          <div class="preview-view__sync-header">
+            <h3>Synchronization</h3>
+
+            <button
+              class="preview-view__collapse-btn"
+              @click="toggleSyncCollapsed"
+              :aria-expanded="!syncCollapsed"
+              aria-controls="sync-section"
+              data-testid="sync-collapse-toggle"
+              title="Toggle synchronization panel"
+            >
+              <span
+                class="chevron"
+                :class="{ 'chevron--open': !syncCollapsed }"
+                aria-hidden="true"
+              ></span>
+            </button>
+          </div>
+
           <p class="preview-view__desc">
             Align telemetry data with video timeline.
           </p>
 
-          <SyncSlider
-            :offset-seconds="syncStore.offsetSeconds"
-            :is-auto-synced="syncStore.isAutoSynced"
-            :video-duration-seconds="filesStore.videoMeta?.duration"
-            :error="syncStore.syncError"
-            :warning="syncStore.syncWarning"
-            @update:offset-seconds="onManualOffsetChange"
-          />
+          <div id="sync-section" v-show="!syncCollapsed">
+            <SyncSlider
+              :offset-seconds="syncStore.offsetSeconds"
+              :is-auto-synced="syncStore.isAutoSynced"
+              :video-duration-seconds="filesStore.videoMeta?.duration"
+              :error="syncStore.syncError"
+              :warning="syncStore.syncWarning"
+              @update:offset-seconds="onManualOffsetChange"
+            />
 
-          <div class="preview-view__divider"></div>
+            <div class="preview-view__divider"></div>
 
-          <div class="preview-view__manual-sync">
-            <label class="preview-view__label">Manual start time</label>
-            <p class="preview-view__hint">
-              Set activity start time if auto-sync fails.
-            </p>
-            <div class="preview-view__field-row">
-              <input
-                v-model="manualStartTime"
-                type="datetime-local"
-                class="preview-view__input"
-                placeholder="Select date & time"
-              />
-              <button
-                class="preview-view__btn preview-view__btn--secondary"
-                @click="applyManualTime"
-              >
-                Apply
-              </button>
-            </div>
-            <div class="preview-view__field-row preview-view__timezone-row">
-              <label class="preview-view__label preview-view__label--small"
-                >Timezone</label
-              >
-              <select v-model="manualTimezone" class="preview-view__select">
-                <option
-                  v-for="tz in timezones"
-                  :key="tz.value"
-                  :value="tz.value"
+            <div class="preview-view__manual-sync">
+              <label class="preview-view__label">Manual start time</label>
+              <p class="preview-view__hint">
+                Set activity start time if auto-sync fails.
+              </p>
+              <div class="preview-view__field-row">
+                <DateTimePicker v-model="manualStartTime" />
+                <button
+                  class="preview-view__btn preview-view__btn--secondary"
+                  @click="applyManualTime"
                 >
-                  {{ tz.label }}
-                </option>
-              </select>
+                  Apply
+                </button>
+              </div>
+              <div class="preview-view__field-row preview-view__timezone-row">
+                <label class="preview-view__label preview-view__label--small"
+                  >Timezone</label
+                >
+                <select v-model="manualTimezone" class="preview-view__select">
+                  <option
+                    v-for="tz in timezones"
+                    :key="tz.value"
+                    :value="tz.value"
+                  >
+                    {{ tz.label }}
+                  </option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -156,7 +171,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useFilesStore, useSyncStore, useSettingsStore } from "../stores";
 import { buildTelemetryTimeline } from "../modules/telemetry-core";
@@ -168,6 +183,8 @@ import VideoPlayer from "../components/VideoPlayer.vue";
 import SyncSlider from "../components/SyncSlider.vue";
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
 import TemplateSelector from "../components/TemplateSelector.vue";
+// @ts-ignore Vue SFC default export typing handled by current tooling setup
+import DateTimePicker from "../components/DateTimePicker.vue";
 
 // SEO
 useSeo({
@@ -180,6 +197,22 @@ const router = useRouter();
 const filesStore = useFilesStore();
 const syncStore = useSyncStore();
 const settingsStore = useSettingsStore();
+
+// Collapse synchronization panel by default when auto-sync succeeded.
+const syncCollapsed = ref<boolean>(syncStore.isAutoSynced);
+let _userToggledSync = false;
+function toggleSyncCollapsed(): void {
+  _userToggledSync = true;
+  syncCollapsed.value = !syncCollapsed.value;
+}
+
+// Auto-collapse when auto-sync becomes true — but respect manual user toggles.
+watch(
+  () => syncStore.isAutoSynced,
+  (val) => {
+    if (val && !_userToggledSync) syncCollapsed.value = true;
+  }
+);
 
 const videoUrl = ref<string | null>(null);
 const telemetryFrames = ref<TelemetryFrame[]>([]);
@@ -377,11 +410,74 @@ function applyManualTime(): void {
   padding: 1.25rem;
 }
 
+.preview-view__sync-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
 .preview-view__sync-controls h3 {
   margin: 0 0 0.5rem;
   font-size: 1rem;
   color: var(--color-text, #fff);
   font-weight: 600;
+}
+
+.preview-view__collapse-btn {
+  /* square, icon-only button with balanced proportions */
+  padding: 0.5rem;
+  border: 1px solid var(--color-border, #404040);
+  background: var(--color-bg-tertiary, #242424);
+  color: var(--color-text, #fff);
+  font-size: 0.9rem;
+  height: 36px;
+  width: 36px;
+  min-width: 36px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s, transform 0.12s;
+}
+.preview-view__collapse-btn:focus {
+  outline: none;
+  border-color: var(--color-primary, #646cff);
+  box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.12);
+}
+.preview-view__collapse-btn:hover {
+  background: var(--color-bg-hover, #2a2a2a);
+  border-color: var(--color-primary, #646cff);
+  transform: translateY(-1px);
+}
+.preview-view__collapse-btn:active {
+  transform: translateY(0);
+}
+
+.chevron {
+  display: inline-block;
+  width: 10px;
+  height: 6px;
+  line-height: 0;
+  transform: rotate(0deg);
+  transition: transform 0.15s ease-in-out;
+  /* hide possible textual fallback */
+  color: transparent;
+  font-size: 0;
+}
+.chevron::before {
+  content: "";
+  display: inline-block;
+  width: 100%;
+  height: 100%;
+  background-image: var(--ui-caret);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% 100%;
+}
+.chevron--open {
+  transform: rotate(180deg);
 }
 
 .preview-view__manual-sync {
@@ -391,10 +487,11 @@ function applyManualTime(): void {
 .preview-view__field-row {
   display: flex;
   gap: 0.75rem;
-  align-items: flex-end;
+  align-items: center; /* vertically center inputs and buttons for consistent visual rhythm */
 }
 
-.preview-view__field-row .preview-view__input {
+.preview-view__field-row .preview-view__input,
+.preview-view__field-row .datetime-picker {
   flex: 1;
 }
 
@@ -410,16 +507,24 @@ function applyManualTime(): void {
   align-items: stretch;
 }
 
+/* Make timezone select visually consistent with other selects */
 .preview-view__timezone-row .preview-view__select {
   width: 100%;
-  padding: 0.5rem;
+  padding: 0.6rem 3rem 0.6rem 0.75rem; /* increased right padding for timezone select */
   border: 1px solid var(--color-border, #404040);
-  border-radius: 4px;
-  background: var(--color-bg, #1a1a1a);
+  border-radius: 6px;
+  background: var(--color-bg-tertiary, #242424);
   color: var(--color-text, #fff);
   font-size: 0.9rem;
+  transition: border-color 0.2s;
 }
 
+/* wrapper + explicit caret for timezone select (guaranteed visibility) */
+/* removed wrapper caret — unified caret comes from --ui-caret */
+
+.preview-view__timezone-row .preview-view__select:hover {
+  border-color: var(--color-primary, #646cff);
+}
 .preview-view__label--small {
   font-size: 0.85rem;
   color: var(--color-text-secondary, #888);
@@ -515,7 +620,7 @@ function applyManualTime(): void {
 
 .preview-view__select {
   width: 100%;
-  padding: 0.6rem 0.75rem;
+  padding: 0.6rem 3rem 0.6rem 0.75rem; /* increased right padding so native arrow has breathing room */
   border: 1px solid var(--color-border, #404040);
   background: var(--color-bg-tertiary, #242424);
   color: var(--color-text, #fff);
@@ -523,6 +628,12 @@ function applyManualTime(): void {
   font-size: 0.9rem;
   cursor: pointer;
   transition: border-color 0.2s;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: var(--ui-caret);
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  background-size: 10px 6px;
 }
 
 .preview-view__select:hover {
@@ -532,6 +643,34 @@ function applyManualTime(): void {
 .preview-view__select:focus {
   outline: none;
   border-color: var(--color-primary, #646cff);
+}
+
+/* custom caret + hide native arrow to guarantee spacing */
+.preview-view__select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238f8f8f' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  background-size: 10px 6px;
+}
+.preview-view__select::-ms-expand {
+  display: none;
+}
+
+.preview-view__timezone-row .preview-view__select {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Fix: ensure the unified caret (var(--ui-caret)) is always shown for the timezone select.
+   Some Chromium rendering/pathologies can reset background-image when `background` shorthand
+   is used earlier — explicitly set background-image here after other rules. */
+.preview-view__timezone-row .preview-view__select {
+  background-image: var(--ui-caret);
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  background-size: 10px 6px;
 }
 
 .preview-view__input {
