@@ -67,7 +67,7 @@ function onTemplateChange(event: Event): void {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  padding: 0.6rem 0.75rem;
+  padding: 0.6rem 3rem 0.6rem 0.75rem; /* increased right padding so native arrow has breathing room */
   border: 1px solid var(--color-border, #404040);
   background: var(--color-bg-tertiary, #242424);
   color: var(--color-text, #fff);
@@ -80,12 +80,33 @@ function onTemplateChange(event: Event): void {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+
+  /* use canonical caret */
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: var(--ui-caret);
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  background-size: 10px 6px;
 }
 
 .template-dropdown__select:hover,
 .template-dropdown__select:focus {
   outline: none;
   border-color: var(--color-primary, #646cff);
+}
+
+/* custom caret + hide native arrow to guarantee spacing */
+.template-dropdown__select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238f8f8f' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  background-size: 10px 6px;
+}
+.template-dropdown__select::-ms-expand {
+  display: none;
 }
 
 .template-dropdown__description {
