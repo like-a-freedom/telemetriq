@@ -71,6 +71,14 @@ export const TEMPLATE_METADATA: Record<TemplateId, TemplateMetadata> = {
   'soft-rounded': TEMPLATE_MAP['soft-rounded'].metadata,
   'thin-line': TEMPLATE_MAP['thin-line'].metadata,
   'swiss-grid': TEMPLATE_MAP['swiss-grid'].metadata,
+  'garmin-style': TEMPLATE_MAP['garmin-style'].metadata,
+  'sports-broadcast': TEMPLATE_MAP['sports-broadcast'].metadata,
+  'cockpit-hud': TEMPLATE_MAP['cockpit-hud'].metadata,
+  'orange-pulse': TEMPLATE_MAP['orange-pulse'].metadata,
+  'terminal': TEMPLATE_MAP['terminal'].metadata,
+  'night-runner': TEMPLATE_MAP['night-runner'].metadata,
+  'data-block': TEMPLATE_MAP['data-block'].metadata,
+  'race-tag': TEMPLATE_MAP['race-tag'].metadata,
   'custom': TEMPLATE_MAP['custom'].metadata,
 };
 
@@ -95,5 +103,13 @@ export const TEMPLATE_CONFIGS: Record<TemplateId, ExtendedOverlayConfig> = {
   'soft-rounded': TEMPLATE_MAP['soft-rounded'].config,
   'thin-line': TEMPLATE_MAP['thin-line'].config,
   'swiss-grid': TEMPLATE_MAP['swiss-grid'].config,
+  'garmin-style': TEMPLATE_MAP['garmin-style'].config,
+  'sports-broadcast': TEMPLATE_MAP['sports-broadcast'].config,
+  'cockpit-hud': TEMPLATE_MAP['cockpit-hud'].config,
+  'orange-pulse': TEMPLATE_MAP['orange-pulse'].config,
+  'terminal': TEMPLATE_MAP['terminal'].config,
+  'night-runner': TEMPLATE_MAP['night-runner'].config,
+  'data-block': TEMPLATE_MAP['data-block'].config,
+  'race-tag': TEMPLATE_MAP['race-tag'].config,
   'custom': TEMPLATE_MAP['custom'].config,
 };

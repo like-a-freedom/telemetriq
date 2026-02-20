@@ -79,6 +79,30 @@ export function renderExtendedLayout(
         case 'swiss-grid':
             drawSwissGrid(ctx, data, w, h, config, orientation, tuning);
             break;
+        case 'garmin-style':
+            drawGarminStyle(ctx, data, w, h, config, orientation, tuning);
+            break;
+        case 'sports-broadcast':
+            drawSportsBroadcast(ctx, data, w, h, config, orientation, tuning);
+            break;
+        case 'cockpit-hud':
+            drawCockpitHud(ctx, data, w, h, config, orientation, tuning);
+            break;
+        case 'orange-pulse':
+            drawOrangePulse(ctx, data, w, h, config, orientation, tuning);
+            break;
+        case 'terminal':
+            drawTerminal(ctx, data, w, h, config, orientation, tuning);
+            break;
+        case 'night-runner':
+            drawNightRunner(ctx, data, w, h, config, orientation, tuning);
+            break;
+        case 'data-block':
+            drawDataBlock(ctx, data, w, h, config, orientation, tuning);
+            break;
+        case 'race-tag':
+            drawRaceTag(ctx, data, w, h, config, orientation, tuning);
+            break;
         default:
             break;
     }
@@ -842,6 +866,789 @@ function drawSwissGrid(
             ctx.fillStyle = 'rgba(255,255,255,0.32)';
             ctx.font = `400 ${unitSize}px ${config.fontFamily}`;
             ctx.fillText(items[i]![2]!, centerX, y + barH * 0.76);
+        }
+    }
+}
+
+// ─── Template 27: Garmin Style ───────────────────────────────────────────────
+function drawGarminStyle(
+    ctx: OverlayContext2D,
+    data: MetricMap,
+    w: number,
+    h: number,
+    config: ExtendedOverlayConfig,
+    orientation: Orientation,
+    tuning: { textScale: number },
+): void {
+    const accent = config.accentColor || '#f97316';
+    const gaugeR = Math.round(orientation.shortSide * (orientation.isPortrait ? 0.14 : 0.1));
+    const cx = orientation.safePad + gaugeR + gaugeR * 0.15;
+    const cy = h - orientation.safePad - gaugeR - gaugeR * 0.15;
+    const strokeW = Math.max(3, gaugeR * 0.1);
+
+    // Background circle
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = strokeW;
+    ctx.beginPath();
+    ctx.arc(cx, cy, gaugeR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // HR arc
+    if (data.heartRate) {
+        const hrVal = parseInt(data.heartRate, 10);
+        const hrPercent = Math.min(1, hrVal / 200);
+        const startA = 2.44; // ~140 deg in radians
+        const sweepA = 4.54; // ~260 deg sweep
+        const endA = startA + sweepA * hrPercent;
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = strokeW;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(cx, cy, gaugeR, startA, endA, false);
+        ctx.stroke();
+
+        // Dot at end
+        const dotX = cx + Math.cos(endA) * gaugeR;
+        const dotY = cy + Math.sin(endA) * gaugeR;
+        ctx.fillStyle = accent;
+        ctx.beginPath();
+        ctx.arc(dotX, dotY, Math.max(3, strokeW * 1.2), 0, Math.PI * 2);
+        ctx.fill();
+
+        // HR value inside circle
+        const hrValSize = Math.max(12, Math.round(gaugeR * 0.5 * tuning.textScale));
+        const hrUnitSize = Math.max(8, Math.round(gaugeR * 0.16 * tuning.textScale));
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = config.textColor || '#FFFFFF';
+        ctx.font = `300 ${hrValSize}px ${config.fontFamily}`;
+        ctx.fillText(data.heartRate, cx, cy + hrValSize * 0.35);
+        ctx.fillStyle = accent;
+        ctx.font = `500 ${hrUnitSize}px ${config.fontFamily}`;
+        ctx.fillText('bpm', cx, cy + hrValSize * 0.7);
+    }
+
+    // Right side: stacked metrics
+    const rightX = w - orientation.safePad;
+    const metricRows = [
+        data.pace ? { label: 'PACE', unit: 'min/km', value: data.pace } : null,
+        data.distance ? { label: 'DIST', unit: 'km', value: data.distance } : null,
+        data.time ? { label: 'TIME', unit: '', value: data.time } : null,
+    ].filter(Boolean) as Array<{ label: string; unit: string; value: string }>;
+
+    const valSize = Math.max(16, Math.round(orientation.shortSide * 0.055 * tuning.textScale));
+    const lblSize = Math.max(7, Math.round(valSize * 0.32));
+    const rowH = valSize * 1.6;
+    const totalH = rowH * metricRows.length;
+    const startY = cy - totalH / 2 + rowH * 0.5;
+
+    ctx.textBaseline = 'alphabetic';
+    for (let i = 0; i < metricRows.length; i++) {
+        const row = metricRows[i]!;
+        const baseY = startY + i * rowH;
+
+        // Label + unit column (right-aligned before value)
+        ctx.textAlign = 'right';
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.font = `500 ${lblSize}px ${config.fontFamily}`;
+        ctx.fillText(row.label, rightX - valSize * (row.value.length > 5 ? 3.8 : 3.0) - lblSize, baseY - lblSize * 0.6);
+        if (row.unit) {
+            ctx.fillStyle = accent;
+            ctx.font = `400 ${lblSize}px ${config.fontFamily}`;
+            ctx.fillText(row.unit, rightX - valSize * (row.value.length > 5 ? 3.8 : 3.0) - lblSize, baseY + lblSize * 0.9);
+        }
+
+        // Value
+        const fontSize = row.value.length > 5 ? Math.round(valSize * 0.8) : valSize;
+        ctx.fillStyle = config.textColor || '#FFFFFF';
+        ctx.font = `300 ${fontSize}px ${config.fontFamily}`;
+        ctx.fillText(row.value, rightX, baseY);
+    }
+}
+
+// ─── Template 28: Sports Broadcast ───────────────────────────────────────────
+function drawSportsBroadcast(
+    ctx: OverlayContext2D,
+    data: MetricMap,
+    w: number,
+    h: number,
+    config: ExtendedOverlayConfig,
+    orientation: Orientation,
+    tuning: { textScale: number },
+): void {
+    const accent = config.accentColor || '#f97316';
+    const barH = Math.round(h * (orientation.isPortrait ? 0.12 : 0.1));
+    const accentLineH = Math.max(2, Math.round(barH * 0.03));
+    const sideTagW = Math.max(18, Math.round(barH * 0.35));
+    const y = h - barH - accentLineH;
+
+    // Orange top line
+    ctx.fillStyle = accent;
+    ctx.fillRect(0, y, w, accentLineH);
+
+    // Dark background panel
+    ctx.fillStyle = config.backgroundColor || 'rgba(0,0,0,0.88)';
+    ctx.fillRect(0, y + accentLineH, w, barH);
+
+    // Orange side tag "RUN"
+    ctx.fillStyle = accent;
+    ctx.fillRect(0, y + accentLineH, sideTagW, barH);
+
+    ctx.save();
+    ctx.translate(sideTagW * 0.5, y + accentLineH + barH * 0.5);
+    ctx.rotate(-Math.PI / 2);
+    const tagFontSize = Math.max(7, Math.round(sideTagW * 0.38 * tuning.textScale));
+    ctx.fillStyle = 'rgba(0,0,0,0.9)';
+    ctx.font = `700 ${tagFontSize}px ${config.fontFamily}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('RUN', 0, 0);
+    ctx.restore();
+
+    // Metrics grid
+    const items = [
+        data.pace ? { label: 'PACE', unit: 'min/km', value: data.pace } : null,
+        data.heartRate ? { label: 'HR', unit: 'bpm', value: data.heartRate } : null,
+        data.distance ? { label: 'DIST', unit: 'km', value: data.distance } : null,
+        data.time ? { label: 'TIME', unit: '', value: data.time } : null,
+    ].filter(Boolean) as Array<{ label: string; unit: string; value: string }>;
+    if (items.length === 0) return;
+
+    const contentX = sideTagW;
+    const contentW = w - sideTagW;
+    const colW = contentW / items.length;
+    const labelSize = Math.max(7, Math.round(barH * 0.14 * tuning.textScale));
+    const valueSize = Math.max(12, Math.round(barH * 0.34 * tuning.textScale));
+    const panelY = y + accentLineH;
+
+    ctx.textBaseline = 'alphabetic';
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i]!;
+        const colX = contentX + colW * i;
+
+        // Separator
+        if (i > 0) {
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(colX, panelY + barH * 0.18);
+            ctx.lineTo(colX, panelY + barH * 0.82);
+            ctx.stroke();
+        }
+
+        // Label (orange)
+        ctx.textAlign = 'left';
+        ctx.fillStyle = accent;
+        ctx.font = `600 ${labelSize}px ${config.fontFamily}`;
+        ctx.fillText(item.label, colX + colW * 0.06, panelY + barH * 0.38);
+        // Unit
+        if (item.unit) {
+            ctx.fillStyle = 'rgba(255,255,255,0.32)';
+            ctx.font = `400 ${Math.max(7, Math.round(labelSize * 0.86))}px ${config.fontFamily}`;
+            ctx.fillText(item.unit, colX + colW * 0.06, panelY + barH * 0.56);
+        }
+        // Value (right side of col)
+        ctx.textAlign = 'right';
+        ctx.fillStyle = config.textColor || '#FFFFFF';
+        ctx.font = `300 ${valueSize}px ${config.fontFamily}`;
+        ctx.fillText(item.value, colX + colW * 0.94, panelY + barH * 0.74);
+    }
+}
+
+// ─── Template 29: Cockpit HUD ─────────────────────────────────────────────────
+function drawCockpitHud(
+    ctx: OverlayContext2D,
+    data: MetricMap,
+    w: number,
+    h: number,
+    config: ExtendedOverlayConfig,
+    orientation: Orientation,
+    tuning: { textScale: number },
+): void {
+    const accent = config.accentColor || '#f97316';
+    const pad = orientation.safePad;
+
+    // Top-left status indicator
+    const dotR = Math.max(3, Math.round(orientation.shortSide * 0.008));
+    const statusY = pad + dotR + pad * 0.3;
+    ctx.fillStyle = accent;
+    ctx.beginPath();
+    ctx.arc(pad + dotR, statusY, dotR, 0, Math.PI * 2);
+    ctx.fill();
+    const statusSize = Math.max(7, Math.round(dotR * 2.5 * tuning.textScale));
+    ctx.fillStyle = 'rgba(249,115,22,0.62)';
+    ctx.font = `500 ${statusSize}px ${config.fontFamily}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('SYS ACTIVE', pad + dotR * 2.8, statusY);
+
+    // Top-right: elapsed time
+    if (data.time) {
+        const timeSize = Math.max(11, Math.round(orientation.shortSide * 0.035 * tuning.textScale));
+        const timeLabelSize = Math.max(7, Math.round(timeSize * 0.38));
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = 'rgba(255,255,255,0.28)';
+        ctx.font = `500 ${timeLabelSize}px ${config.fontFamily}`;
+        ctx.fillText('ELAPSED', w - pad, pad + timeLabelSize + pad * 0.3);
+        ctx.fillStyle = 'rgba(255,255,255,0.62)';
+        ctx.font = `300 ${timeSize}px ${config.fontFamily}`;
+        ctx.fillText(data.time, w - pad, pad + timeLabelSize + timeSize + pad * 0.3);
+    }
+
+    // Bottom-left: large pace
+    if (data.pace) {
+        const paceSize = Math.max(28, Math.round(orientation.shortSide * (orientation.isPortrait ? 0.18 : 0.13) * tuning.textScale));
+        const paceLabelSize = Math.max(7, Math.round(paceSize * 0.17));
+        const baseY = h - pad;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = 'rgba(255,255,255,0.32)';
+        ctx.font = `500 ${paceLabelSize}px ${config.fontFamily}`;
+        ctx.fillText('PACE', pad, baseY - paceSize - paceLabelSize * 0.6);
+        ctx.fillStyle = config.textColor || '#FFFFFF';
+        ctx.font = `300 ${paceSize}px ${config.fontFamily}`;
+        ctx.fillText(data.pace, pad, baseY - paceLabelSize * 0.4);
+        ctx.fillStyle = accent;
+        ctx.font = `500 ${paceLabelSize}px ${config.fontFamily}`;
+        ctx.fillText('min / km', pad, baseY + paceLabelSize);
+    }
+
+    // Bottom-right: waveform heart rate
+    if (data.heartRate) {
+        const hrVal = parseInt(data.heartRate, 10);
+        const hrPercent = Math.min(1, hrVal / 200);
+        const valSize = Math.max(18, Math.round(orientation.shortSide * 0.075 * tuning.textScale));
+        const lblSize = Math.max(7, Math.round(valSize * 0.27));
+        const barCount = 20;
+        const barW = Math.max(2, Math.round(orientation.shortSide * 0.006));
+        const barGap = Math.max(1, Math.round(barW * 0.5));
+        const maxBarH = Math.max(14, Math.round(valSize * 0.55));
+        const barsW = (barW + barGap) * barCount - barGap;
+        const baseX = w - pad;
+        const baseY = h - pad;
+
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'alphabetic';
+
+        // HR label
+        ctx.fillStyle = 'rgba(255,255,255,0.32)';
+        ctx.font = `500 ${lblSize}px ${config.fontFamily}`;
+        ctx.fillText('HEART RATE', baseX, baseY - valSize - maxBarH - lblSize * 1.4);
+
+        // Waveform bars
+        const barsBaseY = baseY - valSize - lblSize * 0.5;
+        for (let i = 0; i < barCount; i++) {
+            const barH2 = Math.round(maxBarH * (0.35 + Math.abs(Math.sin(i * 0.8)) * 0.65));
+            const bx = baseX - barsW + i * (barW + barGap);
+            const by = barsBaseY - barH2;
+            ctx.fillStyle = (i / barCount) < hrPercent ? accent : 'rgba(255,255,255,0.12)';
+            ctx.beginPath();
+            ctx.roundRect(bx, by, barW, barH2, Math.min(barW / 2, 2));
+            ctx.fill();
+        }
+
+        // HR value
+        ctx.fillStyle = config.textColor || '#FFFFFF';
+        ctx.font = `300 ${valSize}px ${config.fontFamily}`;
+        ctx.fillText(data.heartRate, baseX, baseY);
+        ctx.fillStyle = accent;
+        ctx.font = `400 ${lblSize}px ${config.fontFamily}`;
+        ctx.fillText('bpm', baseX, baseY + lblSize);
+    }
+
+    // Bottom-center: distance
+    if (data.distance) {
+        const distSize = Math.max(14, Math.round(orientation.shortSide * 0.05 * tuning.textScale));
+        const distLblSize = Math.max(7, Math.round(distSize * 0.32));
+        const cx = w * 0.5;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = 'rgba(255,255,255,0.28)';
+        ctx.font = `500 ${distLblSize}px ${config.fontFamily}`;
+        ctx.fillText('DISTANCE', cx, h - pad - distSize - distLblSize * 0.6);
+        ctx.fillStyle = 'rgba(255,255,255,0.88)';
+        ctx.font = `200 ${distSize}px ${config.fontFamily}`;
+        ctx.fillText(data.distance, cx, h - pad - distLblSize * 0.2);
+        ctx.fillStyle = 'rgba(255,255,255,0.28)';
+        ctx.font = `400 ${distLblSize}px ${config.fontFamily}`;
+        ctx.fillText('km', cx, h - pad + distLblSize * 1.1);
+    }
+
+    // Bottom orange gradient divider line
+    const lineGrad = ctx.createLinearGradient(0, 0, w, 0);
+    lineGrad.addColorStop(0, 'transparent');
+    lineGrad.addColorStop(0.5, 'rgba(249,115,22,0.42)');
+    lineGrad.addColorStop(1, 'transparent');
+    ctx.strokeStyle = lineGrad;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, h - 1);
+    ctx.lineTo(w, h - 1);
+    ctx.stroke();
+}
+
+// ─── Template 30: Orange Pulse ────────────────────────────────────────────────
+function drawOrangePulse(
+    ctx: OverlayContext2D,
+    data: MetricMap,
+    w: number,
+    h: number,
+    config: ExtendedOverlayConfig,
+    orientation: Orientation,
+    tuning: { textScale: number },
+): void {
+    const accent = config.accentColor || '#f97316';
+    const panelW = Math.round(w * (orientation.isPortrait ? 0.32 : 0.22));
+    const itemH = Math.round(orientation.shortSide * (orientation.isPortrait ? 0.09 : 0.072));
+    const panelItems = [
+        data.pace ? { label: 'PACE', unit: 'min/km', value: data.pace, accent: true } : null,
+        data.distance ? { label: 'DIST', unit: 'km', value: data.distance, accent: false } : null,
+        data.time ? { label: 'TIME', unit: '', value: data.time, accent: false } : null,
+    ].filter(Boolean) as Array<{ label: string; unit: string; value: string; accent: boolean }>;
+
+    const panelH = panelItems.length * itemH * 1.35 + itemH * 0.4;
+    const panelY = h * 0.5 - panelH * 0.5;
+
+    // Panel background
+    ctx.fillStyle = config.backgroundColor || 'rgba(0,0,0,0.72)';
+    ctx.fillRect(0, panelY, panelW, panelH);
+
+    // Right accent border
+    ctx.strokeStyle = 'rgba(249,115,22,0.32)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(panelW, panelY);
+    ctx.lineTo(panelW, panelY + panelH);
+    ctx.stroke();
+
+    const valSize = Math.max(13, Math.round(itemH * 0.44 * tuning.textScale));
+    const lblSize = Math.max(7, Math.round(valSize * 0.32));
+    const innerPad = Math.round(panelW * 0.12);
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    for (let i = 0; i < panelItems.length; i++) {
+        const item = panelItems[i]!;
+        const rowY = panelY + itemH * 0.4 + i * itemH * 1.35;
+
+        // Divider
+        if (i > 0) {
+            ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(innerPad, rowY - itemH * 0.3);
+            ctx.lineTo(panelW - innerPad, rowY - itemH * 0.3);
+            ctx.stroke();
+        }
+
+        ctx.fillStyle = 'rgba(255,255,255,0.32)';
+        ctx.font = `500 ${lblSize}px ${config.fontFamily}`;
+        ctx.fillText(item.label, innerPad, rowY);
+        ctx.fillStyle = item.accent ? accent : 'rgba(255,255,255,0.82)';
+        const vs = item.accent ? Math.round(valSize * 1.15) : valSize;
+        ctx.font = `${item.accent ? '500' : '300'} ${vs}px ${config.fontFamily}`;
+        ctx.fillText(item.value, innerPad, rowY + vs * 0.92);
+        if (item.unit) {
+            ctx.fillStyle = 'rgba(255,255,255,0.22)';
+            ctx.font = `400 ${lblSize}px ${config.fontFamily}`;
+            ctx.fillText(item.unit, innerPad, rowY + vs * 0.92 + lblSize * 1.1);
+        }
+    }
+
+    // Right: large HR with glowing dot
+    if (data.heartRate) {
+        const hrSize = Math.max(28, Math.round(orientation.shortSide * (orientation.isPortrait ? 0.18 : 0.13) * tuning.textScale));
+        const hrLblSize = Math.max(7, Math.round(hrSize * 0.22));
+        const dotR = Math.max(4, Math.round(hrLblSize * 0.55));
+        const baseX = w - orientation.safePad;
+        const baseY = h * 0.5 + hrSize * 0.3;
+
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'alphabetic';
+
+        // Label
+        ctx.fillStyle = 'rgba(255,255,255,0.32)';
+        ctx.font = `500 ${hrLblSize}px ${config.fontFamily}`;
+        ctx.fillText('HEART RATE', baseX, baseY - hrSize - hrLblSize * 0.8);
+
+        // Glowing dot
+        const dotX = baseX - hrSize * (data.heartRate.length > 2 ? 4.2 : 3.2) - dotR * 2;
+        const dotY = baseY - hrSize * 0.35;
+        const radGrad = ctx.createRadialGradient(dotX, dotY, 0, dotX, dotY, dotR * 3);
+        radGrad.addColorStop(0, 'rgba(249,115,22,0.85)');
+        radGrad.addColorStop(0.4, 'rgba(249,115,22,0.35)');
+        radGrad.addColorStop(1, 'rgba(249,115,22,0)');
+        ctx.fillStyle = radGrad;
+        ctx.beginPath();
+        ctx.arc(dotX, dotY, dotR * 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = accent;
+        ctx.beginPath();
+        ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // HR value
+        ctx.fillStyle = config.textColor || '#FFFFFF';
+        ctx.font = `200 ${hrSize}px ${config.fontFamily}`;
+        ctx.fillText(data.heartRate, baseX, baseY);
+
+        // BPM label
+        ctx.fillStyle = accent;
+        ctx.font = `500 ${hrLblSize}px ${config.fontFamily}`;
+        ctx.fillText('bpm', baseX, baseY + hrLblSize * 1.2);
+    }
+}
+
+// ─── Template 31: Terminal ────────────────────────────────────────────────────
+function drawTerminal(
+    ctx: OverlayContext2D,
+    data: MetricMap,
+    w: number,
+    h: number,
+    config: ExtendedOverlayConfig,
+    orientation: Orientation,
+    tuning: { textScale: number },
+): void {
+    const rows = [
+        data.pace ? { key: 'pace', value: data.pace, unit: 'min/km' } : null,
+        data.heartRate ? { key: 'hr', value: data.heartRate, unit: 'bpm' } : null,
+        data.distance ? { key: 'dist', value: data.distance, unit: 'km' } : null,
+        data.time ? { key: 'time', value: data.time, unit: '' } : null,
+    ].filter(Boolean) as Array<{ key: string; value: string; unit: string }>;
+    if (rows.length === 0) return;
+
+    const textSize = Math.max(10, Math.round(orientation.shortSide * 0.025 * tuning.textScale));
+    const headerSize = Math.max(8, Math.round(textSize * 0.74));
+    const lineH = textSize * 1.6;
+    const innerPad = textSize * 0.9;
+    const boxW = Math.round(w * (orientation.isPortrait ? 0.52 : 0.36));
+    const boxH = lineH * rows.length + innerPad * 2 + headerSize * 1.6;
+    const boxX = orientation.safePad;
+    const boxY = orientation.safePad;
+    const radius = Math.max(3, textSize * 0.4);
+
+    // Dark background
+    ctx.fillStyle = 'rgba(0,0,0,0.82)';
+    ctx.beginPath();
+    ctx.roundRect(boxX, boxY, boxW, boxH, radius);
+    ctx.fill();
+
+    // Border
+    ctx.strokeStyle = 'rgba(34,197,94,0.2)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    const green = config.textColor || '#86efac';
+    const greenDim = 'rgba(74,222,128,0.5)';
+    const greenFaint = 'rgba(34,197,94,0.3)';
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+
+    // Header comment
+    ctx.fillStyle = 'rgba(74,222,128,0.45)';
+    ctx.font = `500 ${headerSize}px ${config.fontFamily}`;
+    ctx.fillText('// GPX TELEMETRY', boxX + innerPad, boxY + innerPad + headerSize);
+
+    // Rows
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i]!;
+        const rowY = boxY + innerPad + headerSize * 1.6 + (i + 0.85) * lineH;
+
+        // › prompt
+        ctx.fillStyle = greenFaint;
+        ctx.font = `500 ${textSize}px ${config.fontFamily}`;
+        ctx.fillText('›', boxX + innerPad, rowY);
+
+        // key =
+        const promptW = ctx.measureText('› ').width;
+        ctx.fillStyle = greenDim;
+        ctx.font = `400 ${textSize}px ${config.fontFamily}`;
+        ctx.fillText(row.key, boxX + innerPad + promptW, rowY);
+
+        const keyW = ctx.measureText(row.key + ' ').width;
+        ctx.fillStyle = greenFaint;
+        ctx.fillText('=', boxX + innerPad + promptW + keyW, rowY);
+
+        const eqW = ctx.measureText('= ').width;
+        ctx.fillStyle = green;
+        ctx.font = `500 ${textSize}px ${config.fontFamily}`;
+        ctx.fillText(row.value, boxX + innerPad + promptW + keyW + eqW, rowY);
+
+        if (row.unit) {
+            const valW = ctx.measureText(row.value + ' ').width;
+            ctx.fillStyle = 'rgba(34,197,94,0.32)';
+            ctx.font = `400 ${Math.max(8, Math.round(textSize * 0.78))}px ${config.fontFamily}`;
+            ctx.fillText(row.unit, boxX + innerPad + promptW + keyW + eqW + valW, rowY);
+        }
+    }
+
+    // Cursor
+    const cursorY = boxY + innerPad + headerSize * 1.6 + rows.length * lineH + lineH * 0.55;
+    ctx.fillStyle = 'rgba(34,197,94,0.22)';
+    ctx.font = `400 ${textSize}px ${config.fontFamily}`;
+    ctx.fillText('_', boxX + innerPad, cursorY);
+}
+
+// ─── Template 32: Night Runner ────────────────────────────────────────────────
+function drawNightRunner(
+    ctx: OverlayContext2D,
+    data: MetricMap,
+    w: number,
+    h: number,
+    config: ExtendedOverlayConfig,
+    orientation: Orientation,
+    tuning: { textScale: number },
+): void {
+    const amber = config.accentColor || '#fbbf24';
+
+    // Top-center: large glowing pace
+    if (data.pace) {
+        const paceSize = Math.max(28, Math.round(orientation.shortSide * (orientation.isPortrait ? 0.2 : 0.15) * tuning.textScale));
+        const paceUnitSize = Math.max(8, Math.round(paceSize * 0.17));
+        const paceY = orientation.safePad + paceSize + orientation.compactPad;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.shadowColor = 'rgba(251,191,36,0.45)';
+        ctx.shadowBlur = Math.max(12, paceSize * 0.4);
+        ctx.fillStyle = config.textColor || '#FFFFFF';
+        ctx.font = `200 ${paceSize}px ${config.fontFamily}`;
+        ctx.fillText(data.pace, w * 0.5, paceY);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = 'rgba(251,191,36,0.62)';
+        ctx.font = `500 ${paceUnitSize}px ${config.fontFamily}`;
+        ctx.fillText('MIN / KM', w * 0.5, paceY + paceUnitSize * 1.4);
+    }
+
+    // Bottom gradient strip
+    const stripH = Math.round(h * (orientation.isPortrait ? 0.22 : 0.2));
+    const grad = ctx.createLinearGradient(0, h - stripH, 0, h);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(0.35, 'rgba(0,0,0,0.72)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.88)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, h - stripH, w, stripH);
+
+    // Three bottom metrics
+    const metrics = [
+        data.heartRate ? { label: 'HEART RATE', value: data.heartRate, unit: 'bpm', glow: 'rgba(248,113,113,0.45)', align: 'left' as const } : null,
+        data.distance ? { label: 'DISTANCE', value: data.distance, unit: 'km', glow: `rgba(251,191,36,0.35)`, align: 'center' as const } : null,
+        data.time ? { label: 'ELAPSED', value: data.time, unit: '', glow: 'rgba(255,255,255,0.22)', align: 'right' as const } : null,
+    ].filter(Boolean) as Array<{ label: string; value: string; unit: string; glow: string; align: 'left' | 'center' | 'right' }>;
+
+    if (metrics.length === 0) return;
+
+    const valSize = Math.max(14, Math.round(orientation.shortSide * 0.05 * tuning.textScale));
+    const lblSize = Math.max(7, Math.round(valSize * 0.3));
+    const baseY = h - orientation.safePad;
+
+    // Vertical separators between metrics
+    if (metrics.length > 1) {
+        const step = (w - orientation.safePad * 2) / metrics.length;
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.lineWidth = 1;
+        for (let i = 1; i < metrics.length; i++) {
+            const lx = orientation.safePad + step * i;
+            ctx.beginPath();
+            ctx.moveTo(lx, baseY - valSize * 1.6);
+            ctx.lineTo(lx, baseY - valSize * 0.1);
+            ctx.stroke();
+        }
+    }
+
+    const step = (w - orientation.safePad * 2) / (metrics.length || 1);
+    ctx.textBaseline = 'alphabetic';
+    for (let i = 0; i < metrics.length; i++) {
+        const m = metrics[i]!;
+        let anchorX: number;
+        if (m.align === 'left') {
+            anchorX = orientation.safePad + step * i + step * 0.05;
+        } else if (m.align === 'right') {
+            anchorX = orientation.safePad + step * (i + 1) - step * 0.05;
+        } else {
+            anchorX = orientation.safePad + step * i + step * 0.5;
+        }
+
+        ctx.textAlign = m.align;
+        ctx.fillStyle = 'rgba(255,255,255,0.28)';
+        ctx.font = `500 ${lblSize}px ${config.fontFamily}`;
+        ctx.fillText(m.label, anchorX, baseY - valSize * 1.15);
+
+        ctx.shadowColor = m.glow;
+        ctx.shadowBlur = Math.max(8, valSize * 0.3);
+        ctx.fillStyle = config.textColor || '#FFFFFF';
+        ctx.font = `300 ${valSize}px ${config.fontFamily}`;
+        ctx.fillText(m.value, anchorX, baseY);
+        ctx.shadowBlur = 0;
+
+        if (m.unit) {
+            ctx.fillStyle = 'rgba(255,255,255,0.32)';
+            ctx.font = `400 ${lblSize}px ${config.fontFamily}`;
+            ctx.fillText(m.unit, anchorX, baseY + lblSize * 1.2);
+        }
+    }
+}
+
+// ─── Template 33: Data Block ──────────────────────────────────────────────────
+function drawDataBlock(
+    ctx: OverlayContext2D,
+    data: MetricMap,
+    w: number,
+    h: number,
+    config: ExtendedOverlayConfig,
+    orientation: Orientation,
+    tuning: { textScale: number },
+): void {
+    const accent = config.accentColor || '#f97316';
+    const rows = [
+        data.pace ? { label: 'PACE', unit: 'min/km', value: data.pace, big: false } : null,
+        data.distance ? { label: 'DIST', unit: 'km', value: data.distance, big: false } : null,
+        data.heartRate ? { label: 'HR', unit: 'bpm', value: data.heartRate, big: true } : null,
+    ].filter(Boolean) as Array<{ label: string; unit: string; value: string; big: boolean }>;
+    if (rows.length === 0) return;
+
+    const normalValSize = Math.max(16, Math.round(orientation.shortSide * 0.05 * tuning.textScale));
+    const bigValSize = Math.max(30, Math.round(orientation.shortSide * 0.1 * tuning.textScale));
+    const lblSize = Math.max(7, Math.round(normalValSize * 0.36));
+    const rowH = normalValSize * 1.7;
+    const bigRowH = bigValSize * 1.3;
+
+    let totalH = 0;
+    for (const row of rows) {
+        totalH += row.big ? bigRowH : rowH;
+    }
+    const gap = lblSize;
+    let curY = h - orientation.safePad - totalH - gap;
+
+    const rightX = w - orientation.safePad;
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'right';
+
+    for (const row of rows) {
+        const vs = row.big ? bigValSize : normalValSize;
+        const rh = row.big ? bigRowH : rowH;
+
+        // Label (white/dim)
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.font = `500 ${lblSize}px ${config.fontFamily}`;
+        ctx.fillText(row.label, rightX - vs * (row.value.length > 4 ? 4.5 : 3.5) - lblSize, curY + rh * 0.28);
+
+        // Unit (orange)
+        if (row.unit) {
+            ctx.fillStyle = accent;
+            ctx.font = `400 ${Math.max(7, Math.round(lblSize * 0.95))}px ${config.fontFamily}`;
+            ctx.fillText(row.unit, rightX - vs * (row.value.length > 4 ? 4.5 : 3.5) - lblSize, curY + rh * 0.52);
+        }
+
+        // Value
+        ctx.fillStyle = config.textColor || '#FFFFFF';
+        ctx.font = `300 ${vs}px ${config.fontFamily}`;
+        ctx.fillText(row.value, rightX, curY + rh * 0.68);
+
+        curY += rh;
+    }
+}
+
+// ─── Template 34: Race Tag ────────────────────────────────────────────────────
+function drawRaceTag(
+    ctx: OverlayContext2D,
+    data: MetricMap,
+    w: number,
+    h: number,
+    config: ExtendedOverlayConfig,
+    orientation: Orientation,
+    tuning: { textScale: number },
+): void {
+    // Top-left bib tag with clip-path polygon
+    const tagW = Math.round(w * (orientation.isPortrait ? 0.35 : 0.22));
+    const tagH = Math.round(h * (orientation.isPortrait ? 0.25 : 0.28));
+    const cutX = tagW * 0.82;
+    const cutY = tagH * 0.78;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(tagW, 0);
+    ctx.lineTo(tagW, cutY);
+    ctx.lineTo(cutX, tagH);
+    ctx.lineTo(0, tagH);
+    ctx.closePath();
+    ctx.clip();
+
+    // White bib background
+    ctx.fillStyle = config.backgroundColor || '#FFFFFF';
+    ctx.fillRect(0, 0, tagW, tagH);
+
+    // Pace on bib
+    if (data.pace) {
+        const paceSize = Math.max(20, Math.round(tagW * 0.38 * tuning.textScale));
+        const tagLblSize = Math.max(7, Math.round(paceSize * 0.22));
+        const innerPad = tagW * 0.1;
+        const textColor = config.textColor === '#FFFFFF' ? '#111111' : config.textColor || '#111111';
+
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = 'rgba(0,0,0,0.28)';
+        ctx.font = `600 ${tagLblSize}px ${config.fontFamily}`;
+        ctx.fillText('PACE', innerPad, tagH * 0.28);
+
+        ctx.fillStyle = textColor;
+        ctx.font = `400 ${paceSize}px ${config.fontFamily}`;
+        ctx.fillText(data.pace, innerPad, tagH * 0.28 + paceSize * 0.95);
+
+        ctx.fillStyle = 'rgba(0,0,0,0.32)';
+        ctx.font = `600 ${Math.max(7, Math.round(tagLblSize * 0.95))}px ${config.fontFamily}`;
+        ctx.fillText('MIN/KM', innerPad, tagH * 0.28 + paceSize * 0.95 + tagLblSize * 1.3);
+    }
+
+    ctx.restore();
+
+    // Bottom strip with HR, dist, time
+    const stripH = Math.round(h * (orientation.isPortrait ? 0.09 : 0.08));
+    const stripY = h - stripH;
+    ctx.fillStyle = 'rgba(0,0,0,0.76)';
+    ctx.fillRect(0, stripY, w, stripH);
+
+    const stripItems = [
+        data.heartRate ? { label: 'HR', value: data.heartRate, unit: 'BPM' } : null,
+        data.distance ? { label: 'DIST', value: data.distance, unit: 'KM' } : null,
+        data.time ? { label: 'TIME', value: data.time, unit: '' } : null,
+    ].filter(Boolean) as Array<{ label: string; value: string; unit: string }>;
+    if (stripItems.length === 0) return;
+
+    const colW = w / stripItems.length;
+    const valSize = Math.max(14, Math.round(stripH * 0.44 * tuning.textScale));
+    const lblSize = Math.max(7, Math.round(valSize * 0.35));
+
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < stripItems.length; i++) {
+        const item = stripItems[i]!;
+        const colCx = colW * i + colW * 0.5;
+        const centerY = stripY + stripH * 0.5;
+
+        if (i > 0) {
+            ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(colW * i, stripY + stripH * 0.18);
+            ctx.lineTo(colW * i, stripY + stripH * 0.82);
+            ctx.stroke();
+        }
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(255,255,255,0.38)';
+        ctx.font = `600 ${lblSize}px ${config.fontFamily}`;
+        ctx.fillText(item.label, colCx - ctx.measureText(item.value).width * 0.6, centerY);
+
+        ctx.fillStyle = config.textColor || '#FFFFFF';
+        ctx.font = `400 ${valSize}px ${config.fontFamily}`;
+        ctx.fillText(item.value, colCx + ctx.measureText(item.label).width * 0.2, centerY);
+
+        if (item.unit) {
+            ctx.fillStyle = 'rgba(255,255,255,0.38)';
+            ctx.font = `500 ${Math.max(6, Math.round(lblSize * 0.9))}px ${config.fontFamily}`;
+            ctx.fillText(item.unit, colCx + ctx.measureText(item.value).width * 0.8, centerY);
         }
     }
 }

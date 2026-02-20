@@ -31,6 +31,14 @@ describe('template-configs', () => {
         'soft-rounded',
         'thin-line',
         'swiss-grid',
+        'garmin-style',
+        'sports-broadcast',
+        'cockpit-hud',
+        'orange-pulse',
+        'terminal',
+        'night-runner',
+        'data-block',
+        'race-tag',
         'custom',
     ];
 
@@ -145,6 +153,14 @@ describe('template-configs', () => {
             expect(ids).toContain('soft-rounded');
             expect(ids).toContain('thin-line');
             expect(ids).toContain('swiss-grid');
+            expect(ids).toContain('garmin-style');
+            expect(ids).toContain('sports-broadcast');
+            expect(ids).toContain('cockpit-hud');
+            expect(ids).toContain('orange-pulse');
+            expect(ids).toContain('terminal');
+            expect(ids).toContain('night-runner');
+            expect(ids).toContain('data-block');
+            expect(ids).toContain('race-tag');
         });
 
         it('should have preview colors for each template', () => {
