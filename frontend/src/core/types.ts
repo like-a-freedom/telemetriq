@@ -132,6 +132,14 @@ export type TemplateId =
     | 'soft-rounded'
     | 'thin-line'
     | 'swiss-grid'
+    | 'garmin-style'
+    | 'sports-broadcast'
+    | 'cockpit-hud'
+    | 'orange-pulse'
+    | 'terminal'
+    | 'night-runner'
+    | 'data-block'
+    | 'race-tag'
     | 'custom';
 
 /** Visual layout mode for the overlay */
@@ -154,6 +162,14 @@ export type OverlayLayoutMode =
     | 'soft-rounded'
     | 'thin-line'
     | 'swiss-grid'
+    | 'garmin-style'
+    | 'sports-broadcast'
+    | 'cockpit-hud'
+    | 'orange-pulse'
+    | 'terminal'
+    | 'night-runner'
+    | 'data-block'
+    | 'race-tag'
     | 'box';           // Classic: positioned rounded rectangle
 
 /** Sync configuration */

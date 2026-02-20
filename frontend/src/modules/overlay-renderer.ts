@@ -158,6 +158,8 @@ const EXTENDED_LAYOUTS = new Set([
     'cinematic-bar', 'split-edges', 'stacked-serif', 'editorial',
     'ticker-tape', 'whisper', 'two-tone', 'condensed-strip',
     'soft-rounded', 'thin-line', 'swiss-grid',
+    'garmin-style', 'sports-broadcast', 'cockpit-hud', 'orange-pulse',
+    'terminal', 'night-runner', 'data-block', 'race-tag',
 ]);
 
 function renderLayout(

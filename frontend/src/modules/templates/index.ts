@@ -31,6 +31,14 @@ import { condensedStripTemplate } from './condensed-strip';
 import { softRoundedTemplate } from './soft-rounded';
 import { thinLineTemplate } from './thin-line';
 import { swissGridTemplate } from './swiss-grid';
+import { garminStyleTemplate } from './garmin-style';
+import { sportsBroadcastTemplate } from './sports-broadcast';
+import { cockpitHudTemplate } from './cockpit-hud';
+import { orangePulseTemplate } from './orange-pulse';
+import { terminalTemplate } from './terminal';
+import { nightRunnerTemplate } from './night-runner';
+import { dataBlockTemplate } from './data-block';
+import { raceTagTemplate } from './race-tag';
 import { customTemplate } from './custom';
 
 /** All available templates */
@@ -54,6 +62,14 @@ export const TEMPLATES: TemplateDefinition[] = [
   softRoundedTemplate,
   thinLineTemplate,
   swissGridTemplate,
+  garminStyleTemplate,
+  sportsBroadcastTemplate,
+  cockpitHudTemplate,
+  orangePulseTemplate,
+  terminalTemplate,
+  nightRunnerTemplate,
+  dataBlockTemplate,
+  raceTagTemplate,
   customTemplate,
 ];
 
@@ -78,6 +94,14 @@ export const TEMPLATE_MAP: Record<TemplateId, TemplateDefinition> = {
   'soft-rounded': softRoundedTemplate,
   'thin-line': thinLineTemplate,
   'swiss-grid': swissGridTemplate,
+  'garmin-style': garminStyleTemplate,
+  'sports-broadcast': sportsBroadcastTemplate,
+  'cockpit-hud': cockpitHudTemplate,
+  'orange-pulse': orangePulseTemplate,
+  'terminal': terminalTemplate,
+  'night-runner': nightRunnerTemplate,
+  'data-block': dataBlockTemplate,
+  'race-tag': raceTagTemplate,
   'custom': customTemplate,
 };
 
@@ -126,4 +150,12 @@ export { condensedStripTemplate } from './condensed-strip';
 export { softRoundedTemplate } from './soft-rounded';
 export { thinLineTemplate } from './thin-line';
 export { swissGridTemplate } from './swiss-grid';
+export { garminStyleTemplate } from './garmin-style';
+export { sportsBroadcastTemplate } from './sports-broadcast';
+export { cockpitHudTemplate } from './cockpit-hud';
+export { orangePulseTemplate } from './orange-pulse';
+export { terminalTemplate } from './terminal';
+export { nightRunnerTemplate } from './night-runner';
+export { dataBlockTemplate } from './data-block';
+export { raceTagTemplate } from './race-tag';
 export { customTemplate } from './custom';

@@ -28,6 +28,14 @@ import {
     softRoundedTemplate,
     thinLineTemplate,
     swissGridTemplate,
+    garminStyleTemplate,
+    sportsBroadcastTemplate,
+    cockpitHudTemplate,
+    orangePulseTemplate,
+    terminalTemplate,
+    nightRunnerTemplate,
+    dataBlockTemplate,
+    raceTagTemplate,
     customTemplate,
 } from '../modules/templates';
 import type { TemplateId } from '../core/types';
@@ -37,7 +45,10 @@ describe('templates registry', () => {
         'horizon', 'margin', 'l-frame', 'classic',
         'floating-pills', 'arc-gauge', 'hero-number', 'dashboard-hud', 'cinematic-bar',
         'split-edges', 'stacked-serif', 'editorial', 'ticker-tape', 'whisper', 'two-tone',
-        'condensed-strip', 'soft-rounded', 'thin-line', 'swiss-grid', 'custom',
+        'condensed-strip', 'soft-rounded', 'thin-line', 'swiss-grid',
+        'garmin-style', 'sports-broadcast', 'cockpit-hud', 'orange-pulse',
+        'terminal', 'night-runner', 'data-block', 'race-tag',
+        'custom',
     ];
 
     describe('TEMPLATES array', () => {
@@ -83,6 +94,14 @@ describe('templates registry', () => {
             expect(TEMPLATE_MAP['soft-rounded']).toBe(softRoundedTemplate);
             expect(TEMPLATE_MAP['thin-line']).toBe(thinLineTemplate);
             expect(TEMPLATE_MAP['swiss-grid']).toBe(swissGridTemplate);
+            expect(TEMPLATE_MAP['garmin-style']).toBe(garminStyleTemplate);
+            expect(TEMPLATE_MAP['sports-broadcast']).toBe(sportsBroadcastTemplate);
+            expect(TEMPLATE_MAP['cockpit-hud']).toBe(cockpitHudTemplate);
+            expect(TEMPLATE_MAP['orange-pulse']).toBe(orangePulseTemplate);
+            expect(TEMPLATE_MAP['terminal']).toBe(terminalTemplate);
+            expect(TEMPLATE_MAP['night-runner']).toBe(nightRunnerTemplate);
+            expect(TEMPLATE_MAP['data-block']).toBe(dataBlockTemplate);
+            expect(TEMPLATE_MAP['race-tag']).toBe(raceTagTemplate);
             expect(TEMPLATE_MAP['custom']).toBe(customTemplate);
         });
     });
@@ -129,6 +148,14 @@ describe('templates registry', () => {
             expect(softRoundedTemplate.config.layoutMode).toBe('soft-rounded');
             expect(thinLineTemplate.config.layoutMode).toBe('thin-line');
             expect(swissGridTemplate.config.layoutMode).toBe('swiss-grid');
+            expect(garminStyleTemplate.config.layoutMode).toBe('garmin-style');
+            expect(sportsBroadcastTemplate.config.layoutMode).toBe('sports-broadcast');
+            expect(cockpitHudTemplate.config.layoutMode).toBe('cockpit-hud');
+            expect(orangePulseTemplate.config.layoutMode).toBe('orange-pulse');
+            expect(terminalTemplate.config.layoutMode).toBe('terminal');
+            expect(nightRunnerTemplate.config.layoutMode).toBe('night-runner');
+            expect(dataBlockTemplate.config.layoutMode).toBe('data-block');
+            expect(raceTagTemplate.config.layoutMode).toBe('race-tag');
         });
     });
 
