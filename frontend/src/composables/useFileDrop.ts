@@ -1,8 +1,8 @@
 import { ref } from 'vue';
 
 export interface FileDropHandlers {
-    fileInput: ReturnType<typeof ref<HTMLInputElement | null>>;
-    isDragOver: ReturnType<typeof ref<boolean>>;
+    readonly fileInput: ReturnType<typeof ref<HTMLInputElement | null>>;
+    readonly isDragOver: ReturnType<typeof ref<boolean>>;
     openFileDialog: () => void;
     onFileSelected: (event: Event, onFile: (file: File) => void) => void;
     onDragEnter: () => void;
@@ -23,7 +23,9 @@ export function useFileDrop(): FileDropHandlers {
     function onFileSelected(event: Event, onFile: (file: File) => void): void {
         const target = event.target as HTMLInputElement;
         const file = target.files?.[0];
-        if (file) onFile(file);
+        if (file) {
+            onFile(file);
+        }
     }
 
     function onDragEnter(): void {
@@ -41,7 +43,9 @@ export function useFileDrop(): FileDropHandlers {
     function onDrop(event: DragEvent, onFile: (file: File) => void): void {
         isDragOver.value = false;
         const file = event.dataTransfer?.files[0];
-        if (file) onFile(file);
+        if (file) {
+            onFile(file);
+        }
     }
 
     function resetInput(): void {
