@@ -3,6 +3,7 @@
  */
 
 import type { TemplateDefinition } from './types';
+import { DEFAULT_CAPABILITIES } from './types';
 
 export const classicTemplate: TemplateDefinition = {
   id: 'classic',
@@ -43,5 +44,40 @@ export const classicTemplate: TemplateDefinition = {
     labelSizeMultiplier: 0.5,
     labelLetterSpacing: 0.1,
     accentColor: '#646cff',
+  },
+  capabilities: {
+    ...DEFAULT_CAPABILITIES,
+    supportedMetrics: ['pace', 'hr', 'distance', 'time'],
+    requiredMetrics: [],
+    supportsPosition: true,
+    supportsBackgroundOpacity: true,
+    supportsGradient: true,
+    supportsBorder: true,
+    supportsTextShadow: true,
+    supportsAccentColor: true,
+    supportsLayoutDirection: true,
+  },
+  styles: {
+    typography: {
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      valueFontWeight: 'bold',
+      labelFontWeight: 'normal',
+      valueSizeMultiplier: 1.0,
+      labelSizeMultiplier: 0.5,
+      labelLetterSpacing: 0.1,
+    },
+    spacing: {
+      basePaddingPercent: 0.02,
+      metricGapPercent: 0.01,
+      lineSpacing: 1.2,
+    },
+    visual: {
+      cornerRadius: 4,
+      borderWidth: 0,
+      textShadow: false,
+      textShadowBlur: 2,
+      iconStyle: 'outline',
+      labelStyle: 'hidden',
+    },
   },
 };

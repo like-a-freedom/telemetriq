@@ -115,64 +115,56 @@
             <label
               class="preview-view__checkbox"
               :class="{
-                'preview-view__checkbox--disabled':
-                  settingsStore.currentTemplateId === 'minimal-ring',
+                'preview-view__checkbox--disabled': !templateCapabilities.isMetricAvailable('hr'),
               }"
             >
               <input
                 type="checkbox"
                 v-model="settingsStore.overlayConfig.showHr"
-                :disabled="settingsStore.currentTemplateId === 'minimal-ring'"
-                :title="
-                  settingsStore.currentTemplateId === 'minimal-ring'
-                    ? 'Minimal Ring only supports Pace'
-                    : ''
-                "
+                :disabled="!templateCapabilities.isMetricAvailable('hr')"
+                :title="templateCapabilities.getMetricDisableReason('hr')"
               />
               <span>❤️ Heart rate</span>
             </label>
-            <label class="preview-view__checkbox">
+            <label
+              class="preview-view__checkbox"
+              :class="{
+                'preview-view__checkbox--disabled': !templateCapabilities.isMetricAvailable('pace'),
+              }"
+            >
               <input
                 type="checkbox"
                 v-model="settingsStore.overlayConfig.showPace"
+                :disabled="!templateCapabilities.isMetricAvailable('pace')"
+                :title="templateCapabilities.getMetricDisableReason('pace')"
               />
               <span>🏃 Pace</span>
             </label>
             <label
               class="preview-view__checkbox"
               :class="{
-                'preview-view__checkbox--disabled':
-                  settingsStore.currentTemplateId === 'minimal-ring',
+                'preview-view__checkbox--disabled': !templateCapabilities.isMetricAvailable('distance'),
               }"
             >
               <input
                 type="checkbox"
                 v-model="settingsStore.overlayConfig.showDistance"
-                :disabled="settingsStore.currentTemplateId === 'minimal-ring'"
-                :title="
-                  settingsStore.currentTemplateId === 'minimal-ring'
-                    ? 'Minimal Ring only supports Pace'
-                    : ''
-                "
+                :disabled="!templateCapabilities.isMetricAvailable('distance')"
+                :title="templateCapabilities.getMetricDisableReason('distance')"
               />
               <span>📏 Distance</span>
             </label>
             <label
               class="preview-view__checkbox"
               :class="{
-                'preview-view__checkbox--disabled':
-                  settingsStore.currentTemplateId === 'minimal-ring',
+                'preview-view__checkbox--disabled': !templateCapabilities.isMetricAvailable('time'),
               }"
             >
               <input
                 type="checkbox"
                 v-model="settingsStore.overlayConfig.showTime"
-                :disabled="settingsStore.currentTemplateId === 'minimal-ring'"
-                :title="
-                  settingsStore.currentTemplateId === 'minimal-ring'
-                    ? 'Minimal Ring only supports Pace'
-                    : ''
-                "
+                :disabled="!templateCapabilities.isMetricAvailable('time')"
+                :title="templateCapabilities.getMetricDisableReason('time')"
               />
               <span>⏱️ Time</span>
             </label>
@@ -180,7 +172,7 @@
 
           <div class="preview-view__divider"></div>
 
-          <div class="preview-view__field" v-if="canChangePosition">
+          <div class="preview-view__field" v-if="templateCapabilities.supportsFeature('supportsPosition')">
             <label class="preview-view__label">Position</label>
             <select
               v-model="settingsStore.overlayConfig.position"
@@ -207,9 +199,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useFilesStore, useSyncStore, useSettingsStore } from "../stores";
+import { useTemplateCapabilities } from "../composables/useTemplateCapabilities";
 import { buildTelemetryTimeline } from "../modules/telemetry-core";
 import type { TelemetryFrame } from "../core/types";
 import { useSeo } from "../composables/useSeo";
@@ -233,6 +226,7 @@ const router = useRouter();
 const filesStore = useFilesStore();
 const syncStore = useSyncStore();
 const settingsStore = useSettingsStore();
+const templateCapabilities = useTemplateCapabilities();
 
 // Collapse synchronization panel by default when auto-sync succeeded.
 const syncCollapsed = ref<boolean>(syncStore.isAutoSynced);
@@ -254,9 +248,6 @@ const videoUrl = ref<string | null>(null);
 const telemetryFrames = ref<TelemetryFrame[]>([]);
 const manualStartTime = ref("");
 const manualTimezone = ref(180); // Default: UTC+3 (Moscow)
-const canChangePosition = computed(
-  () => settingsStore.currentTemplateId === "classic"
-);
 
 const timezones = [
   { value: -720, label: "UTC-12" },

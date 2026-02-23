@@ -124,8 +124,16 @@ export function getAllTemplateMetadata(): TemplateMetadata[] {
     .map(t => t.metadata);
 }
 
-// Re-export types
+// Re-export types and helpers
 export type { TemplateDefinition, TemplateMetadata } from './types';
+export type { MetricType, TemplateCapabilities, TemplateStyles } from './types';
+export {
+  isMetricAvailable,
+  isMetricRequired,
+  getMetricUnavailableReason,
+  DEFAULT_CAPABILITIES,
+  DEFAULT_STYLES,
+} from './types';
 
 // Re-export individual templates for direct access
 export { horizonTemplate } from './horizon';
@@ -151,7 +159,7 @@ export { nightRunnerTemplate } from './night-runner';
 export { dataBlockTemplate } from './data-block';
 export { raceTagTemplate } from './race-tag';
 export { glassPanelTemplate } from './glass-panel';
-export { minimalRingTemplate } from './minimal-ring';
+export { minimalRingTemplate, renderMinimalRing } from './minimal-ring';
 export { stretchedBarTemplate } from './stretched-bar';
 export { focusTypeTemplate } from './focus-type';
 export { customTemplate } from './custom';

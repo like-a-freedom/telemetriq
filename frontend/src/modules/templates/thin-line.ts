@@ -1,4 +1,5 @@
 import type { TemplateDefinition } from './types';
+import { DEFAULT_CAPABILITIES } from './types';
 
 export const thinLineTemplate: TemplateDefinition = {
     id: 'thin-line',
@@ -40,4 +41,39 @@ export const thinLineTemplate: TemplateDefinition = {
         labelLetterSpacing: 0.1,
         accentColor: '#cbd5e1',
     },
+  capabilities: {
+    ...DEFAULT_CAPABILITIES,
+    supportedMetrics: ['pace', 'hr', 'distance', 'time'],
+    requiredMetrics: [],
+    supportsPosition: false,
+    supportsBackgroundOpacity: true,
+    supportsGradient: false,
+    supportsBorder: false,
+    supportsTextShadow: true,
+    supportsAccentColor: true,
+    supportsLayoutDirection: false,
+  },
+  styles: {
+    typography: {
+      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      valueFontWeight: 'normal',
+      labelFontWeight: 'normal',
+      valueSizeMultiplier: 2.0,
+      labelSizeMultiplier: 0.4,
+      labelLetterSpacing: 0.1,
+    },
+    spacing: {
+      basePaddingPercent: 0.02,
+      metricGapPercent: 0.01,
+      lineSpacing: 1.2,
+    },
+    visual: {
+      cornerRadius: 0,
+      borderWidth: 0,
+      textShadow: false,
+      textShadowBlur: 0,
+      iconStyle: 'none',
+      labelStyle: 'uppercase',
+    },
+  },
 };
