@@ -22,7 +22,6 @@ export function renderHorizonLayout(
     const barY = h - barHeight;
 
     drawGradientBackground(ctx, w, h, barY, barHeight, config.backgroundOpacity);
-    drawProgressLine(ctx, w, h, config.accentColor);
 
     const fontFamily = config.fontFamily || 'Inter, sans-serif';
     // Base font scales with video height, but boost it in landscape using a clamped w/h ratio
@@ -91,17 +90,6 @@ function drawGradientBackground(
     grad.addColorStop(1, `rgba(0,0,0,${opacity})`);
     ctx.fillStyle = grad;
     ctx.fillRect(0, barY - barHeight * 0.5, w, barHeight * 1.5);
-}
-
-function drawProgressLine(
-    ctx: OverlayContext2D,
-    w: number,
-    h: number,
-    accentColor?: string,
-): void {
-    const accent = accentColor || '#ef4444';
-    ctx.fillStyle = accent;
-    ctx.fillRect(0, h - Math.max(2, h * 0.003), w * 0.35, Math.max(2, h * 0.003));
 }
 
 interface FontCalcConfig {

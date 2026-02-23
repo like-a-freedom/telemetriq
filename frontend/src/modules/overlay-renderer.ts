@@ -154,12 +154,14 @@ const BASIC_LAYOUTS: Record<string, (ctx: OverlayContext2D, metrics: MetricItem[
 };
 
 const EXTENDED_LAYOUTS = new Set([
-    'floating-pills', 'arc-gauge', 'hero-number', 'dashboard-hud',
-    'cinematic-bar', 'split-edges', 'stacked-serif', 'editorial',
+    'arc-gauge', 'hero-number',
+    'cinematic-bar', 'editorial',
     'ticker-tape', 'whisper', 'two-tone', 'condensed-strip',
     'soft-rounded', 'thin-line', 'swiss-grid',
-    'garmin-style', 'sports-broadcast', 'cockpit-hud', 'orange-pulse',
+    'garmin-style', 'sports-broadcast', 'cockpit-hud',
     'terminal', 'night-runner', 'data-block', 'race-tag',
+    'glass-panel', 'minimal-ring', 'stretched-bar',
+    'focus-type',
 ]);
 
 function renderLayout(

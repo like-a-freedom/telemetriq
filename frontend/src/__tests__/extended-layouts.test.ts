@@ -92,13 +92,9 @@ const METRICS: MetricItem[] = [
 ];
 
 const EXTENDED_LAYOUTS = [
-    'floating-pills',
     'arc-gauge',
     'hero-number',
-    'dashboard-hud',
     'cinematic-bar',
-    'split-edges',
-    'stacked-serif',
     'editorial',
     'ticker-tape',
     'whisper',
@@ -131,19 +127,19 @@ describe('extended layouts renderer', () => {
 
         renderExtendedLayout(ctx, METRICS, width, height, config, 'swiss-grid');
 
-        const paceLabel = ctx.__fillTextEntries.find((e) => e.text === 'Pace');
+        const paceLabel = ctx.__fillTextEntries.find((e) => e.text === 'PACE');
         const paceValue = ctx.__fillTextEntries.find((e) => e.text === '05:30');
         const paceUnit = ctx.__fillTextEntries.find((e) => e.text === 'min/km');
 
-        const hrLabel = ctx.__fillTextEntries.find((e) => e.text === 'Heart Rate');
+        const hrLabel = ctx.__fillTextEntries.find((e) => e.text === 'HEART RATE');
         const hrValue = ctx.__fillTextEntries.find((e) => e.text === '150');
         const hrUnit = ctx.__fillTextEntries.find((e) => e.text === 'bpm');
 
-        const distLabel = ctx.__fillTextEntries.find((e) => e.text === 'Distance');
+        const distLabel = ctx.__fillTextEntries.find((e) => e.text === 'DISTANCE');
         const distValue = ctx.__fillTextEntries.find((e) => e.text === '10.2');
         const distUnit = ctx.__fillTextEntries.find((e) => e.text === 'km');
 
-        const timeLabel = ctx.__fillTextEntries.find((e) => e.text === 'Time');
+        const timeLabel = ctx.__fillTextEntries.find((e) => e.text === 'TIME');
         const timeValue = ctx.__fillTextEntries.find((e) => e.text === '00:45:12');
 
         expect(paceLabel).toBeDefined();
@@ -236,32 +232,4 @@ describe('extended layouts renderer', () => {
         expect(narrowPaceDraw?.font).toBe(widePaceDraw?.font);
     });
 
-    it('keeps stacked-serif unit anchor stable for narrow vs wide values', () => {
-        const config = getTemplateConfig('stacked-serif');
-        const narrowCtx = createStubContext();
-        const wideCtx = createStubContext();
-
-        const narrowMetrics: MetricItem[] = [
-            { label: 'Pace', value: '01:11', unit: 'min/km' },
-            { label: 'Heart Rate', value: '111', unit: 'bpm' },
-            { label: 'Distance', value: '11.1', unit: 'km' },
-            { label: 'Time', value: '01:11:11', unit: '' },
-        ];
-        const wideMetrics: MetricItem[] = [
-            { label: 'Pace', value: '08:88', unit: 'min/km' },
-            { label: 'Heart Rate', value: '188', unit: 'bpm' },
-            { label: 'Distance', value: '88.8', unit: 'km' },
-            { label: 'Time', value: '08:88:88', unit: '' },
-        ];
-
-        renderExtendedLayout(narrowCtx, narrowMetrics, 1280, 720, config, 'stacked-serif');
-        renderExtendedLayout(wideCtx, wideMetrics, 1280, 720, config, 'stacked-serif');
-
-        const narrowKm = narrowCtx.__fillTextEntries.find((entry) => entry.text === 'km');
-        const wideKm = wideCtx.__fillTextEntries.find((entry) => entry.text === 'km');
-
-        expect(narrowKm).toBeDefined();
-        expect(wideKm).toBeDefined();
-        expect(Math.abs((narrowKm?.x ?? 0) - (wideKm?.x ?? 0))).toBeLessThanOrEqual(0.01);
-    });
 });
