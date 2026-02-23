@@ -16,13 +16,9 @@ import { horizonTemplate } from './horizon';
 import { marginTemplate } from './margin';
 import { lframeTemplate } from './lframe';
 import { classicTemplate } from './classic';
-import { floatingPillsTemplate } from './floating-pills';
 import { arcGaugeTemplate } from './arc-gauge';
 import { heroNumberTemplate } from './hero-number';
-import { dashboardHudTemplate } from './dashboard-hud';
 import { cinematicBarTemplate } from './cinematic-bar';
-import { splitEdgesTemplate } from './split-edges';
-import { stackedSerifTemplate } from './stacked-serif';
 import { editorialTemplate } from './editorial';
 import { tickerTapeTemplate } from './ticker-tape';
 import { whisperTemplate } from './whisper';
@@ -34,11 +30,14 @@ import { swissGridTemplate } from './swiss-grid';
 import { garminStyleTemplate } from './garmin-style';
 import { sportsBroadcastTemplate } from './sports-broadcast';
 import { cockpitHudTemplate } from './cockpit-hud';
-import { orangePulseTemplate } from './orange-pulse';
 import { terminalTemplate } from './terminal';
 import { nightRunnerTemplate } from './night-runner';
 import { dataBlockTemplate } from './data-block';
 import { raceTagTemplate } from './race-tag';
+import { glassPanelTemplate } from './glass-panel';
+import { minimalRingTemplate } from './minimal-ring';
+import { stretchedBarTemplate } from './stretched-bar';
+import { focusTypeTemplate } from './focus-type';
 import { customTemplate } from './custom';
 
 /** All available templates */
@@ -47,13 +46,9 @@ export const TEMPLATES: TemplateDefinition[] = [
   marginTemplate,
   lframeTemplate,
   classicTemplate,
-  floatingPillsTemplate,
   arcGaugeTemplate,
   heroNumberTemplate,
-  dashboardHudTemplate,
   cinematicBarTemplate,
-  splitEdgesTemplate,
-  stackedSerifTemplate,
   editorialTemplate,
   tickerTapeTemplate,
   whisperTemplate,
@@ -65,11 +60,14 @@ export const TEMPLATES: TemplateDefinition[] = [
   garminStyleTemplate,
   sportsBroadcastTemplate,
   cockpitHudTemplate,
-  orangePulseTemplate,
   terminalTemplate,
   nightRunnerTemplate,
   dataBlockTemplate,
   raceTagTemplate,
+  glassPanelTemplate,
+  minimalRingTemplate,
+  stretchedBarTemplate,
+  focusTypeTemplate,
   customTemplate,
 ];
 
@@ -79,13 +77,9 @@ export const TEMPLATE_MAP: Record<TemplateId, TemplateDefinition> = {
   'margin': marginTemplate,
   'l-frame': lframeTemplate,
   'classic': classicTemplate,
-  'floating-pills': floatingPillsTemplate,
   'arc-gauge': arcGaugeTemplate,
   'hero-number': heroNumberTemplate,
-  'dashboard-hud': dashboardHudTemplate,
   'cinematic-bar': cinematicBarTemplate,
-  'split-edges': splitEdgesTemplate,
-  'stacked-serif': stackedSerifTemplate,
   'editorial': editorialTemplate,
   'ticker-tape': tickerTapeTemplate,
   'whisper': whisperTemplate,
@@ -97,11 +91,14 @@ export const TEMPLATE_MAP: Record<TemplateId, TemplateDefinition> = {
   'garmin-style': garminStyleTemplate,
   'sports-broadcast': sportsBroadcastTemplate,
   'cockpit-hud': cockpitHudTemplate,
-  'orange-pulse': orangePulseTemplate,
   'terminal': terminalTemplate,
   'night-runner': nightRunnerTemplate,
   'data-block': dataBlockTemplate,
   'race-tag': raceTagTemplate,
+  'glass-panel': glassPanelTemplate,
+  'minimal-ring': minimalRingTemplate,
+  'stretched-bar': stretchedBarTemplate,
+  'focus-type': focusTypeTemplate,
   'custom': customTemplate,
 };
 
@@ -135,13 +132,9 @@ export { horizonTemplate } from './horizon';
 export { marginTemplate } from './margin';
 export { lframeTemplate } from './lframe';
 export { classicTemplate } from './classic';
-export { floatingPillsTemplate } from './floating-pills';
 export { arcGaugeTemplate } from './arc-gauge';
 export { heroNumberTemplate } from './hero-number';
-export { dashboardHudTemplate } from './dashboard-hud';
 export { cinematicBarTemplate } from './cinematic-bar';
-export { splitEdgesTemplate } from './split-edges';
-export { stackedSerifTemplate } from './stacked-serif';
 export { editorialTemplate } from './editorial';
 export { tickerTapeTemplate } from './ticker-tape';
 export { whisperTemplate } from './whisper';
@@ -153,9 +146,12 @@ export { swissGridTemplate } from './swiss-grid';
 export { garminStyleTemplate } from './garmin-style';
 export { sportsBroadcastTemplate } from './sports-broadcast';
 export { cockpitHudTemplate } from './cockpit-hud';
-export { orangePulseTemplate } from './orange-pulse';
 export { terminalTemplate } from './terminal';
 export { nightRunnerTemplate } from './night-runner';
 export { dataBlockTemplate } from './data-block';
 export { raceTagTemplate } from './race-tag';
+export { glassPanelTemplate } from './glass-panel';
+export { minimalRingTemplate } from './minimal-ring';
+export { stretchedBarTemplate } from './stretched-bar';
+export { focusTypeTemplate } from './focus-type';
 export { customTemplate } from './custom';

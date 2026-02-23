@@ -13,13 +13,9 @@ import {
     marginTemplate,
     lframeTemplate,
     classicTemplate,
-    floatingPillsTemplate,
     arcGaugeTemplate,
     heroNumberTemplate,
-    dashboardHudTemplate,
     cinematicBarTemplate,
-    splitEdgesTemplate,
-    stackedSerifTemplate,
     editorialTemplate,
     tickerTapeTemplate,
     whisperTemplate,
@@ -31,11 +27,14 @@ import {
     garminStyleTemplate,
     sportsBroadcastTemplate,
     cockpitHudTemplate,
-    orangePulseTemplate,
     terminalTemplate,
     nightRunnerTemplate,
     dataBlockTemplate,
     raceTagTemplate,
+    glassPanelTemplate,
+    minimalRingTemplate,
+    stretchedBarTemplate,
+    focusTypeTemplate,
     customTemplate,
 } from '../modules/templates';
 import type { TemplateId } from '../core/types';
@@ -43,11 +42,13 @@ import type { TemplateId } from '../core/types';
 describe('templates registry', () => {
     const allTemplateIds: TemplateId[] = [
         'horizon', 'margin', 'l-frame', 'classic',
-        'floating-pills', 'arc-gauge', 'hero-number', 'dashboard-hud', 'cinematic-bar',
-        'split-edges', 'stacked-serif', 'editorial', 'ticker-tape', 'whisper', 'two-tone',
+        'arc-gauge', 'hero-number', 'cinematic-bar',
+        'editorial', 'ticker-tape', 'whisper', 'two-tone',
         'condensed-strip', 'soft-rounded', 'thin-line', 'swiss-grid',
-        'garmin-style', 'sports-broadcast', 'cockpit-hud', 'orange-pulse',
+        'garmin-style', 'sports-broadcast', 'cockpit-hud',
         'terminal', 'night-runner', 'data-block', 'race-tag',
+        'glass-panel', 'minimal-ring', 'stretched-bar',
+        'focus-type',
         'custom',
     ];
 
@@ -79,13 +80,9 @@ describe('templates registry', () => {
             expect(TEMPLATE_MAP['margin']).toBe(marginTemplate);
             expect(TEMPLATE_MAP['l-frame']).toBe(lframeTemplate);
             expect(TEMPLATE_MAP['classic']).toBe(classicTemplate);
-            expect(TEMPLATE_MAP['floating-pills']).toBe(floatingPillsTemplate);
             expect(TEMPLATE_MAP['arc-gauge']).toBe(arcGaugeTemplate);
             expect(TEMPLATE_MAP['hero-number']).toBe(heroNumberTemplate);
-            expect(TEMPLATE_MAP['dashboard-hud']).toBe(dashboardHudTemplate);
             expect(TEMPLATE_MAP['cinematic-bar']).toBe(cinematicBarTemplate);
-            expect(TEMPLATE_MAP['split-edges']).toBe(splitEdgesTemplate);
-            expect(TEMPLATE_MAP['stacked-serif']).toBe(stackedSerifTemplate);
             expect(TEMPLATE_MAP['editorial']).toBe(editorialTemplate);
             expect(TEMPLATE_MAP['ticker-tape']).toBe(tickerTapeTemplate);
             expect(TEMPLATE_MAP['whisper']).toBe(whisperTemplate);
@@ -97,11 +94,14 @@ describe('templates registry', () => {
             expect(TEMPLATE_MAP['garmin-style']).toBe(garminStyleTemplate);
             expect(TEMPLATE_MAP['sports-broadcast']).toBe(sportsBroadcastTemplate);
             expect(TEMPLATE_MAP['cockpit-hud']).toBe(cockpitHudTemplate);
-            expect(TEMPLATE_MAP['orange-pulse']).toBe(orangePulseTemplate);
             expect(TEMPLATE_MAP['terminal']).toBe(terminalTemplate);
             expect(TEMPLATE_MAP['night-runner']).toBe(nightRunnerTemplate);
             expect(TEMPLATE_MAP['data-block']).toBe(dataBlockTemplate);
             expect(TEMPLATE_MAP['race-tag']).toBe(raceTagTemplate);
+            expect(TEMPLATE_MAP['glass-panel']).toBe(glassPanelTemplate);
+            expect(TEMPLATE_MAP['minimal-ring']).toBe(minimalRingTemplate);
+            expect(TEMPLATE_MAP['stretched-bar']).toBe(stretchedBarTemplate);
+            expect(TEMPLATE_MAP['focus-type']).toBe(focusTypeTemplate);
             expect(TEMPLATE_MAP['custom']).toBe(customTemplate);
         });
     });
@@ -133,13 +133,9 @@ describe('templates registry', () => {
         });
 
         it('new template layouts should map to expected modes', () => {
-            expect(floatingPillsTemplate.config.layoutMode).toBe('floating-pills');
             expect(arcGaugeTemplate.config.layoutMode).toBe('arc-gauge');
             expect(heroNumberTemplate.config.layoutMode).toBe('hero-number');
-            expect(dashboardHudTemplate.config.layoutMode).toBe('dashboard-hud');
             expect(cinematicBarTemplate.config.layoutMode).toBe('cinematic-bar');
-            expect(splitEdgesTemplate.config.layoutMode).toBe('split-edges');
-            expect(stackedSerifTemplate.config.layoutMode).toBe('stacked-serif');
             expect(editorialTemplate.config.layoutMode).toBe('editorial');
             expect(tickerTapeTemplate.config.layoutMode).toBe('ticker-tape');
             expect(whisperTemplate.config.layoutMode).toBe('whisper');
@@ -151,11 +147,14 @@ describe('templates registry', () => {
             expect(garminStyleTemplate.config.layoutMode).toBe('garmin-style');
             expect(sportsBroadcastTemplate.config.layoutMode).toBe('sports-broadcast');
             expect(cockpitHudTemplate.config.layoutMode).toBe('cockpit-hud');
-            expect(orangePulseTemplate.config.layoutMode).toBe('orange-pulse');
             expect(terminalTemplate.config.layoutMode).toBe('terminal');
             expect(nightRunnerTemplate.config.layoutMode).toBe('night-runner');
             expect(dataBlockTemplate.config.layoutMode).toBe('data-block');
             expect(raceTagTemplate.config.layoutMode).toBe('race-tag');
+            expect(glassPanelTemplate.config.layoutMode).toBe('glass-panel');
+            expect(minimalRingTemplate.config.layoutMode).toBe('minimal-ring');
+            expect(stretchedBarTemplate.config.layoutMode).toBe('stretched-bar');
+            expect(focusTypeTemplate.config.layoutMode).toBe('focus-type');
         });
     });
 

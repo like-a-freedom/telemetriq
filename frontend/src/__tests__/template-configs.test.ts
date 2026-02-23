@@ -16,13 +16,9 @@ describe('template-configs', () => {
         'margin',
         'l-frame',
         'classic',
-        'floating-pills',
         'arc-gauge',
         'hero-number',
-        'dashboard-hud',
         'cinematic-bar',
-        'split-edges',
-        'stacked-serif',
         'editorial',
         'ticker-tape',
         'whisper',
@@ -34,11 +30,14 @@ describe('template-configs', () => {
         'garmin-style',
         'sports-broadcast',
         'cockpit-hud',
-        'orange-pulse',
         'terminal',
         'night-runner',
         'data-block',
         'race-tag',
+        'glass-panel',
+        'minimal-ring',
+        'stretched-bar',
+        'focus-type',
         'custom',
     ];
 
@@ -138,13 +137,9 @@ describe('template-configs', () => {
             expect(ids).toContain('margin');
             expect(ids).toContain('l-frame');
             expect(ids).toContain('classic');
-            expect(ids).toContain('floating-pills');
             expect(ids).toContain('arc-gauge');
             expect(ids).toContain('hero-number');
-            expect(ids).toContain('dashboard-hud');
             expect(ids).toContain('cinematic-bar');
-            expect(ids).toContain('split-edges');
-            expect(ids).toContain('stacked-serif');
             expect(ids).toContain('editorial');
             expect(ids).toContain('ticker-tape');
             expect(ids).toContain('whisper');
@@ -156,7 +151,6 @@ describe('template-configs', () => {
             expect(ids).toContain('garmin-style');
             expect(ids).toContain('sports-broadcast');
             expect(ids).toContain('cockpit-hud');
-            expect(ids).toContain('orange-pulse');
             expect(ids).toContain('terminal');
             expect(ids).toContain('night-runner');
             expect(ids).toContain('data-block');

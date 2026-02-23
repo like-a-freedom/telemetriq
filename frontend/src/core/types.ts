@@ -117,13 +117,9 @@ export type TemplateId =
     | 'margin'
     | 'l-frame'
     | 'classic'
-    | 'floating-pills'
     | 'arc-gauge'
     | 'hero-number'
-    | 'dashboard-hud'
     | 'cinematic-bar'
-    | 'split-edges'
-    | 'stacked-serif'
     | 'editorial'
     | 'ticker-tape'
     | 'whisper'
@@ -135,11 +131,14 @@ export type TemplateId =
     | 'garmin-style'
     | 'sports-broadcast'
     | 'cockpit-hud'
-    | 'orange-pulse'
     | 'terminal'
     | 'night-runner'
     | 'data-block'
     | 'race-tag'
+    | 'glass-panel'
+    | 'minimal-ring'
+    | 'stretched-bar'
+    | 'focus-type'
     | 'custom';
 
 /** Visual layout mode for the overlay */
@@ -147,13 +146,9 @@ export type OverlayLayoutMode =
     | 'bottom-bar'     // Horizon: full-width gradient bar at bottom
     | 'side-margins'   // Margin: metrics on left/right margins
     | 'corner-frame'   // L-Frame: L-shaped frame at corner
-    | 'floating-pills'
     | 'arc-gauge'
     | 'hero-number'
-    | 'dashboard-hud'
     | 'cinematic-bar'
-    | 'split-edges'
-    | 'stacked-serif'
     | 'editorial'
     | 'ticker-tape'
     | 'whisper'
@@ -165,12 +160,15 @@ export type OverlayLayoutMode =
     | 'garmin-style'
     | 'sports-broadcast'
     | 'cockpit-hud'
-    | 'orange-pulse'
     | 'terminal'
     | 'night-runner'
     | 'data-block'
     | 'race-tag'
-    | 'box';           // Classic: positioned rounded rectangle
+    | 'glass-panel'
+    | 'minimal-ring'
+    | 'stretched-bar'
+    | 'focus-type'
+    | 'box';           // Classic: positioned rounded rectangle           // Classic: positioned rounded rectangle
 
 /** Sync configuration */
 export interface SyncConfig {

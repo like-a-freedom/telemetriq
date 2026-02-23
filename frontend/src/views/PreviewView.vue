@@ -112,10 +112,22 @@
           </p>
 
           <div class="preview-view__settings">
-            <label class="preview-view__checkbox">
+            <label
+              class="preview-view__checkbox"
+              :class="{
+                'preview-view__checkbox--disabled':
+                  settingsStore.currentTemplateId === 'minimal-ring',
+              }"
+            >
               <input
                 type="checkbox"
                 v-model="settingsStore.overlayConfig.showHr"
+                :disabled="settingsStore.currentTemplateId === 'minimal-ring'"
+                :title="
+                  settingsStore.currentTemplateId === 'minimal-ring'
+                    ? 'Minimal Ring only supports Pace'
+                    : ''
+                "
               />
               <span>❤️ Heart rate</span>
             </label>
@@ -126,17 +138,41 @@
               />
               <span>🏃 Pace</span>
             </label>
-            <label class="preview-view__checkbox">
+            <label
+              class="preview-view__checkbox"
+              :class="{
+                'preview-view__checkbox--disabled':
+                  settingsStore.currentTemplateId === 'minimal-ring',
+              }"
+            >
               <input
                 type="checkbox"
                 v-model="settingsStore.overlayConfig.showDistance"
+                :disabled="settingsStore.currentTemplateId === 'minimal-ring'"
+                :title="
+                  settingsStore.currentTemplateId === 'minimal-ring'
+                    ? 'Minimal Ring only supports Pace'
+                    : ''
+                "
               />
               <span>📏 Distance</span>
             </label>
-            <label class="preview-view__checkbox">
+            <label
+              class="preview-view__checkbox"
+              :class="{
+                'preview-view__checkbox--disabled':
+                  settingsStore.currentTemplateId === 'minimal-ring',
+              }"
+            >
               <input
                 type="checkbox"
                 v-model="settingsStore.overlayConfig.showTime"
+                :disabled="settingsStore.currentTemplateId === 'minimal-ring'"
+                :title="
+                  settingsStore.currentTemplateId === 'minimal-ring'
+                    ? 'Minimal Ring only supports Pace'
+                    : ''
+                "
               />
               <span>⏱️ Time</span>
             </label>
@@ -587,6 +623,12 @@ function applyManualTime(): void {
 
 .preview-view__checkbox:hover {
   background: var(--color-bg-tertiary, #242424);
+}
+
+.preview-view__checkbox--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .preview-view__checkbox input[type="checkbox"] {
