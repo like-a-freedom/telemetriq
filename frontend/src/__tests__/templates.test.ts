@@ -36,8 +36,12 @@ import {
     stretchedBarTemplate,
     focusTypeTemplate,
     customTemplate,
+    isMetricAvailable,
+    isMetricRequired,
+    getMetricUnavailableReason,
 } from '../modules/templates';
 import type { TemplateId } from '../core/types';
+import type { TemplateCapabilities } from '../modules/templates/types';
 
 describe('templates registry', () => {
     const allTemplateIds: TemplateId[] = [
@@ -204,6 +208,133 @@ describe('templates registry', () => {
             const templates = getAllTemplateMetadata();
             expect(templates).toHaveLength(allTemplateIds.length - 1);
             expect(templates.find(t => t.id === 'custom')).toBeUndefined();
+        });
+    });
+
+    describe('template capabilities', () => {
+        describe('minimal-ring template', () => {
+            it('should only support pace, hr, and distance metrics', () => {
+                expect(minimalRingTemplate.capabilities.supportedMetrics).toEqual(['pace', 'hr', 'distance']);
+            });
+
+            it('should require pace metric', () => {
+                expect(minimalRingTemplate.capabilities.requiredMetrics).toEqual(['pace']);
+            });
+
+            it('should not support position changes', () => {
+                expect(minimalRingTemplate.capabilities.supportsPosition).toBe(false);
+            });
+
+            it('should not support background opacity', () => {
+                expect(minimalRingTemplate.capabilities.supportsBackgroundOpacity).toBe(false);
+            });
+
+            it('should not support gradient', () => {
+                expect(minimalRingTemplate.capabilities.supportsGradient).toBe(false);
+            });
+
+            it('should provide custom reason for unavailable time metric', () => {
+                const reason = minimalRingTemplate.capabilities.getMetricUnavailableReason?.('time');
+                expect(reason).toBe('Minimal Ring only supports Pace, Heart Rate, and Distance');
+            });
+
+            it('should return undefined for available metrics', () => {
+                const reason = minimalRingTemplate.capabilities.getMetricUnavailableReason?.('pace');
+                expect(reason).toBeUndefined();
+            });
+        });
+
+        describe('classic template', () => {
+            it('should support all metrics', () => {
+                expect(classicTemplate.capabilities.supportedMetrics).toEqual(['pace', 'hr', 'distance', 'time']);
+            });
+
+            it('should have no required metrics', () => {
+                expect(classicTemplate.capabilities.requiredMetrics).toEqual([]);
+            });
+
+            it('should support position changes', () => {
+                expect(classicTemplate.capabilities.supportsPosition).toBe(true);
+            });
+
+            it('should support all features', () => {
+                const caps = classicTemplate.capabilities;
+                expect(caps.supportsBackgroundOpacity).toBe(true);
+                expect(caps.supportsGradient).toBe(true);
+                expect(caps.supportsBorder).toBe(true);
+                expect(caps.supportsTextShadow).toBe(true);
+                expect(caps.supportsAccentColor).toBe(true);
+                expect(caps.supportsLayoutDirection).toBe(true);
+            });
+        });
+
+        describe('horizon template', () => {
+            it('should support all metrics', () => {
+                expect(horizonTemplate.capabilities.supportedMetrics).toEqual(['pace', 'hr', 'distance', 'time']);
+            });
+
+            it('should not support position changes (fixed bottom bar)', () => {
+                expect(horizonTemplate.capabilities.supportsPosition).toBe(false);
+            });
+
+            it('should not support layout direction changes', () => {
+                expect(horizonTemplate.capabilities.supportsLayoutDirection).toBe(false);
+            });
+        });
+
+        describe('helper functions', () => {
+            it('isMetricAvailable should return true for supported metrics', () => {
+                expect(isMetricAvailable(minimalRingTemplate.capabilities, 'pace')).toBe(true);
+                expect(isMetricAvailable(minimalRingTemplate.capabilities, 'hr')).toBe(true);
+                expect(isMetricAvailable(minimalRingTemplate.capabilities, 'distance')).toBe(true);
+            });
+
+            it('isMetricAvailable should return false for unsupported metrics', () => {
+                expect(isMetricAvailable(minimalRingTemplate.capabilities, 'time')).toBe(false);
+            });
+
+            it('isMetricRequired should return true for required metrics', () => {
+                expect(isMetricRequired(minimalRingTemplate.capabilities, 'pace')).toBe(true);
+            });
+
+            it('isMetricRequired should return false for non-required metrics', () => {
+                expect(isMetricRequired(minimalRingTemplate.capabilities, 'hr')).toBe(false);
+            });
+
+            it('getMetricUnavailableReason should return custom reason', () => {
+                const reason = getMetricUnavailableReason(minimalRingTemplate.capabilities, 'time');
+                expect(reason).toBe('Minimal Ring only supports Pace, Heart Rate, and Distance');
+            });
+
+            it('getMetricUnavailableReason should return default reason for unsupported metrics', () => {
+                const customCaps: TemplateCapabilities = {
+                    ...minimalRingTemplate.capabilities,
+                    getMetricUnavailableReason: undefined,
+                };
+                const reason = getMetricUnavailableReason(customCaps, 'time');
+                expect(reason).toBe('Time is not supported by this template');
+            });
+        });
+    });
+
+    describe('template styles', () => {
+        it('minimal-ring should have correct typography preset', () => {
+            const styles = minimalRingTemplate.styles.typography;
+            expect(styles.valueFontWeight).toBe('light');
+            expect(styles.valueSizeMultiplier).toBe(1.6);
+            expect(styles.labelSizeMultiplier).toBe(0.32);
+        });
+
+        it('minimal-ring should have correct visual preset', () => {
+            const styles = minimalRingTemplate.styles.visual;
+            expect(styles.textShadow).toBe(false);
+            expect(styles.borderWidth).toBe(0);
+            expect(styles.iconStyle).toBe('none');
+        });
+
+        it('classic should have bold values', () => {
+            const styles = classicTemplate.styles.typography;
+            expect(styles.valueFontWeight).toBe('bold');
         });
     });
 });

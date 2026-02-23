@@ -3,6 +3,7 @@
  */
 
 import type { TemplateDefinition } from './types';
+import { DEFAULT_CAPABILITIES } from './types';
 
 export const horizonTemplate: TemplateDefinition = {
   id: 'horizon',
@@ -43,5 +44,40 @@ export const horizonTemplate: TemplateDefinition = {
     labelSizeMultiplier: 0.4,
     labelLetterSpacing: 0.15,
     accentColor: '#ef4444',
+  },
+  capabilities: {
+    ...DEFAULT_CAPABILITIES,
+    supportedMetrics: ['pace', 'hr', 'distance', 'time'],
+    requiredMetrics: [],
+    supportsPosition: false,
+    supportsBackgroundOpacity: true,
+    supportsGradient: true,
+    supportsBorder: false,
+    supportsTextShadow: false,
+    supportsAccentColor: true,
+    supportsLayoutDirection: false,
+  },
+  styles: {
+    typography: {
+      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      valueFontWeight: 'bold',
+      labelFontWeight: 'normal',
+      valueSizeMultiplier: 2.5,
+      labelSizeMultiplier: 0.4,
+      labelLetterSpacing: 0.15,
+    },
+    spacing: {
+      basePaddingPercent: 0.02,
+      metricGapPercent: 0.01,
+      lineSpacing: 1.2,
+    },
+    visual: {
+      cornerRadius: 0,
+      borderWidth: 0,
+      textShadow: false,
+      textShadowBlur: 0,
+      iconStyle: 'none',
+      labelStyle: 'uppercase',
+    },
   },
 };

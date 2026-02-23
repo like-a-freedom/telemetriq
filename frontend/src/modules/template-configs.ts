@@ -1,6 +1,6 @@
 /**
  * Template configurations - re-exports from templates/ directory.
- * 
+ *
  * @deprecated Import directly from './templates' for new code.
  * This file is kept for backward compatibility.
  */
@@ -12,11 +12,17 @@ import {
   getTemplateMetadata as getTemplateMetadataFromRegistry,
   getAllTemplateMetadata as getAllTemplateMetadataFromRegistry,
   TEMPLATE_MAP,
+  isMetricAvailable,
+  isMetricRequired,
+  getMetricUnavailableReason,
 } from './templates';
-import type { TemplateMetadata } from './templates';
+import type { TemplateMetadata, TemplateCapabilities, TemplateStyles, MetricType } from './templates';
 
 // Re-export for backward compatibility
-export type { TemplateMetadata };
+export type { TemplateMetadata, TemplateCapabilities, TemplateStyles, MetricType };
+
+// Re-export helpers
+export { isMetricAvailable, isMetricRequired, getMetricUnavailableReason };
 
 /**
  * @deprecated Use getTemplateConfig from './templates' instead
@@ -48,7 +54,7 @@ export function getAllTemplateMetadata(): TemplateMetadata[] {
 
 // Legacy exports for backward compatibility
 /** @deprecated Import from './templates/types' instead */
-export interface TemplateMetadataLegacy extends TemplateMetadata { }
+export type { TemplateMetadata as TemplateMetadataLegacy } from './templates';
 
 /** @deprecated Use TEMPLATE_MAP from './templates' instead */
 export const TEMPLATE_METADATA: Record<TemplateId, TemplateMetadata> = {
