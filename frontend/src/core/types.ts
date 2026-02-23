@@ -46,72 +46,9 @@ export interface TelemetryFrame {
     movingTimeSeconds: number;
 }
 
-/** Overlay configuration */
-export interface OverlayConfig {
-    /** Position on video */
-    position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-    /** Background opacity (0-1) */
-    backgroundOpacity: number;
-    /** Font size as percentage of video height */
-    fontSizePercent: number;
-    /** Whether to show each metric */
-    showHr: boolean;
-    showPace: boolean;
-    showDistance: boolean;
-    showTime: boolean;
-}
+// ── Overlay configuration types ──────────────────────────────────────────
 
-/** Extended overlay configuration with template properties */
-export interface ExtendedOverlayConfig extends OverlayConfig {
-    /** Template identifier */
-    templateId: string;
-    /** Visual layout mode determining overlay shape/position */
-    layoutMode?: OverlayLayoutMode;
-    /** Font family selection */
-    fontFamily?: string;
-    /** Text color in hex/rgb format */
-    textColor?: string;
-    /** Background color in hex/rgb format */
-    backgroundColor?: string;
-    /** Border width in pixels */
-    borderWidth?: number;
-    /** Border color in hex/rgb format */
-    borderColor?: string;
-    /** Corner radius as percentage of overlay height */
-    cornerRadius?: number;
-    /** Enable/disable text shadow */
-    textShadow?: boolean;
-    /** Text shadow color */
-    textShadowColor?: string;
-    /** Text shadow blur radius */
-    textShadowBlur?: number;
-    /** Spacing multiplier between lines */
-    lineSpacing?: number;
-    /** Layout direction of telemetry items */
-    layout?: 'vertical' | 'horizontal';
-    /** Style of metric icons */
-    iconStyle?: 'none' | 'filled' | 'outline';
-    /** Enable gradient background */
-    gradientBackground?: boolean;
-    /** Gradient start color */
-    gradientStartColor?: string;
-    /** Gradient end color */
-    gradientEndColor?: string;
-    /** Label style: 'uppercase' for small caps labels, 'hidden' for no labels */
-    labelStyle?: 'uppercase' | 'hidden';
-    /** Value font weight: 'light' (300), 'normal' (400), 'bold' (700) */
-    valueFontWeight?: 'light' | 'normal' | 'bold';
-    /** Value font size multiplier relative to fontSizePercent */
-    valueSizeMultiplier?: number;
-    /** Label font size multiplier relative to fontSizePercent */
-    labelSizeMultiplier?: number;
-    /** Letter spacing for labels in em units */
-    labelLetterSpacing?: number;
-    /** Accent color for progress/highlight elements */
-    accentColor?: string;
-}
-
-/** Available template IDs */
+/** Template identifier */
 export type TemplateId =
     | 'horizon'
     | 'margin'
@@ -168,7 +105,79 @@ export type OverlayLayoutMode =
     | 'minimal-ring'
     | 'stretched-bar'
     | 'focus-type'
-    | 'box';           // Classic: positioned rounded rectangle           // Classic: positioned rounded rectangle
+    | 'box';           // Classic: positioned rounded rectangle
+
+/** Overlay position on video */
+export type OverlayPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+
+/** Font weight for values: 'light' (300), 'normal' (400), 'bold' (700) */
+export type ValueFontWeight = 'light' | 'normal' | 'bold';
+
+/** Label visibility style */
+export type LabelStyle = 'uppercase' | 'hidden';
+
+/** Icon display style */
+export type IconStyle = 'none' | 'filled' | 'outline';
+
+/** Layout direction */
+export type LayoutDirection = 'vertical' | 'horizontal';
+
+/** Metric visibility configuration */
+export interface OverlayFeatures {
+    showHr: boolean;
+    showPace: boolean;
+    showDistance: boolean;
+    showTime: boolean;
+}
+
+/** Visual styling configuration */
+export interface OverlayStyle {
+    fontFamily: string;
+    textColor: string;
+    backgroundColor: string;
+    valueFontWeight: ValueFontWeight;
+    valueSizeMultiplier: number;
+    labelSizeMultiplier: number;
+    labelLetterSpacing: number;
+    accentColor: string;
+    textShadow: boolean;
+    textShadowColor: string;
+    textShadowBlur: number;
+    gradientBackground: boolean;
+    gradientStartColor: string;
+    gradientEndColor: string;
+}
+
+/** Layout and positioning configuration */
+export interface OverlayLayout {
+    position: OverlayPosition;
+    layoutMode: OverlayLayoutMode;
+    layout: LayoutDirection;
+    backgroundOpacity: number;
+    fontSizePercent: number;
+    borderWidth: number;
+    borderColor: string;
+    cornerRadius: number;
+    lineSpacing: number;
+    iconStyle: IconStyle;
+    labelStyle: LabelStyle;
+}
+
+/** Simple overlay configuration for backward compatibility */
+export interface OverlayConfig {
+    position: OverlayPosition;
+    backgroundOpacity: number;
+    fontSizePercent: number;
+    showHr: boolean;
+    showPace: boolean;
+    showDistance: boolean;
+    showTime: boolean;
+}
+
+/** Complete overlay configuration - composed from focused interfaces */
+export interface ExtendedOverlayConfig extends OverlayFeatures, OverlayStyle, OverlayLayout {
+    templateId: TemplateId;
+}
 
 /** Sync configuration */
 export interface SyncConfig {

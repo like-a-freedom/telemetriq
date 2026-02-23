@@ -9,6 +9,64 @@ import {
 } from '../modules/file-validation';
 import { formatErrorMessage } from './store-utils';
 
+interface LoadFileConfig<F extends File, T> {
+    file: F;
+    validate: (file: F) => FileValidation;
+    parse: (file: F) => Promise<T>;
+    onSuccess: (file: F, result: T) => void;
+    onError: () => void;
+    setLoading: (value: boolean) => void;
+    setError: (error: string | null) => void;
+    setValidation: (validation: FileValidation | null) => void;
+}
+
+async function loadFile<F extends File, T>({
+    file,
+    validate,
+    parse,
+    onSuccess,
+    onError,
+    setLoading,
+    setError,
+    setValidation,
+}: LoadFileConfig<F, T>): Promise<void> {
+    setError(null);
+    setLoading(true);
+
+    try {
+        const validation = validate(file);
+        setValidation(validation);
+
+        if (!validation.valid) {
+            setError(validation.errors.join('; '));
+            return;
+        }
+
+        const result = await parse(file);
+        onSuccess(file, result);
+    } catch (err) {
+        setError(formatErrorMessage(err));
+        onError();
+    } finally {
+        setLoading(false);
+    }
+}
+
+function enhanceVideoValidation(
+    meta: VideoMeta,
+    validation: FileValidation | null,
+): FileValidation {
+    const warnings = [...(validation?.warnings ?? [])];
+
+    if (meta.duration > WARN_DURATION_SECONDS) {
+        warnings.push(
+            `Video is longer than 30 minutes (${Math.round(meta.duration / 60)} min). Processing may take a long time.`,
+        );
+    }
+
+    return { valid: true, errors: [], warnings };
+}
+
 export const useFilesStore = defineStore('files', () => {
     // State
     const videoFile = ref<File | null>(null);
@@ -93,7 +151,6 @@ export const useFilesStore = defineStore('files', () => {
     }
 
     return {
-        // State
         videoFile,
         gpxFile,
         videoMeta,
@@ -103,11 +160,9 @@ export const useFilesStore = defineStore('files', () => {
         isLoadingVideo,
         isLoadingGpx,
         error,
-        // Computed
         hasVideo,
         hasGpx,
         isReady,
-        // Actions
         setVideoFile,
         setGpxFile,
         removeVideo,
@@ -115,62 +170,3 @@ export const useFilesStore = defineStore('files', () => {
         reset,
     };
 });
-
-// Helper types and functions
-interface LoadFileConfig<F, T> {
-    file: F;
-    validate: (file: F) => FileValidation;
-    parse: (file: F) => Promise<T>;
-    onSuccess: (file: F, result: T) => void;
-    onError: () => void;
-    setLoading: (value: boolean) => void;
-    setError: (error: string | null) => void;
-    setValidation: (validation: FileValidation | null) => void;
-}
-
-async function loadFile<F extends File, T>({
-    file,
-    validate,
-    parse,
-    onSuccess,
-    onError,
-    setLoading,
-    setError,
-    setValidation,
-}: LoadFileConfig<F, T>): Promise<void> {
-    setError(null);
-    setLoading(true);
-
-    try {
-        const validation = validate(file);
-        setValidation(validation);
-
-        if (!validation.valid) {
-            setError(validation.errors.join('; '));
-            return;
-        }
-
-        const result = await parse(file);
-        onSuccess(file, result);
-    } catch (err) {
-        setError(formatErrorMessage(err));
-        onError();
-    } finally {
-        setLoading(false);
-    }
-}
-
-function enhanceVideoValidation(
-    meta: VideoMeta,
-    validation: FileValidation | null,
-): FileValidation {
-    const warnings = [...(validation?.warnings ?? [])];
-
-    if (meta.duration > WARN_DURATION_SECONDS) {
-        warnings.push(
-            `Video is longer than 30 minutes (${Math.round(meta.duration / 60)} min). Processing may take a long time.`,
-        );
-    }
-
-    return { valid: true, errors: [], warnings };
-}

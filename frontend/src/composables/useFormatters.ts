@@ -1,4 +1,14 @@
-export function useFormatters() {
+export interface Formatters {
+    formatDuration: (seconds: number) => string;
+    formatFileSize: (bytes: number) => string;
+}
+
+/** Byte size thresholds for formatting */
+const KB = 1024;
+const MB = 1024 * 1024;
+const GB = 1024 * 1024 * 1024;
+
+export function useFormatters(): Formatters {
     function formatDuration(seconds: number): string {
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = Math.round(seconds % 60);
@@ -6,12 +16,16 @@ export function useFormatters() {
     }
 
     function formatFileSize(bytes: number): string {
-        if (bytes < 1024) return `${bytes} B`;
-        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-        if (bytes < 1024 * 1024 * 1024) {
-            return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+        if (bytes < KB) {
+            return `${bytes} B`;
         }
-        return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+        if (bytes < MB) {
+            return `${(bytes / KB).toFixed(1)} KB`;
+        }
+        if (bytes < GB) {
+            return `${(bytes / MB).toFixed(1)} MB`;
+        }
+        return `${(bytes / GB).toFixed(2)} GB`;
     }
 
     return {

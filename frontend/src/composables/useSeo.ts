@@ -9,30 +9,44 @@ export interface SeoOptions {
     url?: string;
 }
 
+interface WindowWithSiteUrl extends Window {
+    __SITE_URL__?: string;
+}
+
 const SITE_NAME = 'Telemetriq';
-// Read SITE_URL from environment at build time. Vite exposes variables prefixed with `VITE_` to client code.
-// Runtime-first: prefer window.__SITE_URL__ (injected by server), then VITE_/build env, then fallback.
+
+/** Get site URL from runtime or build-time environment */
 function runtimeSiteUrl(): string | null {
     try {
-        // window.__SITE_URL__ is injected by Caddy (/site-config.js) in production
-        // and provided in dev via Vite env (composer sets VITE_SITE_URL from SITE_URL).
-        const w = (window as any).__SITE_URL__;
-        if (w && typeof w === 'string') return w.replace(/\/$/, '');
-    } catch (e) {
-        // not in browser
+        // Safe type guard for window.__SITE_URL__
+        const win = window as WindowWithSiteUrl;
+        const runtimeValue = win.__SITE_URL__;
+        if (typeof runtimeValue === 'string') {
+            return runtimeValue.replace(/\/$/, '');
+        }
+    } catch {
+        // Not in browser environment
     }
     return null;
 }
 
-const SITE_URL = (runtimeSiteUrl() || (import.meta.env.VITE_SITE_URL as string) || ((import.meta.env as any).SITE_URL as string) || 'https://telemetriq.app').replace(/\/$/, '');
+const SITE_URL = (
+    runtimeSiteUrl()
+    || (import.meta.env.VITE_SITE_URL as string | undefined)
+    || (import.meta.env as { SITE_URL?: string }).SITE_URL
+    || 'https://telemetriq.app'
+).replace(/\/$/, '');
+
 const DEFAULT_DESCRIPTION = 'Create stunning sports telemetry overlay videos. Visualize GPS data, heart rate, speed, and elevation from GPX files on your workout videos.';
 const DEFAULT_IMAGE = '/og-image.png';
 
-export function useSeo(options: SeoOptions = {}) {
+export function useSeo(options: SeoOptions = {}): void {
     const route = useRoute();
 
     const title = computed(() => {
-        if (options.title) return `${options.title} | ${SITE_NAME}`;
+        if (options.title) {
+            return `${options.title} | ${SITE_NAME}`;
+        }
         return `${SITE_NAME} — Sports Telemetry Overlay`;
     });
 
@@ -41,44 +55,38 @@ export function useSeo(options: SeoOptions = {}) {
     const image = computed(() => options.image || `${SITE_URL}${DEFAULT_IMAGE}`);
 
     useHead({
-        title: title,
-        htmlAttrs: {
-            lang: 'en',
-        },
-        link: [
-            { rel: 'canonical', href: url },
-        ],
-        script: [
-            {
-                type: 'application/ld+json',
-                innerHTML: JSON.stringify({
-                    '@context': 'https://schema.org',
-                    '@type': 'WebApplication',
-                    name: SITE_NAME,
-                    description: description.value,
-                    url: SITE_URL,
-                    applicationCategory: 'MultimediaApplication',
-                    operatingSystem: 'Any (Web Browser)',
-                    offers: {
-                        '@type': 'Offer',
-                        price: '0',
-                        priceCurrency: 'USD',
-                    },
-                    featureList: [
-                        'GPX telemetry visualization',
-                        'Video overlay generation',
-                        'WebGPU rendering',
-                        'Customizable templates',
-                        'Browser-based processing',
-                    ],
-                }),
-            },
-        ],
+        title,
+        htmlAttrs: { lang: 'en' },
+        link: [{ rel: 'canonical', href: url }],
+        script: [{
+            type: 'application/ld+json',
+            innerHTML: JSON.stringify({
+                '@context': 'https://schema.org',
+                '@type': 'WebApplication',
+                name: SITE_NAME,
+                description: description.value,
+                url: SITE_URL,
+                applicationCategory: 'MultimediaApplication',
+                operatingSystem: 'Any (Web Browser)',
+                offers: {
+                    '@type': 'Offer',
+                    price: '0',
+                    priceCurrency: 'USD',
+                },
+                featureList: [
+                    'GPX telemetry visualization',
+                    'Video overlay generation',
+                    'WebGPU rendering',
+                    'Customizable templates',
+                    'Browser-based processing',
+                ],
+            }),
+        }],
     });
 
     useSeoMeta({
-        title: title,
-        description: description,
+        title,
+        description,
         ogTitle: title,
         ogDescription: description,
         ogImage: image,

@@ -1,16 +1,25 @@
 import { ref } from 'vue';
-import { formatErrorMessage } from '../stores/store-utils';
+import { formatErrorMessage } from '../stores/error-formatter';
 
 export interface AsyncState<T> {
-    data: T | null;
-    isLoading: boolean;
-    error: string | null;
+    readonly data: T | null;
+    readonly isLoading: boolean;
+    readonly error: string | null;
     execute: (asyncFn: () => Promise<T>) => Promise<T | null>;
     reset: () => void;
 }
 
-export function useAsyncState<T>(): AsyncState<T> {
-    const data = ref<T | null>(null);
+export interface UseAsyncStateOptions {
+    /** Initial data value */
+    initialValue?: null;
+    /** Custom error message transformer */
+    transformError?: (err: unknown) => string;
+}
+
+export function useAsyncState<T>(options?: UseAsyncStateOptions): AsyncState<T> {
+    const { transformError = formatErrorMessage } = options ?? {};
+
+    const data = ref<T | null>(options?.initialValue ?? null);
     const isLoading = ref(false);
     const error = ref<string | null>(null);
 
@@ -23,7 +32,7 @@ export function useAsyncState<T>(): AsyncState<T> {
             data.value = result;
             return result;
         } catch (err) {
-            error.value = formatErrorMessage(err);
+            error.value = transformError(err);
             return null;
         } finally {
             isLoading.value = false;
@@ -31,7 +40,7 @@ export function useAsyncState<T>(): AsyncState<T> {
     }
 
     function reset(): void {
-        data.value = null;
+        data.value = options?.initialValue ?? null;
         isLoading.value = false;
         error.value = null;
     }
