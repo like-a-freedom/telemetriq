@@ -3,8 +3,8 @@ import { ref, computed } from 'vue';
 import type { SyncConfig, TrackPoint } from '../core/types';
 import {
     autoSync,
-} from '../modules/sync-engine';
-import { formatErrorMessage, safeNumber } from './store-utils';
+} from '../modules/syncEngine';
+import { formatErrorMessage, safeNumber } from './storeUtils';
 
 const DEFAULT_SYNC_CONFIG: SyncConfig = {
     offsetSeconds: 0,

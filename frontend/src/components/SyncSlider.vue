@@ -72,7 +72,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { getSyncRangeSeconds } from "../modules/sync-engine";
+import { getSyncRangeSeconds } from "../modules/syncEngine";
 
 const props = defineProps<{
   offsetSeconds: number;

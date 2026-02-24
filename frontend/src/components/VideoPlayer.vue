@@ -22,8 +22,8 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from "vue";
 import type { TelemetryFrame, ExtendedOverlayConfig } from "../core/types";
-import { renderOverlay } from "../modules/overlay-renderer";
-import { getTelemetryAtTime } from "../modules/telemetry-core";
+import { renderOverlay } from "../modules/overlayRenderer";
+import { getTelemetryAtTime } from "../modules/telemetryCore";
 
 const props = defineProps<{
   src: string;

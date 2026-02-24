@@ -1,4 +1,4 @@
-import type { DemuxedMedia, Mp4Sample } from './video-processing-types';
+import type { DemuxedMedia, Mp4Sample } from './videoProcessingTypes';
 import { ProcessingError } from '../core/errors';
 import {
     ALL_FORMATS,
@@ -6,7 +6,7 @@ import {
     EncodedPacketSink,
     Input,
 } from 'mediabunny';
-import { remuxWithFfmpeg } from './ffmpeg-utils';
+import { remuxWithFfmpeg } from './ffmpegUtils';
 import type { ProcessingProgress } from '../core/types';
 
 /** FFmpeg.wasm fallback reads the whole file into memory. */

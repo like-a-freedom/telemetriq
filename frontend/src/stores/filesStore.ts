@@ -1,13 +1,13 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { GpxData, VideoMeta, FileValidation } from '../core/types';
-import { validateGpxFile, readAndParseGpx } from '../modules/gpx-parser';
+import { validateGpxFile, readAndParseGpx } from '../modules/gpxParser';
 import {
     validateVideoFile,
     extractVideoMeta,
     WARN_DURATION_SECONDS,
-} from '../modules/file-validation';
-import { formatErrorMessage } from './store-utils';
+} from '../modules/fileValidation';
+import { formatErrorMessage } from './storeUtils';
 
 interface LoadFileConfig<F extends File, T> {
     file: F;

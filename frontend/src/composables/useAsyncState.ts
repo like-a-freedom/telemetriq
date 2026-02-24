@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { formatErrorMessage } from '../stores/error-formatter';
+import { formatErrorMessage } from '../stores/errorFormatter';
 
 export interface AsyncState<T> {
     readonly data: T | null;

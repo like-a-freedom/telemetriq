@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { ProcessingProgress } from '../core/types';
-import { createEtaCalculator } from './store-utils';
+import { createEtaCalculator } from './storeUtils';
 
 const PHASE_PERCENT_RANGES: Record<ProcessingProgress['phase'], { min: number; max: number }> = {
     demuxing: { min: 0, max: 5 },

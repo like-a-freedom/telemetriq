@@ -12,7 +12,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from "vue";
 import type { TelemetryFrame, ExtendedOverlayConfig } from "../core/types";
-import { renderOverlay } from "../modules/overlay-renderer";
+import { renderOverlay } from "../modules/overlayRenderer";
 
 const props = defineProps<{
   frame: TelemetryFrame;
