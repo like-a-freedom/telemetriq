@@ -112,7 +112,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useFilesStore, useSettingsStore } from "../stores";
-import { checkBrowserCapabilities } from "../modules/file-validation";
+import { checkBrowserCapabilities } from "../modules/fileValidation";
 import { useSeo } from "../composables/useSeo";
 import { useFormatters } from "../composables/useFormatters";
 // @ts-ignore Vue SFC default export typing handled by current tooling setup

@@ -1,4 +1,4 @@
-import type { DemuxedMedia, Mp4Sample, StreamingMuxSession } from './video-processing-types';
+import type { DemuxedMedia, Mp4Sample, StreamingMuxSession } from './videoProcessingTypes';
 import { ProcessingError } from '../core/errors';
 import {
     BufferTarget,
@@ -8,7 +8,7 @@ import {
     Mp4OutputFormat,
     Output,
 } from 'mediabunny';
-import { toMediabunnyVideoCodec, toMediabunnyAudioCodec } from './codec-utils';
+import { toMediabunnyVideoCodec, toMediabunnyAudioCodec } from './codecUtils';
 import type { VideoMeta } from '../core/types';
 
 export interface Muxer {

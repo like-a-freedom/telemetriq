@@ -6,7 +6,7 @@ import { useFilesStore } from '../stores/filesStore';
 import { useSyncStore } from '../stores/syncStore';
 import { useProcessingStore } from '../stores/processingStore';
 import { useSettingsStore } from '../stores/settingsStore';
-import { parseGpx } from '../modules/gpx-parser';
+import { parseGpx } from '../modules/gpxParser';
 
 const IPHONE_GPX_PATH = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../test_data/iphone/iphone-track.gpx');
 const HAS_IPHONE_GPX = fs.existsSync(IPHONE_GPX_PATH);

@@ -1,4 +1,4 @@
-export { parseGpx, readAndParseGpx, validateGpxFile } from './gpx-parser';
+export { parseGpx, readAndParseGpx, validateGpxFile } from './gpxParser';
 export {
     haversineDistance,
     calculateCumulativeDistances,
@@ -9,11 +9,11 @@ export {
     formatPace,
     buildTelemetryTimeline,
     getTelemetryAtTime,
-} from './telemetry-core';
-export { autoSync, clampSyncOffset, getGpxTimeRange, MANUAL_SYNC_RANGE_SECONDS } from './sync-engine';
-export { renderOverlay, renderOverlayOnFrame, DEFAULT_OVERLAY_CONFIG } from './overlay-renderer';
-export { validateVideoFile, extractVideoMeta, isWebCodecsSupported, checkBrowserCapabilities } from './file-validation';
-export { VideoProcessor } from './video-processor';
-export type { VideoProcessorOptions } from './video-processor';
-export { BrowserFileSystem } from './file-system';
-export type { FileSystemInterface } from './file-system';
+} from './telemetryCore';
+export { autoSync, clampSyncOffset, getGpxTimeRange, MANUAL_SYNC_RANGE_SECONDS } from './syncEngine';
+export { renderOverlay, renderOverlayOnFrame, DEFAULT_OVERLAY_CONFIG } from './overlayRenderer';
+export { validateVideoFile, extractVideoMeta, isWebCodecsSupported, checkBrowserCapabilities } from './fileValidation';
+export { VideoProcessor } from './videoProcessor';
+export type { VideoProcessorOptions } from './videoProcessor';
+export { BrowserFileSystem } from './fileSystem';
+export type { FileSystemInterface } from './fileSystem';

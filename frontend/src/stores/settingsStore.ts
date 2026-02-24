@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { ExtendedOverlayConfig, AppScreen, TemplateId } from '../core/types';
-import { DEFAULT_OVERLAY_CONFIG } from '../modules/overlay-renderer';
-import { getTemplateConfig } from '../modules/template-configs';
+import { DEFAULT_OVERLAY_CONFIG } from '../modules/overlayRenderer';
+import { getTemplateConfig } from '../modules/templateConfigs';
 
 export const useSettingsStore = defineStore('settings', () => {
     // State

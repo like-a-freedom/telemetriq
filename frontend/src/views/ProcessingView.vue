@@ -115,9 +115,9 @@ import {
   useSettingsStore,
   useSyncStore,
 } from "../stores";
-import { normalizeProcessingError } from "../stores/store-utils";
-import { buildTelemetryTimeline } from "../modules/telemetry-core";
-import { VideoProcessor } from "../modules/video-processor";
+import { normalizeProcessingError } from "../stores/storeUtils";
+import { buildTelemetryTimeline } from "../modules/telemetryCore";
+import { VideoProcessor } from "../modules/videoProcessor";
 import { getWebGPUStatus, toggleWebGPU } from "../modules/webgpu";
 import { useSeo } from "../composables/useSeo";
 

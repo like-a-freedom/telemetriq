@@ -203,7 +203,7 @@ import { onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useFilesStore, useSyncStore, useSettingsStore } from "../stores";
 import { useTemplateCapabilities } from "../composables/useTemplateCapabilities";
-import { buildTelemetryTimeline } from "../modules/telemetry-core";
+import { buildTelemetryTimeline } from "../modules/telemetryCore";
 import type { TelemetryFrame } from "../core/types";
 import { useSeo } from "../composables/useSeo";
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
