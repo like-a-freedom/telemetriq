@@ -5,7 +5,7 @@
 [![Tests](https://img.shields.io/badge/tests-vitest%20%E2%9C%85-blue)](#)
 [![E2E](https://img.shields.io/badge/e2e-playwright-orange)](#)
 
-Short description: Telemetriq is a web application for visualizing sports telemetry (GPX and other formats) on top of video — with customizable overlay templates and export capabilities.
+Telemetriq is a web application for visualizing sports telemetry (GPX and other formats) on top of video — with customizable overlay templates and export capabilities.
 
 ---
 
