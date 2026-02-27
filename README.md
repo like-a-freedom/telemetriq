@@ -40,17 +40,6 @@ bun run dev      # dev server (Vite) — http://localhost:5173
 
 Import a GPX file + video via the UI → choose an overlay template → Export.
 
----
-
-## Demo / Screenshots
-Add a GIF or screenshot here to showcase the main flows.
-
-<div align="center">
-  <!-- example: <img src="docs/demo.gif" alt="demo" width="720"/> -->
-</div>
-
----
-
 ## Features ✨
 - WebGPU / WebGL overlay rendering
 - GPX and other telemetry formats support
