@@ -33,7 +33,6 @@ import {
     raceTagTemplate,
     glassPanelTemplate,
     minimalRingTemplate,
-    stretchedBarTemplate,
     focusTypeTemplate,
     customTemplate,
     isMetricAvailable,
@@ -51,7 +50,7 @@ describe('templates registry', () => {
         'condensed-strip', 'soft-rounded', 'thin-line', 'swiss-grid',
         'garmin-style', 'sports-broadcast', 'cockpit-hud',
         'terminal', 'night-runner', 'data-block', 'race-tag',
-        'glass-panel', 'minimal-ring', 'stretched-bar',
+        'glass-panel', 'minimal-ring',
         'focus-type',
         'custom',
     ];
@@ -104,9 +103,13 @@ describe('templates registry', () => {
             expect(TEMPLATE_MAP['race-tag']).toBe(raceTagTemplate);
             expect(TEMPLATE_MAP['glass-panel']).toBe(glassPanelTemplate);
             expect(TEMPLATE_MAP['minimal-ring']).toBe(minimalRingTemplate);
-            expect(TEMPLATE_MAP['stretched-bar']).toBe(stretchedBarTemplate);
             expect(TEMPLATE_MAP['focus-type']).toBe(focusTypeTemplate);
             expect(TEMPLATE_MAP['custom']).toBe(customTemplate);
+        });
+
+        it('should not expose stretched-bar anymore', () => {
+            expect('stretched-bar' in TEMPLATE_MAP).toBe(false);
+            expect(TEMPLATES.map(t => t.id)).not.toContain('stretched-bar');
         });
     });
 
@@ -157,7 +160,6 @@ describe('templates registry', () => {
             expect(raceTagTemplate.config.layoutMode).toBe('race-tag');
             expect(glassPanelTemplate.config.layoutMode).toBe('glass-panel');
             expect(minimalRingTemplate.config.layoutMode).toBe('minimal-ring');
-            expect(stretchedBarTemplate.config.layoutMode).toBe('stretched-bar');
             expect(focusTypeTemplate.config.layoutMode).toBe('focus-type');
         });
     });

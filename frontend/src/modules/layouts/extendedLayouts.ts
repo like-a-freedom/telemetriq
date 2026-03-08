@@ -94,9 +94,6 @@ export function renderExtendedLayout(
         case 'minimal-ring':
             drawMinimalRing(ctx, data, w, h, config, orientation, tuning);
             break;
-        case 'stretched-bar':
-            drawStretchedBar(ctx, data, w, h, config, orientation, tuning);
-            break;
         case 'focus-type':
             drawFocusType(ctx, data, w, h, config, orientation, tuning);
             break;
@@ -862,126 +859,185 @@ function drawCockpitHud(
     h: number,
     config: ExtendedOverlayConfig,
     orientation: Orientation,
-    tuning: { textScale: number },
+    _tuning: { textScale: number },
 ): void {
-    const accent = config.accentColor || '#f97316';
+    const accent = config.accentColor || '#ff7a1a';
     const pad = orientation.safePad;
+    const compact = orientation.compactPad;
+    const panelW = w - pad * 2;
+    const panelH = Math.round(orientation.shortSide * (orientation.isPortrait ? 0.25 : 0.21));
+    const panelX = pad;
+    const panelY = h - pad - panelH;
+    const radius = Math.max(18, Math.round(panelH * 0.18));
+    const innerPad = Math.max(16, Math.round(panelH * 0.16));
 
-    // Top-left status indicator
-    const dotR = Math.max(3, Math.round(orientation.shortSide * 0.008));
-    const statusY = pad + dotR + pad * 0.3;
-    ctx.fillStyle = accent;
+    const chipH = Math.max(18, Math.round(orientation.shortSide * 0.045));
+    const chipRadius = Math.round(chipH / 2);
+
+    ctx.fillStyle = 'rgba(5,10,18,0.36)';
     ctx.beginPath();
-    ctx.arc(pad + dotR, statusY, dotR, 0, Math.PI * 2);
+    ctx.roundRect(panelX, panelY, panelW, panelH, radius);
     ctx.fill();
-    const statusSize = Math.max(7, Math.round(dotR * 2.5 * tuning.textScale));
-    ctx.fillStyle = 'rgba(249,115,22,0.62)';
-    ctx.font = `500 ${statusSize}px ${config.fontFamily}`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('SYS ACTIVE', pad + dotR * 2.8, statusY);
 
-    // Top-right: elapsed time
-    if (data.time) {
-        const timeSize = Math.max(11, Math.round(orientation.shortSide * 0.035 * tuning.textScale));
-        const timeLabelSize = Math.max(7, Math.round(timeSize * 0.38));
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'alphabetic';
-        ctx.fillStyle = 'rgba(255,255,255,0.55)';
-        ctx.font = `500 ${timeLabelSize}px ${config.fontFamily}`;
-        ctx.fillText('ELAPSED', w - pad, pad + timeLabelSize + pad * 0.3);
-        ctx.fillStyle = 'rgba(255,255,255,0.85)';
-        ctx.font = `300 ${timeSize}px ${config.fontFamily}`;
-        ctx.fillText(data.time, w - pad, pad + timeLabelSize + timeSize + pad * 0.3);
-    }
+    const panelGrad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
+    panelGrad.addColorStop(0, 'rgba(13,19,30,0.88)');
+    panelGrad.addColorStop(1, 'rgba(7,10,18,0.58)');
+    ctx.fillStyle = panelGrad;
+    ctx.beginPath();
+    ctx.roundRect(panelX, panelY, panelW, panelH, radius);
+    ctx.fill();
 
-    // Bottom-left: large pace
-    if (data.pace) {
-        const paceSize = Math.max(28, Math.round(orientation.shortSide * (orientation.isPortrait ? 0.18 : 0.13) * tuning.textScale));
-        const paceLabelSize = Math.max(7, Math.round(paceSize * 0.17));
-        const baseY = h - pad;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'alphabetic';
-        ctx.fillStyle = accent;
-        ctx.font = `500 ${paceLabelSize}px ${config.fontFamily}`;
-        ctx.fillText('min / km', pad, baseY - paceSize - paceLabelSize * 1.8);
-        ctx.fillStyle = 'rgba(255,255,255,0.55)';
-        ctx.fillText('PACE', pad, baseY - paceSize - paceLabelSize * 0.3);
-        ctx.fillStyle = config.textColor || '#FFFFFF';
-        ctx.font = `300 ${paceSize}px ${config.fontFamily}`;
-        ctx.fillText(data.pace, pad, baseY);
-    }
-
-    // Bottom-right: waveform heart rate
-    if (data.heartRate) {
-        const hrVal = parseInt(data.heartRate, 10);
-        const hrPercent = Math.min(1, hrVal / 200);
-        const valSize = Math.max(18, Math.round(orientation.shortSide * 0.075 * tuning.textScale));
-        const lblSize = Math.max(7, Math.round(valSize * 0.27));
-        const barCount = 20;
-        const barW = Math.max(2, Math.round(orientation.shortSide * 0.006));
-        const barGap = Math.max(1, Math.round(barW * 0.5));
-        const maxBarH = Math.max(14, Math.round(valSize * 0.55));
-        const barsW = (barW + barGap) * barCount - barGap;
-        const baseX = w - pad;
-        const baseY = h - pad;
-
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'alphabetic';
-
-        // HR label
-        ctx.fillStyle = 'rgba(255,255,255,0.55)';
-        ctx.font = `500 ${lblSize}px ${config.fontFamily}`;
-        ctx.fillText('HEART RATE', baseX, baseY - valSize - maxBarH - lblSize * 1.4);
-
-        // Waveform bars — bottom anchored above HR value
-        const barsBaseY = baseY - lblSize * 1.8 - valSize * 0.1;
-        for (let i = 0; i < barCount; i++) {
-            const barH2 = Math.round(maxBarH * (0.35 + Math.abs(Math.sin(i * 0.8)) * 0.65));
-            const bx = baseX - barsW + i * (barW + barGap);
-            const by = barsBaseY - barH2;
-            ctx.fillStyle = (i / barCount) < hrPercent ? accent : 'rgba(255,255,255,0.12)';
-            ctx.beginPath();
-            ctx.roundRect(bx, by, barW, barH2, Math.min(barW / 2, 2));
-            ctx.fill();
-        }
-
-        // HR value + bpm unit
-        ctx.fillStyle = config.textColor || '#FFFFFF';
-        ctx.font = `300 ${valSize}px ${config.fontFamily}`;
-        ctx.fillText(data.heartRate, baseX, baseY - lblSize * 1.8);
-        ctx.fillStyle = accent;
-        ctx.font = `400 ${lblSize}px ${config.fontFamily}`;
-        ctx.fillText('bpm', baseX, baseY);
-    }
-
-    // Bottom-center: distance (elevated to avoid overlapping pace/HR)
-    if (data.distance) {
-        const distSize = Math.max(14, Math.round(orientation.shortSide * 0.05 * tuning.textScale));
-        const distLblSize = Math.max(7, Math.round(distSize * 0.32));
-        const cx = w * 0.5;
-        const distBaseY = Math.round(h * 0.85) - pad;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'alphabetic';
-        ctx.fillStyle = 'rgba(255,255,255,0.55)';
-        ctx.font = `500 ${distLblSize}px ${config.fontFamily}`;
-        ctx.fillText('DISTANCE · KM', cx, distBaseY - distSize - distLblSize * 0.5);
-        ctx.fillStyle = 'rgba(255,255,255,0.88)';
-        ctx.font = `200 ${distSize}px ${config.fontFamily}`;
-        ctx.fillText(data.distance, cx, distBaseY);
-    }
-
-    // Bottom orange gradient divider line
-    const lineGrad = ctx.createLinearGradient(0, 0, w, 0);
-    lineGrad.addColorStop(0, 'transparent');
-    lineGrad.addColorStop(0.5, 'rgba(249,115,22,0.42)');
-    lineGrad.addColorStop(1, 'transparent');
-    ctx.strokeStyle = lineGrad;
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(0, h - 1);
-    ctx.lineTo(w, h - 1);
+    ctx.roundRect(panelX, panelY, panelW, panelH, radius);
     ctx.stroke();
+
+    const dividerY = panelY + Math.round(panelH * 0.38);
+    const divider = ctx.createLinearGradient(panelX, dividerY, panelX + panelW, dividerY);
+    divider.addColorStop(0, 'rgba(255,122,26,0)');
+    divider.addColorStop(0.18, 'rgba(255,122,26,0.28)');
+    divider.addColorStop(0.82, 'rgba(255,122,26,0.28)');
+    divider.addColorStop(1, 'rgba(255,122,26,0)');
+    ctx.strokeStyle = divider;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(panelX + innerPad, dividerY);
+    ctx.lineTo(panelX + panelW - innerPad, dividerY);
+    ctx.stroke();
+
+    const statusWidth = Math.max(108, Math.round(panelW * 0.17));
+    ctx.fillStyle = 'rgba(255,122,26,0.14)';
+    ctx.beginPath();
+    ctx.roundRect(panelX + innerPad, panelY + innerPad * 0.55, statusWidth, chipH, chipRadius);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,122,26,0.28)';
+    ctx.beginPath();
+    ctx.roundRect(panelX + innerPad, panelY + innerPad * 0.55, statusWidth, chipH, chipRadius);
+    ctx.stroke();
+
+    const dotR = Math.max(3, Math.round(chipH * 0.16));
+    const dotY = panelY + innerPad * 0.55 + chipH / 2;
+    ctx.fillStyle = accent;
+    ctx.beginPath();
+    ctx.arc(panelX + innerPad + chipH * 0.52, dotY, dotR, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255,232,219,0.82)';
+    ctx.font = `600 ${Math.max(8, Math.round(chipH * 0.34))}px ${config.fontFamily}`;
+    ctx.fillText('SYSTEM ACTIVE', panelX + innerPad + chipH * 0.9, dotY);
+
+    if (data.time) {
+        const timeX = panelX + panelW - innerPad;
+        const timeLabelSize = Math.max(8, Math.round(panelH * 0.08));
+        const timeValueSize = Math.max(14, Math.round(panelH * 0.16));
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = 'rgba(170,182,201,0.7)';
+        ctx.font = `600 ${timeLabelSize}px ${config.fontFamily}`;
+        ctx.fillText('ELAPSED', timeX, panelY + innerPad + timeLabelSize * 0.95);
+        ctx.fillStyle = 'rgba(247,250,255,0.94)';
+        ctx.font = `700 ${timeValueSize}px ${config.fontFamily}`;
+        ctx.fillText(data.time, timeX, panelY + innerPad + timeLabelSize + timeValueSize * 1.08);
+    }
+
+    const bottomTop = dividerY + compact * 1.2;
+    const bottomHeight = panelY + panelH - innerPad - bottomTop;
+    const paceWidth = data.pace ? panelW * (orientation.isPortrait ? 0.46 : 0.42) : 0;
+
+    if (data.pace) {
+        const paceX = panelX + innerPad;
+        const paceValueSize = Math.max(34, Math.round(bottomHeight * (orientation.isPortrait ? 0.74 : 0.82)));
+        const paceLabelSize = Math.max(9, Math.round(paceValueSize * 0.16));
+        const paceUnitSize = Math.max(8, Math.round(paceValueSize * 0.2));
+        const paceBaseline = panelY + panelH - innerPad * 0.6;
+
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = 'rgba(162,176,197,0.72)';
+        ctx.font = `700 ${paceLabelSize}px ${config.fontFamily}`;
+        ctx.fillText('PACE', paceX, bottomTop + paceLabelSize);
+        ctx.fillStyle = config.textColor || '#FFFFFF';
+        ctx.font = `800 ${paceValueSize}px ${config.fontFamily}`;
+        ctx.fillText(data.pace, paceX, paceBaseline);
+        ctx.fillStyle = accent;
+        ctx.font = `600 ${paceUnitSize}px ${config.fontFamily}`;
+        ctx.fillText('MIN / KM', paceX, paceBaseline + paceUnitSize * 1.2);
+    }
+
+    const secondaryItems = [
+        data.distance ? { label: 'DISTANCE', value: data.distance, unit: 'km' } : null,
+        data.heartRate ? { label: 'HEART RATE', value: data.heartRate, unit: 'bpm' } : null,
+        !data.pace && data.time ? { label: 'ELAPSED', value: data.time, unit: '' } : null,
+    ].filter(Boolean) as Array<{ label: string; value: string; unit: string }>;
+
+    if (secondaryItems.length > 0) {
+        const secondaryX = panelX + innerPad + paceWidth + (data.pace ? innerPad : 0);
+        const secondaryW = panelX + panelW - innerPad - secondaryX;
+        const cardGap = Math.max(10, Math.round(panelW * 0.014));
+        const cardW = secondaryItems.length === 1
+            ? secondaryW
+            : (secondaryW - cardGap * (secondaryItems.length - 1)) / secondaryItems.length;
+        const cardH = Math.max(54, Math.round(bottomHeight * 0.94));
+        const cardY = panelY + panelH - innerPad - cardH;
+
+        secondaryItems.forEach((item, index) => {
+            const cardX = secondaryX + index * (cardW + cardGap);
+            const cardRadius = Math.max(14, Math.round(cardH * 0.22));
+            const labelSize = Math.max(8, Math.round(cardH * 0.13));
+            const valueSize = Math.max(18, Math.round(cardH * 0.28));
+            const unitSize = Math.max(8, Math.round(cardH * 0.12));
+
+            ctx.fillStyle = 'rgba(255,255,255,0.045)';
+            ctx.beginPath();
+            ctx.roundRect(cardX, cardY, cardW, cardH, cardRadius);
+            ctx.fill();
+            ctx.strokeStyle = index === secondaryItems.length - 1 && item.label === 'HEART RATE'
+                ? 'rgba(255,122,26,0.22)'
+                : 'rgba(255,255,255,0.08)';
+            ctx.beginPath();
+            ctx.roundRect(cardX, cardY, cardW, cardH, cardRadius);
+            ctx.stroke();
+
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
+            ctx.fillStyle = 'rgba(170,182,201,0.74)';
+            ctx.font = `700 ${labelSize}px ${config.fontFamily}`;
+            ctx.fillText(item.label, cardX + innerPad * 0.55, cardY + labelSize + innerPad * 0.45);
+
+            ctx.fillStyle = config.textColor || '#FFFFFF';
+            ctx.font = `700 ${valueSize}px ${config.fontFamily}`;
+            ctx.fillText(item.value, cardX + innerPad * 0.55, cardY + cardH * 0.72);
+
+            if (item.unit) {
+                ctx.fillStyle = item.label === 'HEART RATE' ? accent : 'rgba(255,255,255,0.42)';
+                ctx.font = `600 ${unitSize}px ${config.fontFamily}`;
+                ctx.fillText(item.unit.toUpperCase(), cardX + innerPad * 0.55, cardY + cardH - innerPad * 0.35);
+            }
+
+            if (item.label === 'HEART RATE') {
+                const hrVal = parseInt(item.value, 10);
+                const hrPercent = Math.min(1, Math.max(0, hrVal / 200));
+                const bars = 10;
+                const barW = Math.max(3, Math.round(cardW * 0.035));
+                const barGap = Math.max(2, Math.round(barW * 0.6));
+                const barsAreaW = bars * barW + (bars - 1) * barGap;
+                const barsX = cardX + cardW - innerPad * 0.55 - barsAreaW;
+                const barsBaseY = cardY + cardH - innerPad * 0.6;
+                const maxBarH = Math.max(12, Math.round(cardH * 0.26));
+
+                for (let i = 0; i < bars; i++) {
+                    const barH = Math.round(maxBarH * (0.35 + Math.abs(Math.sin(i * 0.9)) * 0.65));
+                    ctx.fillStyle = (i + 1) / bars <= hrPercent ? accent : 'rgba(255,255,255,0.12)';
+                    ctx.beginPath();
+                    ctx.roundRect(barsX + i * (barW + barGap), barsBaseY - barH, barW, barH, Math.min(barW / 2, 2));
+                    ctx.fill();
+                }
+            }
+        });
+    }
 }
 
 
@@ -1379,31 +1435,60 @@ function drawGlassPanel(
     ].filter(Boolean) as Array<{ label: string; value: string; unit: string }>;
     if (items.length === 0) return;
 
-    const valSize = Math.max(14, Math.round(orientation.shortSide * 0.05 * tuning.textScale));
-    const lblSize = Math.max(7, Math.round(valSize * 0.36));
-    const itemPad = Math.max(16, Math.round(valSize * 0.8));
-    const innerPadV = Math.max(10, Math.round(valSize * 0.55));
+    const valSize = Math.max(15, Math.round(orientation.shortSide * 0.048 * tuning.textScale));
+    const lblSize = Math.max(8, Math.round(valSize * 0.32));
+    const itemPad = Math.max(18, Math.round(valSize * 0.88));
+    const innerPadV = Math.max(12, Math.round(valSize * 0.7));
     const totalW = items.length * itemPad * 2 + items.reduce((sum, item) => {
         ctx.font = `500 ${valSize}px ${config.fontFamily}`;
         return sum + Math.max(ctx.measureText(item.value).width, ctx.measureText(item.label).width);
     }, 0) + (items.length - 1) * itemPad;
 
     const panelW = Math.min(w * 0.9, Math.max(totalW, items.length * Math.round(valSize * 3.5)));
-    const panelH = valSize + lblSize * 2 + innerPadV * 2 + lblSize * 0.6;
+    const panelH = valSize + lblSize * 2.2 + innerPadV * 2.2 + lblSize * 0.9;
     const panelX = (w - panelW) * 0.5;
     const panelY = h - orientation.safePad - panelH;
-    const radius = Math.max(12, Math.round(panelH * 0.3));
+    const radius = Math.max(18, Math.round(panelH * 0.42));
 
-    // Frosted glass background — dark inner fill for legibility
-    ctx.fillStyle = config.backgroundColor || 'rgba(10,10,20,0.65)';
+    const halo = ctx.createLinearGradient(panelX, panelY, panelX + panelW, panelY + panelH);
+    halo.addColorStop(0, 'rgba(160,205,255,0.12)');
+    halo.addColorStop(0.45, 'rgba(255,255,255,0.04)');
+    halo.addColorStop(1, 'rgba(120,190,255,0.16)');
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.roundRect(panelX, panelY, panelW, panelH, radius + 2);
+    ctx.fill();
+
+    const panelGrad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
+    panelGrad.addColorStop(0, 'rgba(248,252,255,0.28)');
+    panelGrad.addColorStop(0.22, config.backgroundColor || 'rgba(196,222,255,0.16)');
+    panelGrad.addColorStop(1, 'rgba(85,107,146,0.18)');
+    ctx.fillStyle = panelGrad;
     ctx.beginPath();
     ctx.roundRect(panelX, panelY, panelW, panelH, radius);
     ctx.fill();
 
-    // Border with stronger contrast
-    ctx.strokeStyle = config.borderColor || 'rgba(255,255,255,0.35)';
+    const innerHighlight = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH * 0.55);
+    innerHighlight.addColorStop(0, 'rgba(255,255,255,0.34)');
+    innerHighlight.addColorStop(1, 'rgba(255,255,255,0.02)');
+    ctx.fillStyle = innerHighlight;
+    ctx.beginPath();
+    ctx.roundRect(panelX + 1, panelY + 1, panelW - 2, panelH * 0.52, radius - 2);
+    ctx.fill();
+
+    ctx.strokeStyle = config.borderColor || 'rgba(255,255,255,0.3)';
     ctx.lineWidth = 1.5;
     ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.beginPath();
+    ctx.roundRect(panelX + innerPadV * 0.6, panelY + innerPadV * 0.5, panelW * 0.24, lblSize * 1.8, lblSize);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(247,251,255,0.72)';
+    ctx.font = `700 ${Math.max(8, Math.round(lblSize * 0.9))}px ${config.fontFamily}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('LIQUID GLASS', panelX + innerPadV * 1.1, panelY + innerPadV * 1.55);
 
     const colW = panelW / items.length;
     ctx.textBaseline = 'alphabetic';
@@ -1413,7 +1498,11 @@ function drawGlassPanel(
 
         // Separator
         if (i > 0) {
-            ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+            const separator = ctx.createLinearGradient(panelX + colW * i, panelY + panelH * 0.18, panelX + colW * i, panelY + panelH * 0.82);
+            separator.addColorStop(0, 'rgba(255,255,255,0.05)');
+            separator.addColorStop(0.5, 'rgba(255,255,255,0.22)');
+            separator.addColorStop(1, 'rgba(255,255,255,0.05)');
+            ctx.strokeStyle = separator;
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(panelX + colW * i, panelY + panelH * 0.15);
@@ -1423,18 +1512,18 @@ function drawGlassPanel(
 
         ctx.textAlign = 'center';
         // Label
-        ctx.fillStyle = 'rgba(255,255,255,0.65)';
-        ctx.font = `600 ${lblSize}px ${config.fontFamily}`;
-        ctx.fillText(item.label, cx2, panelY + innerPadV + lblSize);
+        ctx.fillStyle = 'rgba(245,250,255,0.72)';
+        ctx.font = `700 ${lblSize}px ${config.fontFamily}`;
+        ctx.fillText(item.label, cx2, panelY + innerPadV * 1.8 + lblSize);
         // Value
         ctx.fillStyle = config.textColor || '#FFFFFF';
-        ctx.font = `500 ${valSize}px ${config.fontFamily}`;
-        ctx.fillText(item.value, cx2, panelY + innerPadV + lblSize + valSize * 1.05);
+        ctx.font = `700 ${valSize}px ${config.fontFamily}`;
+        ctx.fillText(item.value, cx2, panelY + innerPadV * 1.8 + lblSize + valSize * 1.08);
         // Unit
         if (item.unit) {
-            ctx.fillStyle = 'rgba(255,255,255,0.3)';
-            ctx.font = `400 ${Math.max(7, Math.round(lblSize * 0.9))}px ${config.fontFamily}`;
-            ctx.fillText(item.unit, cx2, panelY + innerPadV + lblSize + valSize * 1.05 + lblSize * 1.2);
+            ctx.fillStyle = item.label === 'PACE' ? (config.accentColor || '#8fd3ff') : 'rgba(235,244,255,0.42)';
+            ctx.font = `600 ${Math.max(7, Math.round(lblSize * 0.88))}px ${config.fontFamily}`;
+            ctx.fillText(item.unit.toUpperCase(), cx2, panelY + innerPadV * 1.8 + lblSize + valSize * 1.08 + lblSize * 1.45);
         }
     }
 }
@@ -1518,83 +1607,6 @@ function drawMinimalRing(
     }
 }
 
-// ─── Template 38: Stretched Bar ───────────────────────────────────────────────
-function drawStretchedBar(
-    ctx: OverlayContext2D,
-    data: MetricMap,
-    w: number,
-    _h: number,
-    config: ExtendedOverlayConfig,
-    orientation: Orientation,
-    tuning: { textScale: number },
-): void {
-    const pad = orientation.safePad;
-    const valSize = Math.max(20, Math.round(orientation.shortSide * (orientation.isPortrait ? 0.1 : 0.075) * tuning.textScale));
-    const lblSize = Math.max(7, Math.round(valSize * 0.32));
-    const lineY = pad + valSize + lblSize * 1.8 + lblSize;
-    const lineW = 1;
-
-    // Dark background strip covering the full top block
-    const bgH = lineY + Math.max(16, Math.round(valSize * 0.65)) + Math.max(7, Math.round(lblSize * 0.95)) * 2.5;
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(0, 0, w, bgH);
-
-    ctx.textBaseline = 'alphabetic';
-
-    // Top row: PACE (left) + HR (right) above divider
-    if (data.pace) {
-        ctx.textAlign = 'left';
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        ctx.font = `500 ${lblSize}px ${config.fontFamily}`;
-        ctx.fillText('PACE', pad, pad + lblSize);
-        ctx.fillStyle = config.textColor || '#FFFFFF';
-        ctx.font = `400 ${valSize}px ${config.fontFamily}`;
-        ctx.fillText(data.pace, pad, pad + lblSize + valSize);
-    }
-    if (data.heartRate) {
-        ctx.textAlign = 'right';
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        ctx.font = `500 ${lblSize}px ${config.fontFamily}`;
-        ctx.fillText('HR', w - pad, pad + lblSize);
-        ctx.fillStyle = config.textColor || '#FFFFFF';
-        ctx.font = `400 ${valSize}px ${config.fontFamily}`;
-        ctx.fillText(data.heartRate, w - pad, pad + lblSize + valSize);
-    }
-
-    // Divider
-    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-    ctx.lineWidth = lineW;
-    ctx.beginPath();
-    ctx.moveTo(pad, lineY);
-    ctx.lineTo(w - pad, lineY);
-    ctx.stroke();
-
-    // Bottom row: DIST (left) + TIME (right) below divider
-    const sub = Math.max(16, Math.round(valSize * 0.65));
-    const subLbl = Math.max(7, Math.round(lblSize * 0.95));
-    const subBaseY = lineY + sub + subLbl;
-    if (data.distance) {
-        ctx.textAlign = 'left';
-        ctx.fillStyle = config.textColor || '#FFFFFF';
-        ctx.font = `400 ${sub}px ${config.fontFamily}`;
-        ctx.fillText(data.distance, pad, subBaseY);
-        ctx.fillStyle = 'rgba(255,255,255,0.38)';
-        ctx.font = `500 ${subLbl}px ${config.fontFamily}`;
-        ctx.fillText('DIST', pad, subBaseY + subLbl * 1.4);
-    }
-    if (data.time) {
-        ctx.textAlign = 'right';
-        ctx.fillStyle = config.textColor || '#FFFFFF';
-        ctx.font = `400 ${sub}px ${config.fontFamily}`;
-        ctx.fillText(data.time, w - pad, subBaseY);
-        ctx.fillStyle = 'rgba(255,255,255,0.38)';
-        ctx.font = `500 ${subLbl}px ${config.fontFamily}`;
-        ctx.fillText('TIME', w - pad, subBaseY + subLbl * 1.4);
-    }
-}
-
-
-
 // ─── Template 41: Focus Type ──────────────────────────────────────────────────
 function drawFocusType(
     ctx: OverlayContext2D,
@@ -1605,56 +1617,83 @@ function drawFocusType(
     orientation: Orientation,
     tuning: { textScale: number },
 ): void {
-    if (!data.pace) return;
-
-    // Giant italic pace number centered
-    const heroSize = Math.max(60, Math.round(Math.min(w, h) * (orientation.isPortrait ? 0.38 : 0.28) * tuning.textScale));
-    const paceUnitSize = Math.max(10, Math.round(heroSize * 0.12));
+    const paceExists = Boolean(data.pace);
     const centerX = w * 0.5;
-    const centerY = h * 0.46;
 
-    ctx.save();
-    ctx.font = `italic 900 ${heroSize}px ${config.fontFamily}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
+    if (paceExists) {
+        const heroSize = Math.max(60, Math.round(Math.min(w, h) * (orientation.isPortrait ? 0.34 : 0.26) * tuning.textScale));
+        const paceUnitSize = Math.max(11, Math.round(heroSize * 0.12));
+        const centerY = h * (orientation.isPortrait ? 0.44 : 0.4);
 
-    // Text shadow
-    ctx.shadowColor = 'rgba(0,0,0,0.5)';
-    ctx.shadowBlur = 30;
-    ctx.fillStyle = config.textColor || '#FFFFFF';
-    ctx.fillText(data.pace, centerX, centerY);
-    ctx.shadowBlur = 0;
-    ctx.restore();
+        ctx.save();
+        ctx.font = `italic 900 ${heroSize}px ${config.fontFamily}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.shadowColor = 'rgba(0,0,0,0.42)';
+        ctx.shadowBlur = 24;
+        ctx.fillStyle = config.textColor || '#FFFFFF';
+        ctx.fillText(data.pace!, centerX, centerY);
+        ctx.shadowBlur = 0;
+        ctx.restore();
 
-    // Unit
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.font = `700 ${paceUnitSize}px "DM Sans", Inter, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText('MIN/KM', centerX, centerY + paceUnitSize * 2.8);
+        ctx.fillStyle = 'rgba(255,255,255,0.68)';
+        ctx.font = `700 ${paceUnitSize}px "DM Sans", Inter, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillText('MIN / KM', centerX, centerY + paceUnitSize * 2.55);
+    }
 
-    // Small secondary metrics below
     const subItems = [
-        data.heartRate ? { icon: '♥', value: data.heartRate, unit: 'bpm' } : null,
-        data.distance ? { icon: '↗', value: data.distance, unit: 'km' } : null,
-        data.time ? { icon: '◷', value: data.time, unit: '' } : null,
-    ].filter(Boolean) as Array<{ icon: string; value: string; unit: string }>;
+        data.heartRate ? { label: 'HEART RATE', value: data.heartRate, unit: 'BPM' } : null,
+        data.distance ? { label: 'DISTANCE', value: data.distance, unit: 'KM' } : null,
+        data.time ? { label: 'TIME', value: data.time, unit: '' } : null,
+    ].filter(Boolean) as Array<{ label: string; value: string; unit: string }>;
 
     if (subItems.length > 0) {
-        const subSize = Math.max(12, Math.round(heroSize * 0.16 * tuning.textScale));
-        const subY = h - orientation.safePad;
-        const subGap = Math.max(40, Math.round(subSize * 3.5));
-        const subStartX = centerX - (subItems.length - 1) * subGap * 0.5;
+        const pillH = Math.max(54, Math.round(orientation.shortSide * 0.1));
+        const pillGap = Math.max(12, Math.round(pillH * 0.18));
+        const totalGap = pillGap * (subItems.length - 1);
+        const availableW = Math.min(w - orientation.safePad * 2, w * (orientation.isPortrait ? 0.84 : 0.72));
+        const pillW = (availableW - totalGap) / subItems.length;
+        const startX = (w - (pillW * subItems.length + totalGap)) * 0.5;
+        const pillY = paceExists
+            ? h - orientation.safePad - pillH
+            : h * (orientation.isPortrait ? 0.6 : 0.56);
+        const labelSize = Math.max(8, Math.round(pillH * 0.15));
+        const valueSize = Math.max(16, Math.round(pillH * 0.27));
+        const unitSize = Math.max(8, Math.round(pillH * 0.13));
 
-        ctx.textBaseline = 'alphabetic';
         for (let i = 0; i < subItems.length; i++) {
             const item = subItems[i]!;
-            const ix = subStartX + i * subGap;
-            const display = item.unit ? `${item.value} ${item.unit}` : item.value;
+            const x = startX + i * (pillW + pillGap);
+            const radius = Math.max(16, Math.round(pillH * 0.34));
+            const glass = ctx.createLinearGradient(x, pillY, x, pillY + pillH);
+            glass.addColorStop(0, 'rgba(255,255,255,0.16)');
+            glass.addColorStop(1, 'rgba(255,255,255,0.06)');
+            ctx.fillStyle = glass;
+            ctx.beginPath();
+            ctx.roundRect(x, pillY, pillW, pillH, radius);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+            ctx.beginPath();
+            ctx.roundRect(x, pillY, pillW, pillH, radius);
+            ctx.stroke();
+
             ctx.textAlign = 'center';
-            ctx.fillStyle = 'rgba(255,255,255,0.75)';
-            ctx.font = `300 ${subSize}px "DM Sans", sans-serif`;
-            ctx.fillText(display, ix, subY);
+            ctx.textBaseline = 'alphabetic';
+            ctx.fillStyle = 'rgba(255,255,255,0.58)';
+            ctx.font = `700 ${labelSize}px "DM Sans", Inter, sans-serif`;
+            ctx.fillText(item.label, x + pillW / 2, pillY + labelSize + pillH * 0.18);
+
+            ctx.fillStyle = 'rgba(255,255,255,0.92)';
+            ctx.font = `500 ${valueSize}px "DM Sans", Inter, sans-serif`;
+            ctx.fillText(item.value, x + pillW / 2, pillY + pillH * 0.66);
+
+            if (item.unit) {
+                ctx.fillStyle = 'rgba(255,255,255,0.42)';
+                ctx.font = `600 ${unitSize}px "DM Sans", Inter, sans-serif`;
+                ctx.fillText(item.unit, x + pillW / 2, pillY + pillH - pillH * 0.16);
+            }
         }
     }
 }

@@ -105,6 +105,12 @@ const EXTENDED_LAYOUTS = [
     'swiss-grid',
 ] as const;
 
+const METRICS_WITHOUT_PACE: MetricItem[] = [
+    { label: 'Heart Rate', value: '150', unit: 'bpm' },
+    { label: 'Distance', value: '10.2', unit: 'km' },
+    { label: 'Time', value: '00:45:12', unit: '' },
+];
+
 describe('extended layouts renderer', () => {
     it.each(EXTENDED_LAYOUTS)('renders %s without errors and draws text', (layoutMode) => {
         const ctx = createStubContext();
@@ -230,6 +236,19 @@ describe('extended layouts renderer', () => {
         expect(narrowPaceDraw).toBeDefined();
         expect(widePaceDraw).toBeDefined();
         expect(narrowPaceDraw?.font).toBe(widePaceDraw?.font);
+    });
+
+    it('focus-type still renders secondary metrics when pace is disabled', () => {
+        const ctx = createStubContext();
+        const config = getTemplateConfig('focus-type');
+
+        expect(() => {
+            renderExtendedLayout(ctx, METRICS_WITHOUT_PACE, 1280, 720, config, 'focus-type');
+        }).not.toThrow();
+
+        expect(ctx.__fillTextEntries.some((entry) => entry.text.includes('150'))).toBe(true);
+        expect(ctx.__fillTextEntries.some((entry) => entry.text.includes('10.2'))).toBe(true);
+        expect(ctx.__fillTextEntries.some((entry) => entry.text.includes('00:45:12'))).toBe(true);
     });
 
 });

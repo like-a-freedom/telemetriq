@@ -36,7 +36,6 @@ import { dataBlockTemplate } from './dataBlock';
 import { raceTagTemplate } from './raceTag';
 import { glassPanelTemplate } from './glassPanel';
 import { minimalRingTemplate } from './minimalRing';
-import { stretchedBarTemplate } from './stretchedBar';
 import { focusTypeTemplate } from './focusType';
 import { customTemplate } from './custom';
 
@@ -66,7 +65,6 @@ export const TEMPLATES: TemplateDefinition[] = [
   raceTagTemplate,
   glassPanelTemplate,
   minimalRingTemplate,
-  stretchedBarTemplate,
   focusTypeTemplate,
   customTemplate,
 ];
@@ -97,7 +95,6 @@ export const TEMPLATE_MAP: Record<TemplateId, TemplateDefinition> = {
   'race-tag': raceTagTemplate,
   'glass-panel': glassPanelTemplate,
   'minimal-ring': minimalRingTemplate,
-  'stretched-bar': stretchedBarTemplate,
   'focus-type': focusTypeTemplate,
   'custom': customTemplate,
 };
@@ -160,6 +157,5 @@ export { dataBlockTemplate } from './dataBlock';
 export { raceTagTemplate } from './raceTag';
 export { glassPanelTemplate } from './glassPanel';
 export { minimalRingTemplate, renderMinimalRing } from './minimalRing';
-export { stretchedBarTemplate } from './stretchedBar';
 export { focusTypeTemplate } from './focusType';
 export { customTemplate } from './custom';

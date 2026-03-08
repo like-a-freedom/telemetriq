@@ -82,7 +82,6 @@ export const TEMPLATE_METADATA: Record<TemplateId, TemplateMetadata> = {
   'race-tag': TEMPLATE_MAP['race-tag'].metadata,
   'glass-panel': TEMPLATE_MAP['glass-panel'].metadata,
   'minimal-ring': TEMPLATE_MAP['minimal-ring'].metadata,
-  'stretched-bar': TEMPLATE_MAP['stretched-bar'].metadata,
   'focus-type': TEMPLATE_MAP['focus-type'].metadata,
   'custom': TEMPLATE_MAP['custom'].metadata,
 };
@@ -113,7 +112,6 @@ export const TEMPLATE_CONFIGS: Record<TemplateId, ExtendedOverlayConfig> = {
   'race-tag': TEMPLATE_MAP['race-tag'].config,
   'glass-panel': TEMPLATE_MAP['glass-panel'].config,
   'minimal-ring': TEMPLATE_MAP['minimal-ring'].config,
-  'stretched-bar': TEMPLATE_MAP['stretched-bar'].config,
   'focus-type': TEMPLATE_MAP['focus-type'].config,
   'custom': TEMPLATE_MAP['custom'].config,
 };
