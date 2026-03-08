@@ -1,6 +1,6 @@
 import type { TelemetryFrame, ExtendedOverlayConfig } from '../core/types';
 import { formatPace } from './telemetryCore';
-import { getTemplateConfig } from './templateConfigs';
+import { getTemplateConfig } from './templates';
 import type { OverlayContext2D } from './overlayUtils';
 import { renderHorizonLayout } from './layouts/horizonLayout';
 import { renderMarginLayout } from './layouts/marginLayout';
@@ -141,7 +141,7 @@ export async function renderOverlay(
 
 function getEffectiveConfig(config: ExtendedOverlayConfig): ExtendedOverlayConfig {
     if (config.templateId && config.templateId !== 'custom') {
-        const templateConfig = getTemplateConfig(config.templateId as any);
+        const templateConfig = getTemplateConfig(config.templateId);
         return { ...templateConfig, ...config };
     }
     return config;
@@ -152,17 +152,6 @@ const BASIC_LAYOUTS: Record<string, (ctx: OverlayContext2D, metrics: MetricItem[
     'side-margins': renderMarginLayout,
     'box': renderClassicLayout,
 };
-
-const EXTENDED_LAYOUTS = new Set([
-    'arc-gauge', 'hero-number',
-    'cinematic-bar', 'editorial',
-    'ticker-tape', 'whisper', 'two-tone', 'condensed-strip',
-    'soft-rounded', 'thin-line', 'swiss-grid',
-    'garmin-style', 'sports-broadcast', 'cockpit-hud',
-    'terminal', 'night-runner', 'data-block', 'race-tag',
-    'glass-panel', 'minimal-ring',
-    'focus-type',
-]);
 
 function renderLayout(
     ctx: OverlayContext2D,
@@ -178,13 +167,13 @@ function renderLayout(
         return;
     }
 
-    if (EXTENDED_LAYOUTS.has(layoutMode)) {
-        renderExtendedLayout(ctx, metrics, w, h, config, layoutMode);
+    const basicRenderer = BASIC_LAYOUTS[layoutMode];
+    if (basicRenderer) {
+        basicRenderer(ctx, metrics, w, h, config);
         return;
     }
 
-    const basicRenderer = BASIC_LAYOUTS[layoutMode] ?? renderClassicLayout;
-    basicRenderer(ctx, metrics, w, h, config);
+    renderExtendedLayout(ctx, metrics, w, h, config, layoutMode);
 }
 
 export function buildMetrics(frame: TelemetryFrame, config: ExtendedOverlayConfig): MetricItem[] {

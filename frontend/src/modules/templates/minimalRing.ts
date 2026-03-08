@@ -1,20 +1,17 @@
-import type { TemplateDefinition } from './types';
 import type { MetricItem } from '../overlayRenderer';
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import { DEFAULT_CAPABILITIES } from './types';
+import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
 import { getResolutionTuning } from '../overlayUtils';
 
-export const minimalRingTemplate: TemplateDefinition = {
+export const minimalRingTemplate = defineTemplate({
     id: 'minimal-ring',
     metadata: {
-        id: 'minimal-ring',
         name: 'Minimal Ring',
         description: 'Thin, elegant circular progress ring for pace, bottom-right',
         previewColors: { bg: '#050505', accent: '#FFFFFF', text: '#FFFFFF' },
     },
     config: {
-        templateId: 'minimal-ring',
         layoutMode: 'minimal-ring',
         position: 'bottom-right',
         backgroundOpacity: 0,
@@ -86,7 +83,7 @@ export const minimalRingTemplate: TemplateDefinition = {
             labelStyle: 'uppercase',
         },
     },
-};
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Renderer implementation

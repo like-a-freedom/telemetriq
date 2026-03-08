@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { ExtendedOverlayConfig, AppScreen, TemplateId } from '../core/types';
 import { DEFAULT_OVERLAY_CONFIG } from '../modules/overlayRenderer';
-import { getTemplateConfig } from '../modules/templateConfigs';
+import { getTemplateConfig } from '../modules/templates';
 
 export const useSettingsStore = defineStore('settings', () => {
     // State
@@ -15,7 +15,7 @@ export const useSettingsStore = defineStore('settings', () => {
     const isProcessingScreen = computed(() => currentScreen.value === 'processing');
     const isResultScreen = computed(() => currentScreen.value === 'result');
 
-    const currentTemplateId = computed<TemplateId>(() => overlayConfig.value.templateId as TemplateId);
+    const currentTemplateId = computed<TemplateId>(() => overlayConfig.value.templateId);
 
     // Actions
     function setScreen(screen: AppScreen): void {
@@ -71,7 +71,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
     function resetToTemplateDefaults(): void {
         if (overlayConfig.value.templateId !== 'custom') {
-            selectTemplate(overlayConfig.value.templateId as TemplateId);
+            selectTemplate(overlayConfig.value.templateId);
         }
     }
 

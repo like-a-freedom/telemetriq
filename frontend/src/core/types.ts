@@ -48,34 +48,14 @@ export interface TelemetryFrame {
 
 // ── Overlay configuration types ──────────────────────────────────────────
 
-/** Template identifier */
-export type TemplateId =
-    | 'horizon'
-    | 'margin'
-    | 'l-frame'
-    | 'classic'
-    | 'arc-gauge'
-    | 'hero-number'
-    | 'cinematic-bar'
-    | 'editorial'
-    | 'ticker-tape'
-    | 'whisper'
-    | 'two-tone'
-    | 'condensed-strip'
-    | 'soft-rounded'
-    | 'thin-line'
-    | 'swiss-grid'
-    | 'garmin-style'
-    | 'sports-broadcast'
-    | 'cockpit-hud'
-    | 'terminal'
-    | 'night-runner'
-    | 'data-block'
-    | 'race-tag'
-    | 'glass-panel'
-    | 'minimal-ring'
-    | 'focus-type'
-    | 'custom';
+/**
+ * Template identifier.
+ *
+ * Runtime validity is defined by the central templates registry.
+ * This intentionally stays open-ended to avoid manual type maintenance
+ * whenever templates are added or removed.
+ */
+export type TemplateId = string;
 
 /** Visual layout mode for the overlay */
 export type OverlayLayoutMode =

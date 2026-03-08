@@ -113,6 +113,63 @@ docker pull ghcr.io/like-a-freedom/telemetriq:<commit-sha>
 - Media: `@ffmpeg/ffmpeg` (web) + native FFmpeg for offline export
 - Code layout: `frontend/src` for UI, `modules/` for telemetry processing
 
+### Adding overlay templates
+
+Overlay templates are now wired through a single central registry, so onboarding a new template is intentionally boring:
+
+1. Create a module in `frontend/src/modules/templates/`, preferably using `defineTemplate(...)`.
+2. Register the exported template once in `frontend/src/modules/templates/registry.ts`.
+3. If the template uses an existing `layoutMode`, it immediately becomes available in selector UI, config lookup, capabilities, and preview flows.
+4. If the template introduces a brand-new visual algorithm, also add the renderer implementation in `frontend/src/modules/layouts/extendedLayouts.ts`.
+
+Minimal authoring example:
+
+```ts
+import { defineTemplate } from './types';
+
+export const myTemplate = defineTemplate({
+  id: 'my-template',
+  metadata: {
+    name: 'My Template',
+    description: 'Compact bottom telemetry strip',
+    previewColors: { bg: '#000000', accent: '#ffffff', text: '#ffffff' },
+  },
+  config: {
+    layoutMode: 'box',
+    position: 'bottom-left',
+    backgroundOpacity: 0.7,
+    fontSizePercent: 2,
+    showHr: true,
+    showPace: true,
+    showDistance: true,
+    showTime: true,
+    fontFamily: 'Inter, sans-serif',
+    textColor: '#FFFFFF',
+    backgroundColor: '#000000',
+    borderWidth: 0,
+    borderColor: 'transparent',
+    cornerRadius: 4,
+    textShadow: false,
+    textShadowColor: '#000000',
+    textShadowBlur: 0,
+    lineSpacing: 1.2,
+    layout: 'horizontal',
+    iconStyle: 'none',
+    gradientBackground: false,
+    gradientStartColor: '#000000',
+    gradientEndColor: '#000000',
+    labelStyle: 'uppercase',
+    valueFontWeight: 'bold',
+    valueSizeMultiplier: 1.2,
+    labelSizeMultiplier: 0.4,
+    labelLetterSpacing: 0.12,
+    accentColor: '#ffffff',
+  },
+});
+```
+
+Then add one registration entry in `frontend/src/modules/templates/registry.ts` and cover it with focused tests.
+
 ---
 
 ## Environment variables

@@ -106,6 +106,19 @@ export interface TemplateDefinition {
   styles?: TemplateStyles;
 }
 
+export type TemplateMetadataInput = Omit<TemplateMetadata, 'id'> & Partial<Pick<TemplateMetadata, 'id'>>;
+
+export type TemplateConfigInput = Omit<ExtendedOverlayConfig, 'templateId'>
+  & Partial<Pick<ExtendedOverlayConfig, 'templateId'>>;
+
+export interface TemplateDefinitionInput {
+  id: TemplateId;
+  metadata: TemplateMetadataInput;
+  config: TemplateConfigInput;
+  capabilities?: TemplateCapabilities;
+  styles?: TemplateStyles;
+}
+
 /** Base template configuration with common defaults */
 export const BASE_TEMPLATE_CONFIG: Partial<ExtendedOverlayConfig> = {
   showHr: true,
@@ -157,6 +170,22 @@ export const DEFAULT_STYLES: TemplateStyles = {
     labelStyle: 'hidden',
   },
 };
+
+export function defineTemplate(input: TemplateDefinitionInput): TemplateDefinition {
+  return {
+    id: input.id,
+    metadata: {
+      ...input.metadata,
+      id: input.id,
+    },
+    config: {
+      ...input.config,
+      templateId: input.id,
+    },
+    capabilities: input.capabilities,
+    styles: input.styles,
+  };
+}
 
 /**
  * Check if a metric is available for a template

@@ -2,18 +2,16 @@
  * Margin template - Large typography on left and right margins with vertical labels.
  */
 
-import type { TemplateDefinition } from './types';
+import { defineTemplate } from './types';
 
-export const marginTemplate: TemplateDefinition = {
+export const marginTemplate = defineTemplate({
   id: 'margin',
   metadata: {
-    id: 'margin',
     name: 'Margin',
     description: 'Large typography on left and right margins with vertical labels',
     previewColors: { bg: '#111111', accent: '#ef4444', text: '#ffffff' },
   },
   config: {
-    templateId: 'margin',
     layoutMode: 'side-margins',
     position: 'bottom-left',
     backgroundOpacity: 0.6,
@@ -44,4 +42,4 @@ export const marginTemplate: TemplateDefinition = {
     labelLetterSpacing: 0.25,
     accentColor: '#ef4444',
   },
-};
+});

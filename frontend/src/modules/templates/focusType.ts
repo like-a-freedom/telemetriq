@@ -1,16 +1,13 @@
-import type { TemplateDefinition } from './types';
-import { DEFAULT_CAPABILITIES } from './types';
+import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
 
-export const focusTypeTemplate: TemplateDefinition = {
+export const focusTypeTemplate = defineTemplate({
   id: 'focus-type',
   metadata: {
-    id: 'focus-type',
     name: 'Focus Type',
     description: 'Editorial hero pace with refined secondary metric row and graceful fallback when pace is hidden',
     previewColors: { bg: '#030303', accent: '#FFFFFF', text: '#FFFFFF' },
   },
   config: {
-    templateId: 'focus-type',
     layoutMode: 'focus-type',
     position: 'bottom-left',
     backgroundOpacity: 0,
@@ -76,4 +73,4 @@ export const focusTypeTemplate: TemplateDefinition = {
       labelStyle: 'uppercase',
     },
   },
-};
+});

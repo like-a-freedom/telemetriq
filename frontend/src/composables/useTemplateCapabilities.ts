@@ -5,7 +5,7 @@
 
 import { computed, type ComputedRef } from 'vue';
 import { useSettingsStore } from '../stores/settingsStore';
-import { TEMPLATE_MAP } from '../modules/templates';
+import { getTemplateDefinition } from '../modules/templates';
 import {
     isMetricAvailable,
     isMetricRequired,
@@ -40,7 +40,7 @@ export function useTemplateCapabilities(): TemplateCapabilitiesComposable {
 
     const currentTemplate = computed(() => {
         const templateId = currentTemplateId.value;
-        return TEMPLATE_MAP[templateId];
+        return getTemplateDefinition(templateId);
     });
 
     const currentCapabilities = computed((): TemplateCapabilities => {
