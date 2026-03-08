@@ -2,7 +2,7 @@
  * L-Frame template - Minimalist L-shaped frame with clean metric alignment.
  */
 
-import { defineTemplate } from './types';
+import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
 
 export const lframeTemplate = defineTemplate({
   id: 'l-frame',
@@ -41,5 +41,17 @@ export const lframeTemplate = defineTemplate({
     labelSizeMultiplier: 0.4,
     labelLetterSpacing: 0.15,
     accentColor: '#ffffff',
+  },
+  capabilities: {
+    ...DEFAULT_CAPABILITIES,
+    supportedMetrics: ['pace', 'hr', 'distance', 'time'],
+    requiredMetrics: [],
+    supportsPosition: false,
+    supportsBackgroundOpacity: true,
+    supportsGradient: false,
+    supportsBorder: false,
+    supportsTextShadow: true,
+    supportsAccentColor: true,
+    supportsLayoutDirection: false,
   },
 });

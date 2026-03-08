@@ -2,7 +2,7 @@
  * Custom template - Fully customizable overlay settings.
  */
 
-import { defineTemplate } from './types';
+import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
 
 export const customTemplate = defineTemplate({
   id: 'custom',
@@ -41,5 +41,17 @@ export const customTemplate = defineTemplate({
     labelSizeMultiplier: 0.5,
     labelLetterSpacing: 0.1,
     accentColor: '#646cff',
+  },
+  capabilities: {
+    ...DEFAULT_CAPABILITIES,
+    supportedMetrics: ['pace', 'hr', 'distance', 'time'],
+    requiredMetrics: [],
+    supportsPosition: true,
+    supportsBackgroundOpacity: true,
+    supportsGradient: true,
+    supportsBorder: true,
+    supportsTextShadow: true,
+    supportsAccentColor: true,
+    supportsLayoutDirection: true,
   },
 });

@@ -2,7 +2,7 @@
  * Margin template - Large typography on left and right margins with vertical labels.
  */
 
-import { defineTemplate } from './types';
+import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
 
 export const marginTemplate = defineTemplate({
   id: 'margin',
@@ -41,5 +41,17 @@ export const marginTemplate = defineTemplate({
     labelSizeMultiplier: 0.35,
     labelLetterSpacing: 0.25,
     accentColor: '#ef4444',
+  },
+  capabilities: {
+    ...DEFAULT_CAPABILITIES,
+    supportedMetrics: ['pace', 'hr', 'distance', 'time'],
+    requiredMetrics: [],
+    supportsPosition: false,
+    supportsBackgroundOpacity: true,
+    supportsGradient: false,
+    supportsBorder: false,
+    supportsTextShadow: true,
+    supportsAccentColor: true,
+    supportsLayoutDirection: false,
   },
 });

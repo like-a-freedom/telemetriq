@@ -2,7 +2,14 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { ExtendedOverlayConfig, AppScreen, TemplateId } from '../core/types';
 import { DEFAULT_OVERLAY_CONFIG } from '../modules/overlayRenderer';
-import { getTemplateConfig } from '../modules/templates';
+import { getTemplateConfig, getTemplateDefinition } from '../modules/templates';
+
+function templateSupportsPosition(templateId: TemplateId): boolean {
+    const template = getTemplateDefinition(templateId);
+    return template?.metadata.capabilities?.supportsPosition
+        ?? template?.capabilities?.supportsPosition
+        ?? false;
+}
 
 export const useSettingsStore = defineStore('settings', () => {
     // State
@@ -26,7 +33,7 @@ export const useSettingsStore = defineStore('settings', () => {
         const next = { ...updates };
         if (
             next.position !== undefined
-            && overlayConfig.value.templateId !== 'classic'
+            && !templateSupportsPosition(overlayConfig.value.templateId)
         ) {
             delete next.position;
         }
@@ -43,7 +50,7 @@ export const useSettingsStore = defineStore('settings', () => {
         const userOverrides: Partial<ExtendedOverlayConfig> = {};
 
         // Check if the current config is a custom one to preserve changes
-        if (overlayConfig.value.templateId === 'custom' && templateId === 'classic') {
+        if (overlayConfig.value.templateId === 'custom' && templateSupportsPosition(templateId)) {
             // Save any custom changes before applying new template
             // This preserves user modifications when switching templates
             userOverrides.position = overlayConfig.value.position;
