@@ -192,7 +192,7 @@ async function startProcessingFlow(): Promise<void> {
     processorRef.value = processor;
 
     const result = await processor.process();
-    processingStore.setResult(result);
+    await processingStore.finalizeResult(result);
   } catch (err) {
     processingStore.setError(normalizeProcessingError(err));
   }

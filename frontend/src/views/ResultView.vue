@@ -8,14 +8,23 @@
     </header>
 
     <!-- Result video preview -->
-    <div v-if="processingStore.resultUrl" class="result-view__preview">
+    <div v-if="showInlinePreview" class="result-view__preview">
       <video
-        :src="processingStore.resultUrl"
+        :src="processingStore.resultUrl ?? undefined"
         controls
         class="result-view__video"
         data-testid="result-video"
       />
     </div>
+
+    <p
+      v-else-if="processingStore.resultUrl"
+      class="result-view__preview-hint"
+      data-testid="preview-disabled-hint"
+    >
+      Preview is disabled on this device to reduce memory pressure. Your file is
+      ready — use the download button below.
+    </p>
 
     <!-- File info -->
     <div v-if="processingStore.resultBlob" class="result-view__info">
@@ -53,6 +62,7 @@ import {
   useSyncStore,
 } from "../stores";
 import { useSeo } from "../composables/useSeo";
+import { shouldAvoidInlineResultPreview } from "../modules/browserCapabilities";
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
 import FileInfo from "../components/FileInfo.vue";
 
@@ -68,6 +78,7 @@ const filesStore = useFilesStore();
 const processingStore = useProcessingStore();
 const settingsStore = useSettingsStore();
 const syncStore = useSyncStore();
+const avoidInlinePreview = shouldAvoidInlineResultPreview();
 
 const resultSize = computed(() => {
   const size = processingStore.resultBlob?.size ?? 0;
@@ -76,6 +87,10 @@ const resultSize = computed(() => {
     return `${(size / (1024 * 1024)).toFixed(1)} MB`;
   return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 });
+
+const showInlinePreview = computed(
+  () => Boolean(processingStore.resultUrl) && !avoidInlinePreview
+);
 
 onMounted(() => {
   if (!processingStore.hasResult) {
@@ -139,6 +154,15 @@ function startOver(): void {
 .result-view__video {
   width: 100%;
   display: block;
+}
+
+.result-view__preview-hint {
+  margin: 0 0 1.5rem;
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  background: var(--color-bg-secondary, #1a1a1a);
+  color: var(--color-text-secondary, #aaa);
+  line-height: 1.5;
 }
 
 .result-view__info {

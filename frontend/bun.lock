@@ -10,27 +10,27 @@
         "@unhead/vue": "^2.1.4",
         "@vueuse/core": "^14.2.1",
         "@webgpu/types": "^0.1.69",
-        "agent-browser": "^0.10.0",
-        "mediabunny": "^1.34.3",
+        "agent-browser": "^0.16.3",
+        "mediabunny": "^1.34.4",
         "pinia": "^3.0.4",
         "vue": "^3.5.28",
-        "vue-router": "^5.0.2",
+        "vue-router": "^5.0.3",
       },
       "devDependencies": {
         "@eslint/js": "^10.0.1",
         "@playwright/test": "^1.58.2",
         "@types/dom-webcodecs": "^0.1.18",
-        "@types/node": "^25.2.3",
+        "@types/node": "^25.3.0",
         "@typescript-eslint/eslint-plugin": "^8.56.0",
         "@typescript-eslint/parser": "^8.56.0",
         "@vitejs/plugin-vue": "^6.0.4",
         "@vitest/coverage-v8": "^4.0.18",
         "@vue/test-utils": "^2.4.6",
         "@vue/tsconfig": "^0.8.1",
-        "eslint": "^10.0.0",
+        "eslint": "^10.0.1",
         "eslint-plugin-vue": "^10.8.0",
         "globals": "^17.3.0",
-        "happy-dom": "^20.6.1",
+        "happy-dom": "^20.7.0",
         "jsdom": "^28.1.0",
         "prettier": "^3.8.1",
         "sharp": "^0.34.5",
@@ -40,10 +40,14 @@
         "vite-ssg": "^28.3.0",
         "vitest": "^4.0.18",
         "vue-eslint-parser": "^10.4.0",
-        "vue-tsc": "^3.2.4",
+        "vue-tsc": "^3.2.5",
       },
     },
   },
+  "trustedDependencies": [
+    "agent-browser",
+    "edgedriver",
+  ],
   "packages": {
     "@acemir/cssom": ["@acemir/cssom@0.9.31", "", {}, "sha512-ZnR3GSaH+/vJ0YlHau21FjfLYjMpYVIzTD8M8vIEQvIGxeOXyXdzCI140rrCY862p/C/BbzWsjc1dgnM9mkoTA=="],
 
@@ -437,7 +441,7 @@
 
     "agent-base": ["agent-base@7.1.4", "", {}, "sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ=="],
 
-    "agent-browser": ["agent-browser@0.10.0", "", { "dependencies": { "node-simctl": "^7.4.0", "playwright-core": "^1.57.0", "webdriverio": "^9.15.0", "ws": "^8.19.0", "zod": "^3.22.4" }, "bin": { "agent-browser": "bin/agent-browser.js" } }, "sha512-aUezeusBNfoLIucmD7q/+pN0MYK3CeVSA/7t0fZBGhcbEgXwwIJfIhWJJVCwhJZ4ErKfsjNxjArLPfqX9WQkcA=="],
+    "agent-browser": ["agent-browser@0.16.3", "", { "dependencies": { "node-simctl": "^7.4.0", "playwright-core": "^1.57.0", "webdriverio": "^9.15.0", "ws": "^8.19.0", "zod": "^3.22.4" }, "bin": { "agent-browser": "bin/agent-browser.js" } }, "sha512-dsg8PTJNBIQ7/LPp/La42KQwLTzsP8sudbCLpP1atsJXps4Fbuz1CeepUJAGrgxb8koc9y4yKobYVPAsds8hPQ=="],
 
     "ajv": ["ajv@6.12.6", "", { "dependencies": { "fast-deep-equal": "^3.1.1", "fast-json-stable-stringify": "^2.0.0", "json-schema-traverse": "^0.4.1", "uri-js": "^4.2.2" } }, "sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g=="],
 
