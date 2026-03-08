@@ -2,19 +2,16 @@
  * Classic template - Simple positioned overlay with rounded rectangle background.
  */
 
-import type { TemplateDefinition } from './types';
-import { DEFAULT_CAPABILITIES } from './types';
+import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
 
-export const classicTemplate: TemplateDefinition = {
+export const classicTemplate = defineTemplate({
   id: 'classic',
   metadata: {
-    id: 'classic',
     name: 'Classic',
     description: 'Simple positioned overlay with rounded rectangle background',
     previewColors: { bg: '#000000', accent: '#646cff', text: '#ffffff' },
   },
   config: {
-    templateId: 'classic',
     layoutMode: 'box',
     position: 'top-right',
     backgroundOpacity: 0,
@@ -80,4 +77,4 @@ export const classicTemplate: TemplateDefinition = {
       labelStyle: 'hidden',
     },
   },
-};
+});

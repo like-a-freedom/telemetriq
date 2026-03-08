@@ -1,16 +1,13 @@
-import type { TemplateDefinition } from './types';
-import { DEFAULT_CAPABILITIES } from './types';
+import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
 
-export const cockpitHudTemplate: TemplateDefinition = {
+export const cockpitHudTemplate = defineTemplate({
   id: 'cockpit-hud',
   metadata: {
-    id: 'cockpit-hud',
     name: 'Cockpit HUD',
     description: 'Structured motorsport-inspired HUD with disciplined grid, modern typography, and balanced telemetry blocks',
     previewColors: { bg: '#08111d', accent: '#ff7a1a', text: '#f4f7fb' },
   },
   config: {
-    templateId: 'cockpit-hud',
     layoutMode: 'cockpit-hud',
     position: 'bottom-left',
     backgroundOpacity: 0,
@@ -76,4 +73,4 @@ export const cockpitHudTemplate: TemplateDefinition = {
       labelStyle: 'uppercase',
     },
   },
-};
+});

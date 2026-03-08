@@ -2,19 +2,16 @@
  * Horizon template - Bottom bar with gradient overlay and horizontal metric layout.
  */
 
-import type { TemplateDefinition } from './types';
-import { DEFAULT_CAPABILITIES } from './types';
+import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
 
-export const horizonTemplate: TemplateDefinition = {
+export const horizonTemplate = defineTemplate({
   id: 'horizon',
   metadata: {
-    id: 'horizon',
     name: 'Horizon',
     description: 'Bottom bar with gradient overlay and horizontal metric layout',
     previewColors: { bg: '#0a0a0a', accent: '#ffffff', text: '#ffffff' },
   },
   config: {
-    templateId: 'horizon',
     layoutMode: 'bottom-bar',
     position: 'bottom-left',
     backgroundOpacity: 0.85,
@@ -80,4 +77,4 @@ export const horizonTemplate: TemplateDefinition = {
       labelStyle: 'uppercase',
     },
   },
-};
+});

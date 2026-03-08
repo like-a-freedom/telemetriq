@@ -2,18 +2,19 @@
 
 ## Overview
 
-The templates system allows you to define and manage different overlay layouts for the telemetry display. Each template is a self-contained module that defines both the visual configuration and metadata.
+The templates system allows you to define and manage different overlay layouts for the telemetry display. Each template is a self-contained module that defines visual configuration, metadata, capabilities, and optional style presets.
+
+The canonical source of truth is `src/modules/templates/registry.ts`. New templates should be created with `defineTemplate(...)` and registered once in that registry.
 
 ## Directory Structure
 
 ```
 src/modules/templates/
-├── types.ts          # Shared types and interfaces
-├── index.ts          # Registry and exports
+├── types.ts          # Shared types, defineTemplate helper
+├── registry.ts       # Canonical template registration and derived maps
+├── index.ts          # Public exports
 ├── horizon.ts        # Horizon template
-├── margin.ts         # Margin template
-├── lframe.ts         # L-Frame template
-├── classic.ts        # Classic template
+├── ...               # Other system templates
 └── custom.ts         # Custom template
 ```
 
@@ -26,12 +27,11 @@ To add a new template, follow these steps:
 Create a new file in `src/modules/templates/` (e.g., `my-template.ts`):
 
 ```typescript
-import type { TemplateDefinition } from './types';
+import { defineTemplate } from './types';
 
-export const myTemplate: TemplateDefinition = {
+export const myTemplate = defineTemplate({
   id: 'my-template',
   metadata: {
-    id: 'my-template',
     name: 'My Template',
     description: 'Description of what this template does',
     previewColors: {
@@ -41,8 +41,7 @@ export const myTemplate: TemplateDefinition = {
     },
   },
   config: {
-    templateId: 'my-template',
-    layoutMode: 'box',           // 'box' | 'bottom-bar' | 'side-margins' | 'corner-frame'
+    layoutMode: 'box',
     position: 'top-right',       // 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
     backgroundOpacity: 0.8,
     fontSizePercent: 2.0,
@@ -71,46 +70,45 @@ export const myTemplate: TemplateDefinition = {
     labelLetterSpacing: 0.1,
     accentColor: '#ff0000',
   },
-};
+});
 ```
 
 ### 2. Register Template
 
-Add your template to the registry in `src/modules/templates/index.ts`:
+Register the template once in `src/modules/templates/registry.ts`:
 
 ```typescript
 import { myTemplate } from './my-template';
 
-export const TEMPLATES: TemplateDefinition[] = [
+const REGISTERED_TEMPLATES = [
   horizonTemplate,
   marginTemplate,
   lframeTemplate,
   classicTemplate,
   customTemplate,
-  myTemplate,  // Add here
+  myTemplate,
 ];
-
-export const TEMPLATE_MAP: Record<TemplateId, TemplateDefinition> = {
-  'horizon': horizonTemplate,
-  'margin': marginTemplate,
-  'l-frame': lframeTemplate,
-  'classic': classicTemplate,
-  'custom': customTemplate,
-  'my-template': myTemplate,  // Add here
-};
 ```
 
-### 3. Update Type (if needed)
+Once registered, the template automatically participates in:
 
-If TypeScript complains about the template ID, add it to the `TemplateId` type in `src/core/types.ts`:
+- `TEMPLATES`
+- `TEMPLATE_MAP`
+- `getTemplateConfig()`
+- `getAvailableTemplates()`
+- `getTemplateMetadata()`
+- UI selector lists
+- capabilities lookup
 
-```typescript
-export type TemplateId = 'horizon' | 'margin' | 'l-frame' | 'classic' | 'custom' | 'my-template';
-```
+### 3. Add renderer code only if needed
+
+If the new template uses an existing `layoutMode`, no additional registry wiring is needed.
+
+If it introduces a brand-new draw algorithm, implement the renderer in `src/modules/layouts/extendedLayouts.ts` (or the appropriate basic layout module).
 
 ### 4. Test Your Template
 
-Add tests in `src/__tests__/templates.test.ts`:
+Add focused tests in `src/__tests__/templates.test.ts` and, when relevant, layout tests in `src/__tests__/extendedLayouts.test.ts`:
 
 ```typescript
 it('my template should have correct layout', () => {
@@ -127,6 +125,7 @@ it('my template should have correct layout', () => {
 - `bottom-bar` - Full-width bar at the bottom
 - `side-margins` - Metrics on left and right edges
 - `corner-frame` - L-shaped frame in corner
+- plus template-specific modes such as `arc-gauge`, `cockpit-hud`, `glass-panel`, `focus-type`, etc.
 
 ### Positions
 
@@ -176,10 +175,10 @@ const config = horizonTemplate.config;
 
 ## Backward Compatibility
 
-The old `template-configs.ts` file still works and re-exports all functions for backward compatibility. Existing code using:
+The old `templateConfigs.ts` file still works and re-exports registry-derived functions for backward compatibility. Existing code using:
 
 ```typescript
-import { getTemplateConfig } from '../modules/template-configs';
+import { getTemplateConfig } from '../modules/templateConfigs';
 ```
 
 will continue to work without changes.
@@ -187,7 +186,8 @@ will continue to work without changes.
 ## Best Practices
 
 1. **Keep templates self-contained** - Each template file should be independent
-2. **Use descriptive names** - Template names should clearly indicate the layout
-3. **Test thoroughly** - Add tests for new templates
-4. **Document changes** - Update this README when adding features
-5. **Maintain backward compatibility** - Don't remove existing templates without deprecation period
+2. **Prefer `defineTemplate(...)`** - Define `id` once and let the helper normalize metadata/config ids
+3. **Register once** - Add new system templates only in `registry.ts`
+4. **Use descriptive names** - Template names should clearly indicate the layout
+5. **Test thoroughly** - Add focused registry/layout tests for new templates
+6. **Document behavior changes** - Update this README and top-level docs when template workflow changes

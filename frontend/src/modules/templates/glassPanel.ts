@@ -1,16 +1,13 @@
-import type { TemplateDefinition } from './types';
-import { DEFAULT_CAPABILITIES } from './types';
+import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
 
-export const glassPanelTemplate: TemplateDefinition = {
+export const glassPanelTemplate = defineTemplate({
   id: 'glass-panel',
   metadata: {
-    id: 'glass-panel',
     name: 'Glass Panel',
     description: 'Floating liquid-glass telemetry capsule with layered highlights and frosted depth',
     previewColors: { bg: '#121a2d', accent: '#8fd3ff', text: '#f7fbff' },
   },
   config: {
-    templateId: 'glass-panel',
     layoutMode: 'glass-panel',
     position: 'bottom-left',
     backgroundOpacity: 0.16,
@@ -76,4 +73,4 @@ export const glassPanelTemplate: TemplateDefinition = {
       labelStyle: 'uppercase',
     },
   },
-};
+});

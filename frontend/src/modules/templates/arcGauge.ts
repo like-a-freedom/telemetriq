@@ -1,15 +1,13 @@
-import type { TemplateDefinition } from './types';
+import { defineTemplate } from './types';
 
-export const arcGaugeTemplate: TemplateDefinition = {
+export const arcGaugeTemplate = defineTemplate({
     id: 'arc-gauge',
     metadata: {
-        id: 'arc-gauge',
         name: 'Arc Gauge',
         description: 'Pace-focused arc gauge with secondary side metrics',
         previewColors: { bg: '#0a0f1f', accent: '#ffffff', text: '#e5e7eb' },
     },
     config: {
-        templateId: 'arc-gauge',
         layoutMode: 'arc-gauge',
         position: 'top-left',
         backgroundOpacity: 0,
@@ -40,4 +38,4 @@ export const arcGaugeTemplate: TemplateDefinition = {
         labelLetterSpacing: 0.18,
         accentColor: '#ffffff',
     },
-};
+});

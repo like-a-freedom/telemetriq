@@ -30,7 +30,7 @@
 import { computed } from "vue";
 import { useSettingsStore } from "../stores/settingsStore";
 import type { TemplateId } from "../core/types";
-import { getAllTemplateMetadata } from "../modules/templateConfigs";
+import { getAllTemplateMetadata } from "../modules/templates";
 
 const templates = getAllTemplateMetadata();
 const settingsStore = useSettingsStore();

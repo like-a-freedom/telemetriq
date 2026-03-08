@@ -2,18 +2,16 @@
  * L-Frame template - Minimalist L-shaped frame with clean metric alignment.
  */
 
-import type { TemplateDefinition } from './types';
+import { defineTemplate } from './types';
 
-export const lframeTemplate: TemplateDefinition = {
+export const lframeTemplate = defineTemplate({
   id: 'l-frame',
   metadata: {
-    id: 'l-frame',
     name: 'L-Frame',
     description: 'Minimalist L-shaped frame with clean metric alignment',
     previewColors: { bg: '#1a1a2e', accent: '#ffffff', text: '#f0f0f0' },
   },
   config: {
-    templateId: 'l-frame',
     layoutMode: 'corner-frame',
     position: 'bottom-left',
     backgroundOpacity: 0.0,
@@ -44,4 +42,4 @@ export const lframeTemplate: TemplateDefinition = {
     labelLetterSpacing: 0.15,
     accentColor: '#ffffff',
   },
-};
+});

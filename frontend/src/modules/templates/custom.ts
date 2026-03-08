@@ -2,18 +2,16 @@
  * Custom template - Fully customizable overlay settings.
  */
 
-import type { TemplateDefinition } from './types';
+import { defineTemplate } from './types';
 
-export const customTemplate: TemplateDefinition = {
+export const customTemplate = defineTemplate({
   id: 'custom',
   metadata: {
-    id: 'custom',
     name: 'Custom',
     description: 'Fully customizable overlay settings',
     previewColors: { bg: '#1a1a1a', accent: '#888888', text: '#ffffff' },
   },
   config: {
-    templateId: 'custom',
     layoutMode: 'box',
     position: 'top-left',
     backgroundOpacity: 0.7,
@@ -44,4 +42,4 @@ export const customTemplate: TemplateDefinition = {
     labelLetterSpacing: 0.1,
     accentColor: '#646cff',
   },
-};
+});
