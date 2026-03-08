@@ -1,4 +1,4 @@
-import { defineTemplate } from './types';
+import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
 
 export const arcGaugeTemplate = defineTemplate({
     id: 'arc-gauge',
@@ -37,5 +37,17 @@ export const arcGaugeTemplate = defineTemplate({
         labelSizeMultiplier: 0.45,
         labelLetterSpacing: 0.18,
         accentColor: '#ffffff',
+    },
+    capabilities: {
+        ...DEFAULT_CAPABILITIES,
+        supportedMetrics: ['pace', 'hr', 'distance', 'time'],
+        requiredMetrics: [],
+        supportsPosition: false,
+        supportsBackgroundOpacity: true,
+        supportsGradient: false,
+        supportsBorder: false,
+        supportsTextShadow: true,
+        supportsAccentColor: true,
+        supportsLayoutDirection: false,
     },
 });

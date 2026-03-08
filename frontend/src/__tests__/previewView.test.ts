@@ -9,6 +9,7 @@ vi.mock('../composables/useSeo', () => ({ useSeo: () => { } }));
 import PreviewView from '../views/PreviewView.vue';
 import { useFilesStore } from '../stores/filesStore';
 import { useSyncStore } from '../stores/syncStore';
+import { useSettingsStore } from '../stores/settingsStore';
 
 describe('PreviewView (synchronization panel)', () => {
     beforeEach(() => {
@@ -26,7 +27,10 @@ describe('PreviewView (synchronization panel)', () => {
         const sync = useSyncStore();
         sync.syncConfig = { offsetSeconds: 0, autoSynced } as any;
 
-        return { files, sync };
+        const settings = useSettingsStore();
+        settings.reset();
+
+        return { files, sync, settings };
     }
 
     it('is collapsed by default when auto-sync succeeded', () => {
@@ -93,5 +97,27 @@ describe('PreviewView (synchronization panel)', () => {
         const label = wrapper.find('.preview-view__timezone-row .preview-view__label--small');
         expect(label.exists()).toBe(true);
         expect(label.text()).toMatch(/Timezone/i);
+    });
+
+    it('hides position control for templates with fixed placement', () => {
+        const { settings } = makeStores({ autoSynced: false });
+        settings.selectTemplate('margin');
+
+        const wrapper = mount(PreviewView, {
+            global: { stubs: ['VideoPlayer', 'SyncSlider', 'TemplateSelector', 'DateTimePicker'] },
+        });
+
+        expect(wrapper.text()).not.toContain('Position');
+    });
+
+    it('shows position control for templates that support position changes', () => {
+        const { settings } = makeStores({ autoSynced: false });
+        settings.selectTemplate('classic');
+
+        const wrapper = mount(PreviewView, {
+            global: { stubs: ['VideoPlayer', 'SyncSlider', 'TemplateSelector', 'DateTimePicker'] },
+        });
+
+        expect(wrapper.text()).toContain('Position');
     });
 });

@@ -778,6 +778,20 @@ describe('Pinia Stores', () => {
             expect(store.overlayConfig.position).toBe('bottom-right');
         });
 
+        it('should lock position for templates without position capability', () => {
+            const store = useSettingsStore();
+            store.selectTemplate('margin');
+            store.updateOverlayConfig({ position: 'top-right' });
+            expect(store.overlayConfig.position).toBe('bottom-left');
+        });
+
+        it('should allow position changes for custom template', () => {
+            const store = useSettingsStore();
+            store.selectTemplate('custom');
+            store.updateOverlayConfig({ position: 'bottom-right' });
+            expect(store.overlayConfig.position).toBe('bottom-right');
+        });
+
         it('should reset overlay config', () => {
             const store = useSettingsStore();
             store.updateOverlayConfig({ position: 'bottom-right' });
