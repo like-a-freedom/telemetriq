@@ -74,7 +74,6 @@ export type TemplateId =
     | 'race-tag'
     | 'glass-panel'
     | 'minimal-ring'
-    | 'stretched-bar'
     | 'focus-type'
     | 'custom';
 
@@ -103,7 +102,6 @@ export type OverlayLayoutMode =
     | 'race-tag'
     | 'glass-panel'
     | 'minimal-ring'
-    | 'stretched-bar'
     | 'focus-type'
     | 'box';           // Classic: positioned rounded rectangle
 

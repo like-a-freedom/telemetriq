@@ -160,7 +160,7 @@ const EXTENDED_LAYOUTS = new Set([
     'soft-rounded', 'thin-line', 'swiss-grid',
     'garmin-style', 'sports-broadcast', 'cockpit-hud',
     'terminal', 'night-runner', 'data-block', 'race-tag',
-    'glass-panel', 'minimal-ring', 'stretched-bar',
+    'glass-panel', 'minimal-ring',
     'focus-type',
 ]);
 

@@ -36,7 +36,6 @@ describe('template-configs', () => {
         'race-tag',
         'glass-panel',
         'minimal-ring',
-        'stretched-bar',
         'focus-type',
         'custom',
     ];
@@ -94,6 +93,7 @@ describe('template-configs', () => {
             expect(templates).toContain('l-frame');
             expect(templates).toContain('classic');
             expect(templates).toContain('custom');
+            expect(templates).not.toContain('stretched-bar');
         });
 
         it('should return array of TemplateId type', () => {
@@ -164,6 +164,11 @@ describe('template-configs', () => {
                 expect(meta.previewColors.accent).toBeDefined();
                 expect(meta.previewColors.text).toBeDefined();
             });
+        });
+
+        it('should not include stretched-bar in metadata list', () => {
+            const templates = getAllTemplateMetadata();
+            expect(templates.map((meta) => meta.id)).not.toContain('stretched-bar');
         });
     });
 });
