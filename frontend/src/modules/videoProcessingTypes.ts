@@ -55,18 +55,23 @@ export interface CodecQueues {
 
 export const CODEC_QUEUE_HIGH_WATERMARK = 24;
 
-export function isCodecQueuePressureHigh(decoder: VideoDecoder, encoder: VideoEncoder): boolean {
-    return decoder.decodeQueueSize > CODEC_QUEUE_HIGH_WATERMARK
-        || encoder.encodeQueueSize > CODEC_QUEUE_HIGH_WATERMARK;
+export function isCodecQueuePressureHigh(
+    decoder: VideoDecoder,
+    encoder: VideoEncoder,
+    highWatermark = CODEC_QUEUE_HIGH_WATERMARK,
+): boolean {
+    return decoder.decodeQueueSize > highWatermark
+        || encoder.encodeQueueSize > highWatermark;
 }
 
 export async function waitForCodecQueues(
     decoder: VideoDecoder,
     encoder: VideoEncoder,
     signal: AbortSignal,
+    highWatermark = CODEC_QUEUE_HIGH_WATERMARK,
 ): Promise<void> {
     let spin = 0;
-    while (!signal.aborted && isCodecQueuePressureHigh(decoder, encoder)) {
+    while (!signal.aborted && isCodecQueuePressureHigh(decoder, encoder, highWatermark)) {
         if (spin % 2 === 0) {
             await Promise.resolve();
         } else {

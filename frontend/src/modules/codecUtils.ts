@@ -81,7 +81,8 @@ export function estimateTargetBitrate(
     sourceFileSize: number,
 ): number {
     const sourceDuration = Math.max(1, sourceMeta.duration || 1);
-    const sourceBitrate = Math.round((sourceFileSize * 8) / sourceDuration);
+    const effectiveSourceFileSize = sourceFileSize > 0 ? sourceFileSize : sourceMeta.fileSize;
+    const sourceBitrate = Math.round((effectiveSourceFileSize * 8) / sourceDuration);
 
     const sourcePixels = Math.max(1, sourceMeta.width * sourceMeta.height);
     const targetPixels = Math.max(1, targetMeta.width * targetMeta.height);

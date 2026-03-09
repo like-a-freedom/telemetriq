@@ -24,6 +24,9 @@ const overlayCache = new Map<string, CachedOverlay>();
 const scratchOverlays = new WeakMap<object, ScratchOverlay>();
 const MAX_CACHE_ENTRIES = 200;
 const MAX_CACHE_PIXELS = 1280 * 720;
+const HIGH_RES_SINGLE_CACHE_MAX_PIXELS = 1920 * 1080;
+
+let highResolutionOverlayCache: { key: string; overlay: CachedOverlay } | null = null;
 
 /** Metric data prepared for rendering */
 export interface MetricItem {
@@ -85,13 +88,13 @@ export async function renderOverlay(
     }
 
     // Check cache first using display-level values (reduces unnecessary rerenders).
-    const shouldUseCache = videoWidth * videoHeight <= MAX_CACHE_PIXELS;
-    const cacheKey = shouldUseCache
+    const cacheStrategy = getCacheStrategy(videoWidth, videoHeight);
+    const cacheKey = cacheStrategy !== 'none'
         ? buildCacheKey(metrics, effectiveConfig, videoWidth, videoHeight)
         : undefined;
 
     if (cacheKey) {
-        const cached = overlayCache.get(cacheKey);
+        const cached = getCachedOverlay(cacheKey, cacheStrategy);
         if (cached) {
             ctx.drawImage(cached.canvas as CanvasImageSource, 0, 0);
             return;
@@ -111,7 +114,7 @@ export async function renderOverlay(
     renderLayout(overlayCtx, metrics, frame, videoWidth, videoHeight, effectiveConfig, layoutMode);
 
     if (cacheKey) {
-        cacheOverlay(cacheKey, overlayCanvas, videoWidth, videoHeight);
+        cacheOverlay(cacheKey, overlayCanvas, videoWidth, videoHeight, cacheStrategy);
     }
 
     // Use WebGPU only for compositing base frame + already-rendered overlay.
@@ -224,12 +227,40 @@ function buildCacheKey(
     });
 }
 
+function getCacheStrategy(
+    width: number,
+    height: number,
+): 'standard' | 'high-resolution-single' | 'none' {
+    const pixelCount = width * height;
+    if (pixelCount <= MAX_CACHE_PIXELS) return 'standard';
+    if (pixelCount <= HIGH_RES_SINGLE_CACHE_MAX_PIXELS) return 'high-resolution-single';
+    return 'none';
+}
+
+function getCachedOverlay(
+    key: string,
+    strategy: 'standard' | 'high-resolution-single' | 'none',
+): CachedOverlay | undefined {
+    if (strategy === 'standard') {
+        return overlayCache.get(key);
+    }
+
+    if (strategy === 'high-resolution-single' && highResolutionOverlayCache?.key === key) {
+        return highResolutionOverlayCache.overlay;
+    }
+
+    return undefined;
+}
+
 function cacheOverlay(
     key: string,
     sourceCanvas: OffscreenCanvas | HTMLCanvasElement,
     width: number,
     height: number,
+    strategy: 'standard' | 'high-resolution-single' | 'none',
 ): void {
+    if (strategy === 'none') return;
+
     if (overlayCache.size >= MAX_CACHE_ENTRIES) {
         const firstKey = overlayCache.keys().next().value as string | undefined;
         if (firstKey) overlayCache.delete(firstKey);
@@ -240,6 +271,15 @@ function cacheOverlay(
     if (!cacheCtx) return;
 
     cacheCtx.drawImage(sourceCanvas as CanvasImageSource, 0, 0);
+
+    if (strategy === 'high-resolution-single') {
+        highResolutionOverlayCache = {
+            key,
+            overlay: { canvas: cacheCanvas },
+        };
+        return;
+    }
+
     overlayCache.set(key, { canvas: cacheCanvas });
 }
 
@@ -296,15 +336,15 @@ export async function renderOverlayOnFrame(
     const metrics = buildMetrics(telemetryFrame, effectiveConfig);
 
     if (metrics.length > 0) {
-        const shouldUseCache = width * height <= MAX_CACHE_PIXELS;
-        const cacheKey = shouldUseCache
+        const cacheStrategy = getCacheStrategy(width, height);
+        const cacheKey = cacheStrategy !== 'none'
             ? buildCacheKey(metrics, effectiveConfig, width, height)
             : undefined;
 
         let overlayCanvas: OffscreenCanvas | HTMLCanvasElement | null = null;
 
         if (cacheKey) {
-            const cached = overlayCache.get(cacheKey);
+            const cached = getCachedOverlay(cacheKey, cacheStrategy);
             if (cached) {
                 overlayCanvas = cached.canvas;
             }
@@ -322,8 +362,8 @@ export async function renderOverlayOnFrame(
                 overlayCanvas = standaloneCanvas;
 
                 if (cacheKey) {
-                    cacheOverlay(cacheKey, standaloneCanvas, width, height);
-                    overlayCanvas = overlayCache.get(cacheKey)?.canvas ?? standaloneCanvas;
+                    cacheOverlay(cacheKey, standaloneCanvas, width, height, cacheStrategy);
+                    overlayCanvas = getCachedOverlay(cacheKey, cacheStrategy)?.canvas ?? standaloneCanvas;
                 }
             }
         }

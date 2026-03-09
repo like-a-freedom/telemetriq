@@ -212,6 +212,24 @@ export interface ProcessingProgress {
     estimatedRemainingSeconds?: number;
 }
 
+/** Named video processing phase in profiling output */
+export type VideoProcessingProfilePhase = 'demuxing' | 'encoding' | 'processing' | 'muxing' | 'total';
+
+/** Aggregate timing metrics for a processing phase */
+export interface VideoProcessingPhaseMetrics {
+    durationMs: number;
+    runs: number;
+}
+
+/** Optional structured phase profile for a full video processing run */
+export interface VideoProcessingProfile {
+    phases: Partial<Record<VideoProcessingProfilePhase | string, VideoProcessingPhaseMetrics>>;
+    fallbackTranscodeCount: number;
+    processedFrames: number;
+    usedStreamingMux: boolean;
+    totalDurationMs: number;
+}
+
 /** Application screen state */
 export type AppScreen = 'upload' | 'preview' | 'processing' | 'result';
 

@@ -266,6 +266,22 @@ describe('codec-utils', () => {
             const bitrate = estimateTargetBitrate(sourceMeta, sourceMeta, 1_000_000_000);
             expect(bitrate).toBeLessThanOrEqual(140_000_000);
         });
+
+        it('should fall back to metadata file size when explicit source size is missing', () => {
+            const sourceMeta: VideoMeta = {
+                width: 3840,
+                height: 2160,
+                fps: 60,
+                duration: 10,
+                codec: 'hvc1',
+                fileName: 'source.mp4',
+                fileSize: 100_000_000,
+            };
+
+            const bitrate = estimateTargetBitrate(sourceMeta, sourceMeta, 0);
+
+            expect(bitrate).toBeGreaterThanOrEqual(80_000_000);
+        });
     });
 
     describe('toMediabunnyVideoCodec', () => {
