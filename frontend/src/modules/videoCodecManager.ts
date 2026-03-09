@@ -79,7 +79,7 @@ export function createVideoCodecManager(): VideoCodecManager {
                 codecCandidates: string[],
                 targetMeta: VideoMeta,
             ): Promise<VideoEncoderConfig | undefined> => {
-                const targetBitrate = estimateTargetBitrate(meta, targetMeta, 0);
+                const targetBitrate = estimateTargetBitrate(meta, targetMeta, meta.fileSize);
                 const buildVariantConfigs = (codec: string): VideoEncoderConfig[] => {
                     const common: Omit<VideoEncoderConfig, 'codec'> = {
                         width: targetMeta.width,

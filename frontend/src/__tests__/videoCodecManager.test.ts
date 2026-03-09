@@ -94,6 +94,34 @@ describe('video-codec-manager', () => {
     });
 
     describe('createEncoder', () => {
+        it('uses the source file size when estimating target bitrate', async () => {
+            const supportedConfigs: VideoEncoderConfig[] = [];
+
+            globalThis.VideoEncoder = class MockVideoEncoder {
+                static isConfigSupported = vi.fn(async (config: VideoEncoderConfig) => {
+                    supportedConfigs.push(config);
+                    return { supported: true };
+                });
+                state = 'unconfigured';
+                configure() { }
+                set output(_: any) { }
+                set error(_: any) { }
+            } as any;
+
+            const richSourceMeta: VideoMeta = {
+                ...mockVideoMeta,
+                width: 3840,
+                height: 2160,
+                fps: 60,
+                codec: 'hvc1',
+                fileSize: 100_000_000,
+            };
+
+            await manager.createEncoder(richSourceMeta, 'hvc1.1.6.L153.B0', vi.fn(), vi.fn());
+
+            expect(supportedConfigs[0]?.bitrate).toBeGreaterThanOrEqual(80_000_000);
+        });
+
         it('should throw when no codec is supported', async () => {
             globalThis.VideoEncoder = class MockVideoEncoder {
                 static isConfigSupported = vi.fn().mockResolvedValue({ supported: false });

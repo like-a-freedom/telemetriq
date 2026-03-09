@@ -258,4 +258,29 @@ describe('VideoProcessor', () => {
         const ffmpeg = await import('../modules/ffmpegUtils');
         expect(ffmpeg.transcodeWithForcedKeyframes).toHaveBeenCalled();
     });
+
+    it('emits an opt-in processing profile after a successful run', async () => {
+        const onProfile = vi.fn();
+        const file = new File([], 'test.mp4');
+        const processor = new VideoProcessor({
+            videoFile: file,
+            videoMeta: createMockVideoMeta(),
+            telemetryFrames: [],
+            syncOffsetSeconds: 0,
+            onProfile,
+        });
+
+        await processor.process();
+
+        expect(onProfile).toHaveBeenCalledTimes(1);
+        expect(onProfile).toHaveBeenCalledWith(expect.objectContaining({
+            totalDurationMs: expect.any(Number),
+            processedFrames: expect.any(Number),
+            phases: expect.objectContaining({
+                demuxing: expect.objectContaining({ durationMs: expect.any(Number) }),
+                processing: expect.objectContaining({ durationMs: expect.any(Number) }),
+                muxing: expect.objectContaining({ durationMs: expect.any(Number) }),
+            }),
+        }));
+    });
 });

@@ -4,11 +4,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { createDemuxer } from '../modules/demuxer';
 
-const IPHONE_FILE_PATH = path.resolve(
-    path.dirname(new URL(import.meta.url).pathname),
+const IPHONE_FILE_CANDIDATES = [
     '../../../test_data/iphone/iphone-16-pro-max.MOV',
-);
+    '../../../test_data/iphone/example_01/iphone-16-pro-max.MOV',
+    '../../../test_data/iphone/example_02/IMG_2592.MOV',
+].map((relativePath) => path.resolve(path.dirname(new URL(import.meta.url).pathname), relativePath));
 
+const IPHONE_FILE_PATH = IPHONE_FILE_CANDIDATES.find((candidate) => fs.existsSync(candidate)) ?? IPHONE_FILE_CANDIDATES[0]!;
 const FILE_EXISTS = fs.existsSync(IPHONE_FILE_PATH);
 const describeWithFile = FILE_EXISTS ? describe : describe.skip;
 

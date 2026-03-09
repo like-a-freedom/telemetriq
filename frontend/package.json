@@ -10,6 +10,7 @@
     "test": "bun vitest run",
     "test:watch": "bun vitest",
     "test:coverage": "vitest run --coverage",
+    "test:performance": "bun vitest run src/__tests__/videoProcessingPerformance.test.ts",
     "test:e2e": "playwright test",
     "lint": "eslint --max-warnings=0 \"src/**/*.{js,ts,vue}\"",
     "lint:fix": "eslint --max-warnings=0 \"src/**/*.{js,ts,vue}\" --fix",

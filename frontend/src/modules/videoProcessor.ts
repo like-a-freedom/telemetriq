@@ -1,4 +1,4 @@
-import type { TelemetryFrame, ExtendedOverlayConfig, ProcessingProgress, VideoMeta } from '../core/types';
+import type { TelemetryFrame, ExtendedOverlayConfig, ProcessingProgress, VideoMeta, VideoProcessingProfile } from '../core/types';
 import { ProcessingError } from '../core/errors';
 import { getTelemetryAtTime } from './telemetryCore';
 import { renderOverlay, DEFAULT_OVERLAY_CONFIG } from './overlayRenderer';
@@ -14,6 +14,8 @@ import {
 import { isCodecQueuePressureHigh, waitForCodecQueues } from './videoProcessingTypes';
 import type { DemuxedMedia, StreamingMuxSession } from './videoProcessingTypes';
 import { drawVideoFrameWithRotation } from './frameOrientation';
+import { createVideoProcessingProfiler } from './videoProcessingProfiler';
+import { getVideoProcessingDeviceProfile } from './browserCapabilities';
 
 export interface VideoProcessorOptions {
     videoFile: File;
@@ -22,6 +24,7 @@ export interface VideoProcessorOptions {
     syncOffsetSeconds: number;
     overlayConfig?: ExtendedOverlayConfig;
     onProgress?: (progress: ProcessingProgress) => void;
+    onProfile?: (profile: VideoProcessingProfile) => void;
     useFfmpegMux?: boolean;
 }
 
@@ -51,8 +54,6 @@ interface ProcessingState {
 }
 
 const STREAMING_MUX_FILE_SIZE_BYTES = 512 * 1024 * 1024; // 512 MB
-const MAX_IN_FLIGHT_FRAME_TASKS = 3;
-
 /**
  * Process a video file by decoding each frame, overlaying telemetry data,
  * and encoding back to an MP4 container.
@@ -65,6 +66,7 @@ export class VideoProcessor {
     private demuxer = createDemuxer();
     private muxer = createMuxer();
     private codecManager = createVideoCodecManager();
+    private activeProfiler = createVideoProcessingProfiler();
 
     constructor(options: VideoProcessorOptions) {
         this.options = options;
@@ -75,6 +77,8 @@ export class VideoProcessor {
      * Start processing the video.
      */
     async process(): Promise<Blob> {
+        this.activeProfiler = createVideoProcessingProfiler();
+
         if (typeof VideoDecoder === 'undefined' || typeof VideoEncoder === 'undefined') {
             throw new ProcessingError('WebCodecs API is not available in the current browser');
         }
@@ -86,7 +90,9 @@ export class VideoProcessor {
         onProgress?.({ phase: 'demuxing', percent: 0, framesProcessed: 0, totalFrames: 0 });
 
         const sourceFile = videoFile;
-        let demuxed = await this.demuxer.demuxWithFallback(sourceFile, onProgress);
+        let demuxed = await this.activeProfiler.measure('demuxing', async () => {
+            return await this.demuxer.demuxWithFallback(sourceFile, onProgress);
+        });
 
         demuxed = await this.ensureDecodableTrack(demuxed, sourceFile, videoMeta, onProgress);
         demuxed = await this.ensureKeyframes(demuxed, sourceFile, videoMeta, onProgress);
@@ -131,20 +137,25 @@ export class VideoProcessor {
                 onProgress?.({ phase: 'encoding', percent: 0, framesProcessed: 0, totalFrames: 0 });
 
                 // transcode with forced keyframes (same params as other recovery paths)
-                const transcodedFile = await transcodeWithForcedKeyframes(
-                    sourceFile,
-                    { fps: videoMeta.fps, duration: videoMeta.duration },
-                    {
-                        gopSize: Math.max(1, Math.round(videoMeta.fps)),
-                        onProgress: (percent) => onProgress?.({ phase: 'encoding', percent, framesProcessed: 0, totalFrames: 0 }),
-                    },
-                );
+                this.activeProfiler.incrementFallbackTranscodes();
+                const transcodedFile = await this.activeProfiler.measure('encoding', async () => {
+                    return await transcodeWithForcedKeyframes(
+                        sourceFile,
+                        { fps: videoMeta.fps, duration: videoMeta.duration },
+                        {
+                            gopSize: Math.max(1, Math.round(videoMeta.fps)),
+                            onProgress: (percent) => onProgress?.({ phase: 'encoding', percent, framesProcessed: 0, totalFrames: 0 }),
+                        },
+                    );
+                });
 
                 // Reset abort controller so retry can run (previous run aborted on error)
                 this.abortController = new AbortController();
 
                 // demux the newly transcoded file and re-run the standard validations
-                let recoveredDemux = await this.demuxer.demuxWithFallback(transcodedFile, onProgress);
+                let recoveredDemux = await this.activeProfiler.measure('demuxing', async () => {
+                    return await this.demuxer.demuxWithFallback(transcodedFile, onProgress);
+                });
                 recoveredDemux = await this.ensureDecodableTrack(recoveredDemux, transcodedFile, videoMeta, onProgress);
                 recoveredDemux = await this.ensureKeyframes(recoveredDemux, transcodedFile, videoMeta, onProgress);
 
@@ -153,6 +164,10 @@ export class VideoProcessor {
             }
 
             throw error;
+        }
+
+        finally {
+            this.activeProfiler = createVideoProcessingProfiler();
         }
     }
 
@@ -177,23 +192,28 @@ export class VideoProcessor {
         if (canDecode) return demuxed;
 
         onProgress?.({ phase: 'encoding', percent: 0, framesProcessed: 0, totalFrames: 0 });
-        const transcodedFile = await transcodeWithForcedKeyframes(
-            sourceFile,
-            { fps: videoMeta.fps, duration: videoMeta.duration },
-            {
-                gopSize: Math.max(1, Math.round(videoMeta.fps)),
-                onProgress: (percent) => {
-                    onProgress?.({
-                        phase: 'encoding',
-                        percent,
-                        framesProcessed: 0,
-                        totalFrames: 0,
-                    });
+        this.activeProfiler.incrementFallbackTranscodes();
+        const transcodedFile = await this.activeProfiler.measure('encoding', async () => {
+            return await transcodeWithForcedKeyframes(
+                sourceFile,
+                { fps: videoMeta.fps, duration: videoMeta.duration },
+                {
+                    gopSize: Math.max(1, Math.round(videoMeta.fps)),
+                    onProgress: (percent) => {
+                        onProgress?.({
+                            phase: 'encoding',
+                            percent,
+                            framesProcessed: 0,
+                            totalFrames: 0,
+                        });
+                    },
                 },
-            },
-        );
+            );
+        });
 
-        const result = await this.demuxer.demuxWithFallback(transcodedFile, onProgress);
+        const result = await this.activeProfiler.measure('demuxing', async () => {
+            return await this.demuxer.demuxWithFallback(transcodedFile, onProgress);
+        });
         const canDecodeTranscoded = await this.codecManager.isVideoTrackDecodable(
             result.videoTrack.codec,
             result.videoTrack.description,
@@ -227,23 +247,28 @@ export class VideoProcessor {
         if (firstKeyframeIndex !== -1) return demuxed;
 
         onProgress?.({ phase: 'encoding', percent: 0, framesProcessed: 0, totalFrames: 0 });
-        const transcodedFile = await transcodeWithForcedKeyframes(
-            sourceFile,
-            { fps: videoMeta.fps, duration: videoMeta.duration },
-            {
-                gopSize: Math.max(1, Math.round(videoMeta.fps)),
-                onProgress: (percent) => {
-                    onProgress?.({
-                        phase: 'encoding',
-                        percent,
-                        framesProcessed: 0,
-                        totalFrames: 0,
-                    });
+        this.activeProfiler.incrementFallbackTranscodes();
+        const transcodedFile = await this.activeProfiler.measure('encoding', async () => {
+            return await transcodeWithForcedKeyframes(
+                sourceFile,
+                { fps: videoMeta.fps, duration: videoMeta.duration },
+                {
+                    gopSize: Math.max(1, Math.round(videoMeta.fps)),
+                    onProgress: (percent) => {
+                        onProgress?.({
+                            phase: 'encoding',
+                            percent,
+                            framesProcessed: 0,
+                            totalFrames: 0,
+                        });
+                    },
                 },
-            },
-        );
+            );
+        });
 
-        const result = await this.demuxer.demuxWithFallback(transcodedFile, onProgress);
+        const result = await this.activeProfiler.measure('demuxing', async () => {
+            return await this.demuxer.demuxWithFallback(transcodedFile, onProgress);
+        });
         const newDetector = createKeyframeDetector(result.videoTrack.codec, result.videoTrack.description);
         const newFirstKeyframe = result.videoSamples.findIndex((sample) => newDetector(sample));
 
@@ -268,20 +293,38 @@ export class VideoProcessor {
     private async processFrames(params: ProcessFramesParams): Promise<Blob> {
         const canvas = this.createProcessingCanvas(params.videoMeta);
         const processingState = this.initializeProcessingState(params);
+        const processingProfile = getVideoProcessingDeviceProfile();
 
         await this.tryInitializeWebGPU();
 
         const { encoder, encodeMeta } = await this.setupEncoder(params, processingState);
         const { decoder, inFlightTasks } = this.setupDecoder(params, processingState, encoder, encodeMeta, canvas);
 
-        await this.decodeAllFrames(params, decoder, processingState, inFlightTasks, encoder);
+        await this.activeProfiler.measure('processing', async () => {
+            await this.decodeAllFrames(params, decoder, processingState, inFlightTasks, encoder, processingProfile);
+        });
 
         if (processingState.error) throw processingState.error;
         if (this.abortController.signal.aborted) {
             throw new ProcessingError('Processing was cancelled by the user');
         }
 
-        return await this.muxAndFinalize(params, processingState, encodeMeta);
+        const blob = await this.activeProfiler.measure('muxing', async () => {
+            return await this.muxAndFinalize(params, processingState, encodeMeta);
+        });
+        this.emitProfile(processingState.framesProcessed);
+        return blob;
+    }
+
+    private emitProfile(processedFrames: number): void {
+        if (!this.options.onProfile) return;
+
+        const profile = this.activeProfiler.finish({
+            processedFrames,
+            usedStreamingMux: this.options.videoFile.size >= STREAMING_MUX_FILE_SIZE_BYTES,
+        });
+
+        this.options.onProfile(profile);
     }
 
     private createProcessingCanvas(videoMeta: VideoMeta): OffscreenCanvas {
@@ -426,6 +469,7 @@ export class VideoProcessor {
         state: ProcessingState,
         inFlightTasks: { count: number },
         encoder: VideoEncoder,
+        processingProfile: { maxInFlightFrameTasks: number; codecQueueHighWatermark: number },
     ): Promise<void> {
         let framesProcessed = 0;
 
@@ -433,7 +477,7 @@ export class VideoProcessor {
             for (const sample of params.videoSamples) {
                 if (this.abortController.signal.aborted) break;
 
-                if (inFlightTasks.count >= MAX_IN_FLIGHT_FRAME_TASKS) {
+                if (inFlightTasks.count >= processingProfile.maxInFlightFrameTasks) {
                     await state.frameProcessingQueue;
                 }
 
@@ -442,8 +486,8 @@ export class VideoProcessor {
                 framesProcessed++;
                 params.reportProcessingProgress.report(framesProcessed);
 
-                if (isCodecQueuePressureHigh(decoder, encoder)) {
-                    await waitForCodecQueues(decoder, encoder, this.abortController.signal);
+                if (isCodecQueuePressureHigh(decoder, encoder, processingProfile.codecQueueHighWatermark)) {
+                    await waitForCodecQueues(decoder, encoder, this.abortController.signal, processingProfile.codecQueueHighWatermark);
                 }
             }
 
