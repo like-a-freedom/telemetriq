@@ -201,6 +201,11 @@ async function startProcessingFlow(): Promise<void> {
 onMounted(() => {
   checkWebGPUStatus();
 
+  if (processingStore.hasResult && !isE2E) {
+    goToResult();
+    return;
+  }
+
   if (!filesStore.isReady && !isE2E) {
     router.push("/");
     return;
