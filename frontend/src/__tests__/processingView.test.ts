@@ -9,10 +9,10 @@ vi.mock('vue-router', () => ({
     useRouter: () => ({ push }),
 }));
 
-vi.mock('../composables/useSeo', () => ({ useSeo: () => {} }));
+vi.mock('../composables/useSeo', () => ({ useSeo: () => { } }));
 vi.mock('../modules/videoProcessor', () => ({
     VideoProcessor: class MockVideoProcessor {
-        cancel(): void {}
+        cancel(): void { }
         async process(): Promise<Blob> {
             return new Blob([], { type: 'video/mp4' });
         }
@@ -20,7 +20,7 @@ vi.mock('../modules/videoProcessor', () => ({
 }));
 vi.mock('../modules/webgpu', () => ({
     getWebGPUStatus: () => ({ supported: false, enabled: false, available: false }),
-    toggleWebGPU: () => {},
+    toggleWebGPU: () => { },
 }));
 vi.mock('../modules/telemetryCore', () => ({
     buildTelemetryTimeline: () => [],
