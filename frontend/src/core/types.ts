@@ -40,10 +40,14 @@ export interface TelemetryFrame {
     distanceKm: number;
     /** Elevation in meters (if available) */
     elevationM?: number;
-    /** Elapsed time formatted (HH:MM:SS) */
+    /** Displayed elapsed time formatted (HH:MM:SS), typically based on moving time */
     elapsedTime: string;
-    /** Moving time in seconds */
+    /** Moving time in seconds - time actually spent moving */
     movingTimeSeconds: number;
+    /** Total elapsed seconds including pauses */
+    totalElapsedSeconds?: number;
+    /** Whether this frame is in a paused/stationary period */
+    isPaused?: boolean;
 }
 
 // ── Overlay configuration types ──────────────────────────────────────────

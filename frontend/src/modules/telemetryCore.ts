@@ -19,6 +19,10 @@ const MOVING_SPEED_THRESHOLD = 1.0;
 const PACE_WINDOW_MIN_DISTANCE_KM = 0.006; // 6 meters - filters GPS noise, keeps responsiveness
 const PACE_WINDOW_MIN_SECONDS = 3; // 3 seconds - slightly larger window for stability
 const PACE_WINDOW_MAX_SECONDS = 300;
+const MIN_DISTANCE_FOR_PROGRESS_KM = 0.00001; // ~1 meter - filter GPS noise
+const PAUSE_WINDOW_POINTS = 4;
+const PAUSE_CLUSTER_DIAMETER_KM = 0.006; // ~6m cluster diameter
+const PAUSE_NET_DISPLACEMENT_KM = 0.003; // ~3m drift across the window
 
 
 
@@ -58,7 +62,10 @@ export function haversineDistance(
  * Calculate cumulative distances for an array of track points.
  * Returns an array of cumulative distances in km (same length as points).
  */
-export function calculateCumulativeDistances(points: TrackPoint[]): number[] {
+export function calculateCumulativeDistances(
+    points: TrackPoint[],
+    isStationary?: (index: number) => boolean,
+): number[] {
     if (points.length === 0) return [];
 
     const distances: number[] = [0];
@@ -66,7 +73,18 @@ export function calculateCumulativeDistances(points: TrackPoint[]): number[] {
     for (let i = 1; i < points.length; i++) {
         const prev = points[i - 1]!;
         const curr = points[i]!;
-        const segmentDist = haversineDistance(prev.lat, prev.lon, curr.lat, curr.lon);
+        let segmentDist = haversineDistance(prev.lat, prev.lon, curr.lat, curr.lon);
+
+        // If we have stationary detection and this is a stationary point,
+        // don't accumulate distance from GPS noise
+        if (isStationary && isStationary(i)) {
+            segmentDist = 0;
+        }
+        // Also filter out tiny movements that are likely GPS noise
+        else if (segmentDist < MIN_DISTANCE_FOR_PROGRESS_KM) {
+            segmentDist = 0;
+        }
+
         distances.push(distances[i - 1]! + segmentDist);
     }
 
@@ -169,7 +187,10 @@ function interpolateOptionalValue(
  * and edge extrapolation using nearest known pace.
  * Applies light median filtering to smooth GPS noise while preserving real speed changes.
  */
-function fillMissingPaceValues(values: Array<number | undefined>): Array<number | undefined> {
+function fillMissingPaceValues(
+    values: Array<number | undefined>,
+    pausedPoints: boolean[],
+): Array<number | undefined> {
     if (values.length === 0) return values;
 
     const result = [...values];
@@ -180,7 +201,7 @@ function fillMissingPaceValues(values: Array<number | undefined>): Array<number 
     }
 
     extrapolateLeadingValues(result, validIndices);
-    interpolateGapValues(result, validIndices);
+    interpolateGapValues(result, validIndices, pausedPoints);
     extrapolateTrailingValues(result, validIndices);
 
     // Apply median filter (window size 7) to smooth GPS noise
@@ -249,6 +270,7 @@ function extrapolateLeadingValues(
 function interpolateGapValues(
     result: Array<number | undefined>,
     validIndices: number[],
+    pausedPoints: boolean[],
 ): void {
     for (let k = 0; k < validIndices.length - 1; k++) {
         const left = validIndices[k]!;
@@ -256,11 +278,27 @@ function interpolateGapValues(
         const leftValue = result[left]!;
         const rightValue = result[right]!;
 
+        if (gapContainsPausedPoint(pausedPoints, left, right)) {
+            for (let i = left + 1; i < right; i++) {
+                result[i] = leftValue;
+            }
+            continue;
+        }
+
         for (let i = left + 1; i < right; i++) {
             const t = (i - left) / (right - left);
             result[i] = lerp(leftValue, rightValue, t);
         }
     }
+}
+
+function gapContainsPausedPoint(pausedPoints: boolean[], left: number, right: number): boolean {
+    for (let i = left + 1; i < right; i++) {
+        if (pausedPoints[i]) {
+            return true;
+        }
+    }
+    return false;
 }
 
 function extrapolateTrailingValues(
@@ -293,6 +331,7 @@ function extrapolateTrailingValues(
 function estimateRollingPaceAtIndex(
     points: TrackPoint[],
     distances: number[],
+    pausedPoints: boolean[],
     index: number,
 ): number | undefined {
     const point = points[index];
@@ -302,16 +341,17 @@ function estimateRollingPaceAtIndex(
     const currDistKm = distances[index]!;
 
     // Primary: backward window (past points) - most stable
-    const backwardPace = findPaceInBackwardWindow(points, distances, index, currTimeMs, currDistKm);
+    const backwardPace = findPaceInBackwardWindow(points, distances, pausedPoints, index, currTimeMs, currDistKm);
     if (backwardPace !== undefined) return backwardPace;
 
     // Fallback: forward window when at track start or after gaps
-    return findPaceInForwardWindow(points, distances, index, currTimeMs, currDistKm);
+    return findPaceInForwardWindow(points, distances, pausedPoints, index, currTimeMs, currDistKm);
 }
 
 function findPaceInBackwardWindow(
     points: TrackPoint[],
     distances: number[],
+    pausedPoints: boolean[],
     index: number,
     currTimeMs: number,
     currDistKm: number,
@@ -319,6 +359,8 @@ function findPaceInBackwardWindow(
     const maxGapMs = MAX_CONSECUTIVE_GAP_SECONDS * 1000;
 
     for (let j = index - 1; j >= 0; j--) {
+        if (crossesPauseBoundary(pausedPoints, j, j + 1)) break;
+
         // Don't span across large gaps between consecutive GPX points.
         const gapMs = points[j + 1]!.time.getTime() - points[j]!.time.getTime();
         if (gapMs > maxGapMs) break;
@@ -340,6 +382,7 @@ function findPaceInBackwardWindow(
 function findPaceInForwardWindow(
     points: TrackPoint[],
     distances: number[],
+    pausedPoints: boolean[],
     index: number,
     currTimeMs: number,
     currDistKm: number,
@@ -347,6 +390,8 @@ function findPaceInForwardWindow(
     const maxGapMs = MAX_CONSECUTIVE_GAP_SECONDS * 1000;
 
     for (let j = index + 1; j < points.length; j++) {
+        if (crossesPauseBoundary(pausedPoints, j - 1, j)) break;
+
         // Don't span across large gaps between consecutive GPX points.
         const gapMs = points[j]!.time.getTime() - points[j - 1]!.time.getTime();
         if (gapMs > maxGapMs) break;
@@ -377,11 +422,13 @@ function findPaceInForwardWindow(
 export function buildTelemetryTimeline(points: TrackPoint[]): TelemetryFrame[] {
     if (points.length === 0) return [];
 
-    const distances = calculateCumulativeDistances(points);
+    const pausedPoints = detectPausedPoints(points);
+    const distances = calculateCumulativeDistances(points, (index) => pausedPoints[index]!);
     const startTime = points[0]!.time.getTime();
 
-    const frames = buildRawFrames(points, distances, startTime);
-    const smoothedPaceValues = fillMissingPaceValues(frames.map((frame) => frame.paceSecondsPerKm));
+    const frames = buildRawFrames(points, distances, pausedPoints, startTime);
+    const rawPaceValues = points.map((_, index) => estimateRollingPaceAtIndex(points, distances, pausedPoints, index));
+    const smoothedPaceValues = fillMissingPaceValues(rawPaceValues, pausedPoints);
 
     return applySmoothedPaceValues(frames, smoothedPaceValues);
 }
@@ -389,6 +436,7 @@ export function buildTelemetryTimeline(points: TrackPoint[]): TelemetryFrame[] {
 function buildRawFrames(
     points: TrackPoint[],
     distances: number[],
+    pausedPoints: boolean[],
     startTime: number,
 ): TelemetryFrame[] {
     const frames: TelemetryFrame[] = [];
@@ -397,46 +445,86 @@ function buildRawFrames(
     for (let i = 0; i < points.length; i++) {
         const point = points[i]!;
         const timeOffset = (point.time.getTime() - startTime) / 1000;
+        const isPaused = pausedPoints[i]!;
 
-        const { pace, updatedMovingTimeMs } = processTrackPoint(
-            points,
-            distances,
-            i,
+        if (i > 0) {
+            movingTimeMs = updateMovingTime(
+                movingTimeMs,
+                point,
+                points[i - 1]!,
+                distances[i]!,
+                distances[i - 1]!,
+                isPaused,
+            );
+        }
+
+        frames.push(createTelemetryFrame(
+            point,
+            timeOffset,
+            distances[i]!,
             movingTimeMs,
-        );
-        movingTimeMs = updatedMovingTimeMs;
-
-        frames.push(createTelemetryFrame(point, timeOffset, pace, distances[i]!, movingTimeMs));
+            timeOffset,
+            isPaused,
+        ));
     }
 
     return frames;
 }
 
-function processTrackPoint(
-    points: TrackPoint[],
-    distances: number[],
-    index: number,
-    currentMovingTimeMs: number,
-): { pace: number | undefined; updatedMovingTimeMs: number } {
-    if (index === 0) {
-        return { pace: undefined, updatedMovingTimeMs: currentMovingTimeMs };
+function detectPausedPoints(points: TrackPoint[]): boolean[] {
+    const pausedPoints = new Array(points.length).fill(false);
+
+    if (points.length < PAUSE_WINDOW_POINTS) {
+        return pausedPoints;
     }
 
-    const point = points[index]!;
-    const prevPoint = points[index - 1]!;
-    const currDist = distances[index]!;
-    const prevDist = distances[index - 1]!;
+    for (let end = PAUSE_WINDOW_POINTS - 1; end < points.length; end++) {
+        const start = end - (PAUSE_WINDOW_POINTS - 1);
 
-    const pace = estimateRollingPaceAtIndex(points, distances, index);
-    const updatedMovingTimeMs = updateMovingTime(
-        currentMovingTimeMs,
-        point,
-        prevPoint,
-        currDist,
-        prevDist,
-    );
+        if (!isStationaryWindow(points, start, end)) {
+            continue;
+        }
 
-    return { pace, updatedMovingTimeMs };
+        for (let i = start + 1; i <= end; i++) {
+            pausedPoints[i] = true;
+        }
+    }
+
+    return pausedPoints;
+}
+
+function isStationaryWindow(points: TrackPoint[], start: number, end: number): boolean {
+    const startPoint = points[start]!;
+    const endPoint = points[end]!;
+    const netDisplacementKm = haversineDistance(startPoint.lat, startPoint.lon, endPoint.lat, endPoint.lon);
+
+    if (netDisplacementKm > PAUSE_NET_DISPLACEMENT_KM) {
+        return false;
+    }
+
+    for (let i = start; i < end; i++) {
+        const leftPoint = points[i]!;
+
+        for (let j = i + 1; j <= end; j++) {
+            const rightPoint = points[j]!;
+            const displacementKm = haversineDistance(
+                leftPoint.lat,
+                leftPoint.lon,
+                rightPoint.lat,
+                rightPoint.lon,
+            );
+
+            if (displacementKm > PAUSE_CLUSTER_DIAMETER_KM) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+function crossesPauseBoundary(pausedPoints: boolean[], leftIndex: number, rightIndex: number): boolean {
+    return Boolean(pausedPoints[leftIndex] || pausedPoints[rightIndex]);
 }
 
 function updateMovingTime(
@@ -445,14 +533,21 @@ function updateMovingTime(
     prevPoint: TrackPoint,
     currDist: number,
     prevDist: number,
+    isPaused: boolean,
 ): number {
+    if (isPaused) {
+        return currentMovingTimeMs;
+    }
+
     const segmentDist = currDist - prevDist;
     const segmentTime = (point.time.getTime() - prevPoint.time.getTime()) / 1000;
 
-    if (segmentTime > 0) {
+    // Use BOTH speed AND minimum distance threshold to avoid GPS noise
+    // Minimum ~1 meter movement to count as "moving"
+    if (segmentTime > 0 && segmentDist > MIN_DISTANCE_FOR_PROGRESS_KM) {
         const speedKmh = (segmentDist / segmentTime) * 3600;
         if (speedKmh >= MOVING_SPEED_THRESHOLD) {
-            return currentMovingTimeMs + point.time.getTime() - prevPoint.time.getTime();
+            return currentMovingTimeMs + (point.time.getTime() - prevPoint.time.getTime());
         }
     }
 
@@ -462,18 +557,23 @@ function updateMovingTime(
 function createTelemetryFrame(
     point: TrackPoint,
     timeOffset: number,
-    pace: number | undefined,
     distanceKm: number,
     movingTimeMs: number,
+    totalElapsedSeconds: number,
+    isPaused: boolean,
 ): TelemetryFrame {
+    const movingTimeSeconds = movingTimeMs / 1000;
+
     return {
         timeOffset,
         hr: point.hr,
-        paceSecondsPerKm: pace,
+        paceSecondsPerKm: undefined,
         distanceKm,
         elevationM: point.ele,
-        elapsedTime: formatElapsedTime(timeOffset),
-        movingTimeSeconds: movingTimeMs / 1000,
+        elapsedTime: formatElapsedTime(movingTimeSeconds),
+        movingTimeSeconds,
+        totalElapsedSeconds,
+        isPaused,
     };
 }
 
@@ -574,14 +674,23 @@ function createInterpolatedFrame(
 ): TelemetryFrame {
     if (t === 0) return beforeFrame;
 
+    const movingTimeSeconds = lerp(beforeFrame.movingTimeSeconds, afterFrame.movingTimeSeconds, t);
+    const totalElapsedSeconds =
+        beforeFrame.totalElapsedSeconds !== undefined && afterFrame.totalElapsedSeconds !== undefined
+            ? lerp(beforeFrame.totalElapsedSeconds, afterFrame.totalElapsedSeconds, t)
+            : gpxTime;
+    const isPaused = Boolean(beforeFrame.isPaused && afterFrame.isPaused);
+
     return {
         timeOffset: gpxTime,
         hr: interpolateHeartRate(beforeFrame, afterFrame, t),
         paceSecondsPerKm: interpolatePace(allFrames, gpxTime),
         distanceKm: lerp(beforeFrame.distanceKm, afterFrame.distanceKm, t),
         elevationM: interpolateElevation(beforeFrame, afterFrame, t),
-        elapsedTime: formatElapsedTime(gpxTime),
-        movingTimeSeconds: lerp(beforeFrame.movingTimeSeconds, afterFrame.movingTimeSeconds, t),
+        elapsedTime: formatElapsedTime(movingTimeSeconds),
+        movingTimeSeconds,
+        totalElapsedSeconds,
+        isPaused,
     };
 }
 
