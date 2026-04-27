@@ -289,6 +289,52 @@ describe('Telemetry Core', () => {
             expect(timeline[6]!.movingTimeSeconds).toBeGreaterThan(timeline[5]!.movingTimeSeconds);
         });
 
+        it('should treat clustered GPS jitter as a pause for pace, distance, and displayed time', () => {
+            const t0 = new Date('2024-01-15T10:00:00Z').getTime();
+            const points = [
+                makePoint(55.00000, 37.0000, new Date(t0).toISOString()),
+                makePoint(55.00003, 37.0000, new Date(t0 + 1000).toISOString()),
+                makePoint(55.00006, 37.0000, new Date(t0 + 2000).toISOString()),
+                makePoint(55.00009, 37.0000, new Date(t0 + 3000).toISOString()),
+                makePoint(55.00012, 37.0000, new Date(t0 + 4000).toISOString()),
+                // Paused cluster with 2-3m jitter around the same spot.
+                makePoint(55.000135, 37.0000, new Date(t0 + 5000).toISOString()),
+                makePoint(55.000110, 37.0000, new Date(t0 + 6000).toISOString()),
+                makePoint(55.000136, 37.0000, new Date(t0 + 7000).toISOString()),
+                makePoint(55.000123, 37.0000, new Date(t0 + 8000).toISOString()),
+                // Resume running.
+                makePoint(55.000150, 37.0000, new Date(t0 + 9000).toISOString()),
+                makePoint(55.000180, 37.0000, new Date(t0 + 10000).toISOString()),
+                makePoint(55.000210, 37.0000, new Date(t0 + 11000).toISOString()),
+                makePoint(55.000240, 37.0000, new Date(t0 + 12000).toISOString()),
+            ];
+
+            const timeline = buildTelemetryTimeline(points);
+            const beforePause = timeline[4]!;
+
+            expect(beforePause.paceSecondsPerKm).toBeDefined();
+            expect(beforePause.totalElapsedSeconds).toBeDefined();
+            const beforePauseTotalElapsedSeconds = beforePause.totalElapsedSeconds!;
+
+            for (const pausedIndex of [5, 6, 7, 8]) {
+                expect(timeline[pausedIndex]!.isPaused).toBe(true);
+                expect(timeline[pausedIndex]!.distanceKm).toBeCloseTo(beforePause.distanceKm, 5);
+                expect(timeline[pausedIndex]!.movingTimeSeconds).toBeCloseTo(beforePause.movingTimeSeconds, 5);
+                expect(timeline[pausedIndex]!.elapsedTime).toBe(beforePause.elapsedTime);
+                expect(timeline[pausedIndex]!.totalElapsedSeconds).toBeGreaterThan(beforePauseTotalElapsedSeconds);
+                expect(timeline[pausedIndex]!.paceSecondsPerKm).toBeCloseTo(beforePause.paceSecondsPerKm!, 5);
+            }
+
+            const afterResume = timeline[11]!;
+            expect(afterResume.isPaused).toBe(false);
+            expect(afterResume.distanceKm).toBeGreaterThan(beforePause.distanceKm);
+            expect(afterResume.movingTimeSeconds).toBeGreaterThan(beforePause.movingTimeSeconds);
+            expect(afterResume.elapsedTime).not.toBe(beforePause.elapsedTime);
+            expect(afterResume.paceSecondsPerKm).toBeDefined();
+            expect(afterResume.paceSecondsPerKm!).toBeLessThan(720);
+            expect(afterResume.paceSecondsPerKm!).toBeGreaterThan(120);
+        });
+
         it('should propagate elevation from GPX points into telemetry frames', () => {
             const points = [
                 makePointWithElevation(55.7558, 37.6173, '2024-01-15T10:00:00Z', 120, 140),
