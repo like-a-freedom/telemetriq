@@ -66,8 +66,11 @@ const originalVideoEncoder = globalThis.VideoEncoder;
 const originalVideoFrame = globalThis.VideoFrame;
 const originalEncodedVideoChunk = globalThis.EncodedVideoChunk;
 const originalOffscreenCanvas = globalThis.OffscreenCanvas;
+let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
+    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+
     (globalThis as any).VideoDecoder = class {
         static isConfigSupported = vi.fn().mockResolvedValue({ supported: true });
         state = 'unconfigured';
@@ -137,6 +140,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    consoleWarnSpy.mockRestore();
     globalThis.VideoDecoder = originalVideoDecoder;
     globalThis.VideoEncoder = originalVideoEncoder;
     globalThis.VideoFrame = originalVideoFrame;

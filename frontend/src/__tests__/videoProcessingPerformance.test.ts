@@ -46,6 +46,8 @@ type StubContext = {
 };
 
 const originalOffscreenCanvas = (globalThis as { OffscreenCanvas?: unknown }).OffscreenCanvas;
+let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+let consoleInfoSpy: ReturnType<typeof vi.spyOn>;
 
 const fakeGradient = {
     addColorStop: vi.fn(),
@@ -114,10 +116,14 @@ function createBenchmarkFrame(index: number): TelemetryFrame {
 
 describe('video processing performance harness', () => {
     beforeEach(() => {
+        consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+        consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => { });
         (globalThis as { OffscreenCanvas?: unknown }).OffscreenCanvas = FakeOffscreenCanvas;
     });
 
     afterEach(() => {
+        consoleWarnSpy.mockRestore();
+        consoleInfoSpy.mockRestore();
         (globalThis as { OffscreenCanvas?: unknown }).OffscreenCanvas = originalOffscreenCanvas;
     });
 

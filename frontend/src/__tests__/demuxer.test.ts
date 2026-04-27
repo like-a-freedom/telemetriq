@@ -1,7 +1,7 @@
 /**
  * Unit tests for demuxer module.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createDemuxer } from '../modules/demuxer';
 import * as ffmpegUtils from '../modules/ffmpegUtils';
 import { ProcessingError } from '../core/errors';
@@ -36,10 +36,16 @@ vi.mock('mediabunny', () => {
 
 describe('demuxer', () => {
     let demuxer: ReturnType<typeof createDemuxer>;
+    let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
+        consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
         demuxer = createDemuxer();
         vi.clearAllMocks();
+    });
+
+    afterEach(() => {
+        consoleWarnSpy.mockRestore();
     });
 
     describe('demux', () => {

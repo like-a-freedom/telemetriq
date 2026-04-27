@@ -1,7 +1,7 @@
 /**
  * Unit tests for ffmpeg utilities with dependency injection boundaries.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
     probeFfmpegCore,
     loadFfmpegCore,
@@ -28,6 +28,19 @@ function createFfmpegMock() {
 }
 
 describe('ffmpeg-utils', () => {
+    let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+    let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+        consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+        consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+    });
+
+    afterEach(() => {
+        consoleWarnSpy.mockRestore();
+        consoleErrorSpy.mockRestore();
+    });
+
     it('probeFfmpegCore should collect diagnostics on success', async () => {
         const fetchFn = vi.fn()
             .mockResolvedValueOnce({
