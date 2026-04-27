@@ -217,7 +217,7 @@ describe('VideoProcessor', () => {
         // make codec manager return a decoder that fails on the first run and succeeds on retry
         const codecModule = await import('../modules/videoCodecManager');
         let createDecoderCall = 0;
-        (codecModule.createVideoCodecManager as vi.Mock).mockImplementation(() => ({
+        vi.mocked(codecModule.createVideoCodecManager).mockImplementation(() => ({
             createDecoder: (codec: string, description: any, onFrame: any, onError: any) => {
                 createDecoderCall++;
                 if (createDecoderCall === 1) {
@@ -246,7 +246,7 @@ describe('VideoProcessor', () => {
                 },
                 encodeMeta: { width: 1920, height: 1080, fps: 30, duration: 10, codec: 'avc1.640028', fileName: 'test.mp4', fileSize: 1000 },
             }),
-        }));
+        } as any));
 
         const file = new File([], 'test.mp4');
         const processor = new VideoProcessor({
