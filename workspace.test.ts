@@ -1,3 +1,5 @@
+/// <reference path="./bun.d.ts" />
+
 import { expect, test } from 'bun:test';
 
 test('frontend Vitest suite passes', () => {
