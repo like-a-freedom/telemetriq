@@ -65,6 +65,11 @@ export default defineConfig({
       '**/e2e/**',
       '**/e2e',
     ],
+    onConsoleLog(log, type) {
+      if (type === 'stderr' && log.includes('--localstorage-file')) {
+        return false;
+      }
+    },
     coverage: {
       provider: 'v8',
       exclude: [],

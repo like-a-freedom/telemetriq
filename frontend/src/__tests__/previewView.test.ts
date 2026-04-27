@@ -5,6 +5,7 @@ import { setActivePinia, createPinia } from 'pinia';
 
 // mock useSeo (useHead) to avoid head injection in unit tests
 vi.mock('../composables/useSeo', () => ({ useSeo: () => { } }));
+vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 import PreviewView from '../views/PreviewView.vue';
 import { useFilesStore } from '../stores/filesStore';
