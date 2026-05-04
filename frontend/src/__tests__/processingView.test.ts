@@ -1,75 +1,83 @@
 /// <reference path="../../env.d.ts" />
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
-import { createPinia, setActivePinia } from 'pinia';
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mount, flushPromises } from "@vue/test-utils";
+import { createPinia, setActivePinia } from "pinia";
 
 const push = vi.fn();
 
-vi.mock('vue-router', () => ({
-    useRouter: () => ({ push }),
+vi.mock("vue-router", () => ({
+  useRouter: () => ({ push }),
 }));
 
-vi.mock('../composables/useSeo', () => ({ useSeo: () => { } }));
-vi.mock('../modules/videoProcessor', () => ({
-    VideoProcessor: class MockVideoProcessor {
-        cancel(): void { }
-        async process(): Promise<Blob> {
-            return new Blob([], { type: 'video/mp4' });
-        }
-    },
+vi.mock("../composables/useSeo", () => ({ useSeo: () => {} }));
+vi.mock("../modules/videoProcessor", () => ({
+  VideoProcessor: class MockVideoProcessor {
+    cancel(): void {}
+    async process(): Promise<Blob> {
+      return new Blob([], { type: "video/mp4" });
+    }
+  },
 }));
-vi.mock('../modules/webgpu', () => ({
-    getWebGPUStatus: () => ({ supported: false, enabled: false, available: false }),
-    toggleWebGPU: () => { },
+vi.mock("../modules/webgpu", () => ({
+  getWebGPUStatus: () => ({
+    supported: false,
+    enabled: false,
+    available: false,
+  }),
+  toggleWebGPU: () => {},
 }));
-vi.mock('../modules/telemetryCore', () => ({
-    buildTelemetryTimeline: () => [],
+vi.mock("../modules/telemetryCore", () => ({
+  buildTelemetryTimeline: () => [],
 }));
 
-import ProcessingView from '../views/ProcessingView.vue';
-import { useFilesStore } from '../stores/filesStore';
-import { useProcessingStore } from '../stores/processingStore';
+import ProcessingView from "../views/ProcessingView.vue";
+import { useFilesStore } from "../stores/filesStore";
+import { useProcessingStore } from "../stores/processingStore";
 
-describe('ProcessingView recovery flow', () => {
-    beforeEach(() => {
-        push.mockReset();
-        setActivePinia(createPinia());
+describe("ProcessingView recovery flow", () => {
+  beforeEach(() => {
+    push.mockReset();
+    setActivePinia(createPinia());
+  });
+
+  it("redirects to result instead of upload when a processed result was restored after reload", () => {
+    const filesStore = useFilesStore();
+    filesStore.reset();
+
+    const processingStore = useProcessingStore();
+    processingStore.setResult(
+      new Blob(["processed-video"], { type: "video/mp4" }),
+    );
+
+    mount(ProcessingView, {
+      global: {
+        stubs: {
+          ProgressBar: true,
+        },
+      },
     });
 
-    it('redirects to result instead of upload when a processed result was restored after reload', () => {
-        const filesStore = useFilesStore();
-        filesStore.reset();
+    expect(push).toHaveBeenCalledWith("/result");
+    expect(push).not.toHaveBeenCalledWith("/");
+  });
 
-        const processingStore = useProcessingStore();
-        processingStore.setResult(new Blob(['processed-video'], { type: 'video/mp4' }));
+  it("still redirects to upload when neither source files nor processed result exist", async () => {
+    const filesStore = useFilesStore();
+    filesStore.reset();
 
-        mount(ProcessingView, {
-            global: {
-                stubs: {
-                    ProgressBar: true,
-                },
-            },
-        });
+    const processingStore = useProcessingStore();
+    processingStore.reset();
 
-        expect(push).toHaveBeenCalledWith('/result');
-        expect(push).not.toHaveBeenCalledWith('/');
+    mount(ProcessingView, {
+      global: {
+        stubs: {
+          ProgressBar: true,
+        },
+      },
     });
 
-    it('still redirects to upload when neither source files nor processed result exist', () => {
-        const filesStore = useFilesStore();
-        filesStore.reset();
+    await flushPromises();
 
-        const processingStore = useProcessingStore();
-        processingStore.reset();
-
-        mount(ProcessingView, {
-            global: {
-                stubs: {
-                    ProgressBar: true,
-                },
-            },
-        });
-
-        expect(push).toHaveBeenCalledWith('/');
-    });
+    expect(push).toHaveBeenCalledWith("/");
+  });
 });

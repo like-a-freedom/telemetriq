@@ -92,23 +92,58 @@ const showInlinePreview = computed(
   () => Boolean(processingStore.resultUrl) && !avoidInlinePreview
 );
 
-onMounted(() => {
+onMounted(async () => {
+  // Restore persisted result if navigating directly to result page
+  if (!processingStore.hasResult) {
+    await processingStore.restorePersistedResult();
+  }
   if (!processingStore.hasResult) {
     router.push("/");
   }
 });
 
-function downloadResult(): void {
-  if (!processingStore.resultUrl) return;
+async function downloadResult(): Promise<void> {
+  if (!processingStore.resultBlob) return;
 
   const originalName = filesStore.videoMeta?.fileName ?? "video";
   const baseName = originalName.replace(/\.[^.]+$/, "");
   const fileName = `${baseName}_overlay.mp4`;
 
-  const a = document.createElement("a");
-  a.href = processingStore.resultUrl;
+  const blob = processingStore.resultBlob;
+
+  // iOS Safari workaround: use showSaveFilePicker if available,
+  // otherwise fall back to link click for blob URLs
+  if ('showSaveFilePicker' in window) {
+    try {
+      const handle = await (window as any).showSaveFilePicker({
+        suggestedName: fileName,
+        types: [
+          {
+            description: 'MP4 Video',
+            accept: { 'video/mp4': ['.mp4'] },
+          },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    } catch (err) {
+      // User cancelled or API not supported, fall through to link click
+      if ((err as Error).name === 'AbortError') return;
+    }
+  }
+
+  // Fallback: create blob URL and trigger download via link click
+  const resultUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = resultUrl;
   a.download = fileName;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
+  // Revoke after a short delay to allow download to start
+  setTimeout(() => URL.revokeObjectURL(resultUrl), 1000);
 }
 
 function startOver(): void {
