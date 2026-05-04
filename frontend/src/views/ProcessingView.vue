@@ -198,8 +198,13 @@ async function startProcessingFlow(): Promise<void> {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   checkWebGPUStatus();
+
+  // Restore persisted result — user might have refreshed after processing completed
+  if (!processingStore.hasResult) {
+    await processingStore.restorePersistedResult();
+  }
 
   if (processingStore.hasResult && !isE2E) {
     goToResult();
