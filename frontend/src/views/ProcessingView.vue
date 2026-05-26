@@ -218,11 +218,16 @@ function onVisibilityChange(): void {
   pageVisible.value = !document.hidden;
 }
 
-onMounted(() => {
+onMounted(async () => {
   document.addEventListener("visibilitychange", onVisibilityChange);
   wakeLock.ensureVisibilityListener();
 
   checkWebGPUStatus();
+
+  // Restore persisted result — user might have refreshed after processing completed
+  if (!processingStore.hasResult) {
+    await processingStore.restorePersistedResult();
+  }
 
   if (processingStore.hasResult && !isE2E) {
     if (filesStore.isReady) {
