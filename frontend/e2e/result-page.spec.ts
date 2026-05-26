@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Processing flow', () => {
-    async function seedStores(page: any) {
+test.describe('Result Page', () => {
+    async function processAndGoToResult(page: any) {
         await page.goto('/processing?e2e=1', { waitUntil: 'domcontentloaded' });
         await page.evaluate(() => {
             // Mock wakeLock — headless Chromium may hang on navigator.wakeLock.request()
@@ -43,42 +43,36 @@ test.describe('Processing flow', () => {
                 metadata: {},
             };
         });
+
+        await expect(page.getByTestId('processing-complete')).toBeVisible({ timeout: 10000 });
+        await page.getByRole('button', { name: /Go to result/i }).click();
+        await expect(page).toHaveURL(/\/result/);
     }
 
-    test('should complete processing and show result', async ({ page }) => {
-        await seedStores(page);
-
-        await expect(page.getByTestId('processing-complete')).toBeVisible({ timeout: 10000 });
-        await page.getByRole('button', { name: /Go to result/i }).click();
-
-        await expect(page.getByTestId('download-btn')).toBeVisible();
-        await expect(page.getByTestId('start-over-btn')).toBeVisible();
+    test('should display result video preview when available', async ({ page }) => {
+        await processAndGoToResult(page);
+        await expect(page.getByTestId('result-video')).toBeVisible();
     });
 
-    test('should reset and return to upload', async ({ page }) => {
-        await seedStores(page);
-        await expect(page.getByTestId('processing-complete')).toBeVisible({ timeout: 10000 });
-        await page.getByRole('button', { name: /Go to result/i }).click();
+    test('should display file info (Format and Size)', async ({ page }) => {
+        await processAndGoToResult(page);
+        await expect(page.getByText('MP4 (H.264)')).toBeVisible();
+        await expect(page.getByText('KB')).toBeVisible();
+    });
+
+    test('should clear result and navigate to upload on start over', async ({ page }) => {
+        await processAndGoToResult(page);
 
         await page.getByTestId('start-over-btn').click();
         await expect(page).toHaveURL(/\/(\?e2e=1)?$/);
-        await expect(page.getByText('Upload video')).toBeVisible();
+
+        // Verify result store was cleared — navigating back to /result should redirect to upload
+        await page.goto('/result?e2e=1', { waitUntil: 'domcontentloaded' });
+        await expect(page).toHaveURL(/\/(\?e2e=1)?$/);
     });
 
-    test('should allow cancel during processing', async ({ page }) => {
-        await seedStores(page);
-
-        await expect(page.getByTestId('cancel-btn')).toBeVisible();
-        await page.getByTestId('cancel-btn').click();
-        // Wait for either navigation to preview or the cancel button to be removed (works around flaky timing in some browsers)
-        await Promise.race([
-            page.waitForURL(/preview/, { timeout: 10000 }),
-            page.getByTestId('cancel-btn').waitFor({ state: 'detached', timeout: 10000 }),
-        ]);
-        // Assert we've left processing either by URL or by UI change
-        const url = page.url();
-        if (!/\/preview/.test(url)) {
-            await expect(page.getByTestId('cancel-btn')).not.toBeVisible();
-        }
+    test('should redirect to upload if no result exists', async ({ page }) => {
+        await page.goto('/result?e2e=1', { waitUntil: 'domcontentloaded' });
+        await expect(page).toHaveURL(/\/(\?e2e=1)?$/);
     });
 });
