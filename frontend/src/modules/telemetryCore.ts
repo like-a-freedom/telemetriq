@@ -6,19 +6,6 @@ const EARTH_RADIUS_KM = 6371;
 /** Minimum speed threshold (km/h) to consider "moving" */
 const MOVING_SPEED_THRESHOLD = 1.0;
 
-/** Pace estimation parameters - tuned for responsive yet stable display
- *
- * PACE_WINDOW_MIN_SECONDS = 2 (reduced from 3s) makes pace respond faster to speed changes
- * while PACE_WINDOW_MIN_DISTANCE_KM = 0.006 (6m) provides enough smoothing to prevent
- * GPS noise from causing ±1 min/km jitter during steady running.
- *
- * The 6m distance threshold filters out typical GPS noise (~3-5m) while 2s time threshold
- * ensures quick response to actual speed changes. This gives responsive feel (2-3s reaction)
- * without the "jitter" problem where pace oscillates 6→8 min/km during steady pace.
- */
-const PACE_WINDOW_MIN_DISTANCE_KM = 0.006; // 6 meters - filters GPS noise, keeps responsiveness
-const PACE_WINDOW_MIN_SECONDS = 3; // 3 seconds - slightly larger window for stability
-const PACE_WINDOW_MAX_SECONDS = 300;
 const MIN_DISTANCE_FOR_PROGRESS_KM = 0.00001; // ~1 meter - filter GPS noise
 const PAUSE_WINDOW_POINTS = 4;
 const PAUSE_CLUSTER_DIAMETER_KM = 0.006; // ~6m cluster diameter
@@ -34,6 +21,12 @@ const PAUSE_NET_DISPLACEMENT_KM = 0.003; // ~3m drift across the window
  * Computing pace across such gaps produces artificially slow values.
  */
 const MAX_CONSECUTIVE_GAP_SECONDS = 5;
+
+/** Number of recent segments to sample for median-speed pace calculation */
+const MEDIAN_SPEED_WINDOW = 5;
+
+/** Max plausible running speed (m/s) — ~43 km/h, generous for any amateur athlete */
+const MAX_PLAUSIBLE_SPEED_MS = 12;
 
 /**
  * Calculate the distance between two GPS coordinates using the Haversine formula.
@@ -171,7 +164,7 @@ export function formatPace(secondsPerKm: number | undefined): string | undefined
 
 // ── Internal helpers ────────────────────────────────────────────────────
 
-function interpolateOptionalValue(
+export function interpolateOptionalValue(
     before: number | undefined,
     after: number | undefined,
     t: number,
@@ -187,7 +180,7 @@ function interpolateOptionalValue(
  * and edge extrapolation using nearest known pace.
  * Applies light median filtering to smooth GPS noise while preserving real speed changes.
  */
-function fillMissingPaceValues(
+export function fillMissingPaceValues(
     values: Array<number | undefined>,
     pausedPoints: boolean[],
 ): Array<number | undefined> {
@@ -292,7 +285,7 @@ function interpolateGapValues(
     }
 }
 
-function gapContainsPausedPoint(pausedPoints: boolean[], left: number, right: number): boolean {
+export function gapContainsPausedPoint(pausedPoints: boolean[], left: number, right: number): boolean {
     for (let i = left + 1; i < right; i++) {
         if (pausedPoints[i]) {
             return true;
@@ -312,102 +305,62 @@ function extrapolateTrailingValues(
     }
 }
 
-// ── Rolling pace estimation ─────────────────────────────────────────────
+// ── Median-speed pace estimation ────────────────────────────────────────
 
 /**
- * Estimate pace at point index using a responsive rolling window.
+ * Compute pace at a given frame index using median of recent segment speeds.
  *
- * Uses backward window (looking at past points) for stability, with reduced
- * minimum requirements for faster response to speed changes. When backward
- * window is not available (e.g., at track start), falls back to forward window.
+ * Collects speed (m/s) from the last N non-paused segments, takes the median,
+ * and converts to seconds/km. More robust than rolling cumulative distance
+ * because a single noisy GPS segment has minimal effect on the median.
  *
- * The reduced PACE_WINDOW_MIN_SECONDS (2s vs 3s) and PACE_WINDOW_MIN_DISTANCE_KM
- * (5m vs 8m) make pace respond ~40% faster to speed changes while maintaining
- * enough smoothing to avoid jitter.
- *
- * Falls back to available window if only one is valid.
- * Will NOT cross gaps > MAX_CONSECUTIVE_GAP_SECONDS.
+ * Falls back to forward-looking segments at the start of the track.
  */
-function estimateRollingPaceAtIndex(
+export function computeMedianPace(
     points: TrackPoint[],
     distances: number[],
     pausedPoints: boolean[],
     index: number,
 ): number | undefined {
-    const point = points[index];
-    if (!point) return undefined;
+    const speeds: number[] = [];
 
-    const currTimeMs = point.time.getTime();
-    const currDistKm = distances[index]!;
+    for (let direction = -1; direction <= 1; direction += 2) {
+        const start: number = direction === -1
+            ? Math.max(0, index - MEDIAN_SPEED_WINDOW)
+            : index + 1;
+        const end: number = direction === -1
+            ? index
+            : Math.min(points.length - 1, index + MEDIAN_SPEED_WINDOW);
 
-    // Primary: backward window (past points) - most stable
-    const backwardPace = findPaceInBackwardWindow(points, distances, pausedPoints, index, currTimeMs, currDistKm);
-    if (backwardPace !== undefined) return backwardPace;
+        for (let k = Math.max(1, start); k <= end; k++) {
+            if (pausedPoints[k]) continue;
 
-    // Fallback: forward window when at track start or after gaps
-    return findPaceInForwardWindow(points, distances, pausedPoints, index, currTimeMs, currDistKm);
-}
+            const segmentTime = (points[k].time.getTime() - points[k - 1].time.getTime()) / 1000;
+            if (segmentTime <= 0 || segmentTime > MAX_CONSECUTIVE_GAP_SECONDS) continue;
 
-function findPaceInBackwardWindow(
-    points: TrackPoint[],
-    distances: number[],
-    pausedPoints: boolean[],
-    index: number,
-    currTimeMs: number,
-    currDistKm: number,
-): number | undefined {
-    const maxGapMs = MAX_CONSECUTIVE_GAP_SECONDS * 1000;
+            const segmentDistKm = distances[k] - distances[k - 1];
+            if (segmentDistKm <= 0) continue;
 
-    for (let j = index - 1; j >= 0; j--) {
-        if (crossesPauseBoundary(pausedPoints, j, j + 1)) break;
+            const speedMs = (segmentDistKm * 1000) / segmentTime;
+            if (speedMs > MAX_PLAUSIBLE_SPEED_MS) continue;
 
-        // Don't span across large gaps between consecutive GPX points.
-        const gapMs = points[j + 1]!.time.getTime() - points[j]!.time.getTime();
-        if (gapMs > maxGapMs) break;
+            speeds.push(speedMs);
+        }
 
-        const prevPoint = points[j]!;
-        const dtSec = (currTimeMs - prevPoint.time.getTime()) / 1000;
-        if (dtSec > PACE_WINDOW_MAX_SECONDS) break;
-        if (dtSec < PACE_WINDOW_MIN_SECONDS) continue;
-
-        const distKm = currDistKm - distances[j]!;
-        if (distKm < PACE_WINDOW_MIN_DISTANCE_KM) continue;
-
-        const pace = dtSec / distKm;
-        if (pace >= 120 && pace <= 1800) return pace;
+        if (speeds.length >= 2) break;
     }
-    return undefined;
-}
 
-function findPaceInForwardWindow(
-    points: TrackPoint[],
-    distances: number[],
-    pausedPoints: boolean[],
-    index: number,
-    currTimeMs: number,
-    currDistKm: number,
-): number | undefined {
-    const maxGapMs = MAX_CONSECUTIVE_GAP_SECONDS * 1000;
+    if (speeds.length === 0) return undefined;
 
-    for (let j = index + 1; j < points.length; j++) {
-        if (crossesPauseBoundary(pausedPoints, j - 1, j)) break;
+    speeds.sort((a, b) => a - b);
+    const medianSpeed = speeds.length % 2 === 0
+        ? (speeds[speeds.length / 2 - 1] + speeds[speeds.length / 2]) / 2
+        : speeds[Math.floor(speeds.length / 2)];
 
-        // Don't span across large gaps between consecutive GPX points.
-        const gapMs = points[j]!.time.getTime() - points[j - 1]!.time.getTime();
-        if (gapMs > maxGapMs) break;
-
-        const nextPoint = points[j]!;
-        const dtSec = (nextPoint.time.getTime() - currTimeMs) / 1000;
-        if (dtSec > PACE_WINDOW_MAX_SECONDS) break;
-        if (dtSec < PACE_WINDOW_MIN_SECONDS) continue;
-
-        const distKm = distances[j]! - currDistKm;
-        if (distKm < PACE_WINDOW_MIN_DISTANCE_KM) continue;
-
-        const pace = dtSec / distKm;
-        if (pace >= 120 && pace <= 1800) return pace;
-    }
-    return undefined;
+    if (medianSpeed <= 0) return undefined;
+    const pace = 1000 / medianSpeed;
+    if (pace < 120 || pace > 1800) return undefined;
+    return pace;
 }
 
 // ── Timeline construction ───────────────────────────────────────────────
@@ -427,7 +380,7 @@ export function buildTelemetryTimeline(points: TrackPoint[]): TelemetryFrame[] {
     const startTime = points[0]!.time.getTime();
 
     const frames = buildRawFrames(points, distances, pausedPoints, startTime);
-    const rawPaceValues = points.map((_, index) => estimateRollingPaceAtIndex(points, distances, pausedPoints, index));
+    const rawPaceValues = points.map((_, index) => computeMedianPace(points, distances, pausedPoints, index));
     const smoothedPaceValues = fillMissingPaceValues(rawPaceValues, pausedPoints);
 
     return applySmoothedPaceValues(frames, smoothedPaceValues);
@@ -521,10 +474,6 @@ function isStationaryWindow(points: TrackPoint[], start: number, end: number): b
     }
 
     return true;
-}
-
-function crossesPauseBoundary(pausedPoints: boolean[], leftIndex: number, rightIndex: number): boolean {
-    return Boolean(pausedPoints[leftIndex] || pausedPoints[rightIndex]);
 }
 
 function updateMovingTime(

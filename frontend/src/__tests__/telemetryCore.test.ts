@@ -9,6 +9,10 @@ import {
     formatPace,
     buildTelemetryTimeline,
     getTelemetryAtTime,
+    computeMedianPace,
+    fillMissingPaceValues,
+    interpolateOptionalValue,
+    gapContainsPausedPoint,
 } from '../modules/telemetryCore';
 import type { TrackPoint } from '../core/types';
 
@@ -105,6 +109,38 @@ describe('Telemetry Core', () => {
                 expect(distances[i]!).toBeGreaterThanOrEqual(distances[i - 1]!);
             }
         });
+
+        it('should not accumulate distance for stationary points', () => {
+            const points = [
+                makePoint(55.0, 37.0, '2024-01-15T10:00:00Z'),
+                makePoint(55.0001, 37.0, '2024-01-15T10:00:05Z'),
+                makePoint(55.0001, 37.0, '2024-01-15T10:00:10Z'),
+                makePoint(55.0002, 37.0, '2024-01-15T10:00:15Z'),
+            ];
+            const distances = calculateCumulativeDistances(points, (i) => i === 2);
+            expect(distances[2]).toBeCloseTo(distances[1], 8);
+            expect(distances[3]).toBeGreaterThan(distances[2]);
+        });
+
+        it('should keep total distance at 0 when all points are stationary', () => {
+            const points = [
+                makePoint(55.0, 37.0, '2024-01-15T10:00:00Z'),
+                makePoint(55.0001, 37.0, '2024-01-15T10:00:05Z'),
+                makePoint(55.0002, 37.0, '2024-01-15T10:00:10Z'),
+            ];
+            const distances = calculateCumulativeDistances(points, () => true);
+            expect(distances[distances.length - 1]).toBe(0);
+        });
+
+        it('should match no-callback behavior when callback returns false', () => {
+            const points = [
+                makePoint(55.0, 37.0, '2024-01-15T10:00:00Z'),
+                makePoint(55.0001, 37.0, '2024-01-15T10:00:05Z'),
+            ];
+            const withCallback = calculateCumulativeDistances(points, () => false);
+            const withoutCallback = calculateCumulativeDistances(points);
+            expect(withCallback).toEqual(withoutCallback);
+        });
     });
 
     describe('calculatePace', () => {
@@ -131,6 +167,24 @@ describe('Telemetry Core', () => {
             const p1 = makePoint(55.0, 37.0, '2024-01-15T10:00:00Z');
             const p2 = makePoint(55.001, 37.0, '2024-01-15T10:00:00Z');
             expect(calculatePace(p1, p2, 0, 0.1)).toBeUndefined();
+        });
+
+        it('should return undefined for negative time diff', () => {
+            const p1 = makePoint(55.0, 37.0, '2024-01-15T10:00:10Z');
+            const p2 = makePoint(55.001, 37.0, '2024-01-15T10:00:00Z');
+            expect(calculatePace(p1, p2, 0, 0.1)).toBeUndefined();
+        });
+
+        it('should return undefined for pace faster than 2:00/km', () => {
+            const p1 = makePoint(55.0, 37.0, '2024-01-15T10:00:00Z');
+            const p2 = makePoint(55.0018, 37.0, '2024-01-15T10:00:20Z');
+            expect(calculatePace(p1, p2, 0, 0.2)).toBeUndefined();
+        });
+
+        it('should return undefined for pace slower than 30:00/km', () => {
+            const p1 = makePoint(55.0, 37.0, '2024-01-15T10:00:00Z');
+            const p2 = makePoint(55.00009, 37.0, '2024-01-15T10:00:30Z');
+            expect(calculatePace(p1, p2, 0, 0.01)).toBeUndefined();
         });
     });
 
@@ -176,6 +230,44 @@ describe('Telemetry Core', () => {
         });
     });
 
+    describe('interpolateOptionalValue', () => {
+        it('should linearly interpolate when both values are defined', () => {
+            expect(interpolateOptionalValue(200, 300, 0.5)).toBe(250);
+            expect(interpolateOptionalValue(200, 300, 0)).toBe(200);
+            expect(interpolateOptionalValue(200, 300, 1)).toBe(300);
+        });
+
+        it('should return before when after is undefined', () => {
+            expect(interpolateOptionalValue(200, undefined, 0.5)).toBe(200);
+        });
+
+        it('should return after when before is undefined', () => {
+            expect(interpolateOptionalValue(undefined, 300, 0.5)).toBe(300);
+        });
+
+        it('should return undefined when both are undefined', () => {
+            expect(interpolateOptionalValue(undefined, undefined, 0.5)).toBeUndefined();
+        });
+    });
+
+    describe('gapContainsPausedPoint', () => {
+        it('should return true when a pause exists between left and right', () => {
+            expect(gapContainsPausedPoint([false, false, true, false, false], 0, 4)).toBe(true);
+        });
+
+        it('should return false when there are no pauses between left and right', () => {
+            expect(gapContainsPausedPoint([false, false, false, false, false], 0, 4)).toBe(false);
+        });
+
+        it('should return false for adjacent indices (no points between)', () => {
+            expect(gapContainsPausedPoint([false, false], 0, 1)).toBe(false);
+        });
+
+        it('should not count left or right boundary as a pause gap', () => {
+            expect(gapContainsPausedPoint([true, false, false], 0, 2)).toBe(false);
+        });
+    });
+
     describe('formatElapsedTime', () => {
         it('should format zero seconds', () => {
             expect(formatElapsedTime(0)).toBe('0:00');
@@ -213,6 +305,171 @@ describe('Telemetry Core', () => {
 
         it('should format 6:15/km', () => {
             expect(formatPace(375)).toBe('6:15');
+        });
+    });
+
+    describe('computeMedianPace', () => {
+        function makePointsAndDists(n: number, t0?: Date): {
+            points: TrackPoint[];
+            distances: number[];
+        } {
+            const start = t0 ?? new Date('2024-01-15T10:00:00Z');
+            const points: TrackPoint[] = [];
+            for (let i = 0; i < n; i++) {
+                points.push(makePoint(
+                    55.0 + i * 0.000036,
+                    37.0,
+                    new Date(start.getTime() + i * 1000).toISOString(),
+                ));
+            }
+            return { points, distances: calculateCumulativeDistances(points) };
+        }
+
+        it('should return correct median pace for steady running', () => {
+            const { points, distances } = makePointsAndDists(6);
+            const paused = points.map(() => false);
+            const pace = computeMedianPace(points, distances, paused, 5);
+            expect(pace).toBeDefined();
+            expect(pace!).toBeGreaterThan(230);
+            expect(pace!).toBeLessThan(270);
+        });
+
+        it('should fall back to forward segments at the start of the track', () => {
+            const { points, distances } = makePointsAndDists(6);
+            const paused = points.map(() => false);
+            const pace = computeMedianPace(points, distances, paused, 0);
+            expect(pace).toBeDefined();
+            expect(pace!).toBeGreaterThan(220);
+            expect(pace!).toBeLessThan(280);
+        });
+
+        it('should return undefined when all segments in the window are paused', () => {
+            const { points, distances } = makePointsAndDists(6);
+            const paused = points.map(() => true);
+            const pace = computeMedianPace(points, distances, paused, 5);
+            expect(pace).toBeUndefined();
+        });
+
+        it('should exclude paused segments from the median pool', () => {
+            const { points, distances } = makePointsAndDists(8);
+            const paused = points.map((_, i) => i >= 2 && i <= 4);
+            const pace = computeMedianPace(points, distances, paused, 7);
+            expect(pace).toBeDefined();
+            expect(pace!).toBeGreaterThan(230);
+            expect(pace!).toBeLessThan(270);
+        });
+
+        it('should filter segments with speed exceeding MAX_PLAUSIBLE_SPEED_MS', () => {
+            const { points } = makePointsAndDists(7);
+            const customDist: number[] = [0];
+            for (let i = 1; i < points.length; i++) {
+                const segKm = haversineDistance(
+                    points[i - 1].lat, points[i - 1].lon,
+                    points[i].lat, points[i].lon,
+                );
+                customDist.push(customDist[customDist.length - 1]!
+                    + (i === 3 ? 0.016 : segKm));
+            }
+            const paused = points.map(() => false);
+            const pace = computeMedianPace(points, customDist, paused, 5);
+            expect(pace).toBeDefined();
+            expect(pace!).toBeGreaterThan(230);
+            expect(pace!).toBeLessThan(270);
+        });
+
+        it('should filter segments with time gap exceeding MAX_CONSECUTIVE_GAP_SECONDS', () => {
+            const t0 = new Date('2024-01-15T10:00:00Z');
+            const points: TrackPoint[] = [];
+            for (let i = 0; i <= 4; i++) {
+                points.push(makePoint(55.0 + i * 0.000036, 37.0,
+                    new Date(t0.getTime() + i * 1000).toISOString()));
+            }
+            points.push(makePoint(55.0 + 5 * 0.000036, 37.0,
+                new Date(t0.getTime() + 25 * 1000).toISOString()));
+            for (let i = 6; i <= 8; i++) {
+                points.push(makePoint(55.0 + i * 0.000036, 37.0,
+                    new Date(t0.getTime() + (25 + (i - 5)) * 1000).toISOString()));
+            }
+            const distances = calculateCumulativeDistances(points);
+            const paused = points.map(() => false);
+            const pace = computeMedianPace(points, distances, paused, 8);
+            expect(pace).toBeDefined();
+            expect(pace!).toBeGreaterThan(230);
+            expect(pace!).toBeLessThan(270);
+        });
+
+        it('should use single valid segment when only one is available', () => {
+            const { points, distances } = makePointsAndDists(4);
+            const paused = points.map((_, i) => i > 0 && i < 3);
+            const pace = computeMedianPace(points, distances, paused, 3);
+            expect(pace).toBeDefined();
+            expect(pace!).toBeGreaterThan(200);
+            expect(pace!).toBeLessThan(300);
+        });
+
+        it('should return undefined when all segment distances are zero', () => {
+            const t0 = new Date('2024-01-15T10:00:00Z');
+            const points: TrackPoint[] = [];
+            for (let i = 0; i < 6; i++) {
+                points.push(makePoint(55.0, 37.0,
+                    new Date(t0.getTime() + i * 1000).toISOString()));
+            }
+            const distances = points.map(() => 0);
+            const paused = points.map(() => false);
+            const pace = computeMedianPace(points, distances, paused, 4);
+            expect(pace).toBeUndefined();
+        });
+
+        it('should return undefined when pace falls below 120 sec/km', () => {
+            const t0 = new Date('2024-01-15T10:00:00Z');
+            const points: TrackPoint[] = [];
+            for (let i = 0; i <= 5; i++) {
+                points.push(makePoint(55.0 + i * 0.00054, 37.0,
+                    new Date(t0.getTime() + i * 1000).toISOString()));
+            }
+            const distances = calculateCumulativeDistances(points);
+            const paused = points.map(() => false);
+            const pace = computeMedianPace(points, distances, paused, 5);
+            expect(pace).toBeUndefined();
+        });
+
+        it('should return undefined when pace exceeds 1800 sec/km', () => {
+            const t0 = new Date('2024-01-15T10:00:00Z');
+            const points: TrackPoint[] = [];
+            for (let i = 0; i <= 5; i++) {
+                points.push(makePoint(55.0 + i * 0.000001, 37.0,
+                    new Date(t0.getTime() + i * 1000).toISOString()));
+            }
+            const distances = calculateCumulativeDistances(points);
+            const paused = points.map(() => false);
+            const pace = computeMedianPace(points, distances, paused, 5);
+            expect(pace).toBeUndefined();
+        });
+
+        it('should return undefined for index 0 with no forward segments', () => {
+            const points = [makePoint(55.0, 37.0, '2024-01-15T10:00:00Z')];
+            const distances = [0];
+            const paused = [false];
+            const pace = computeMedianPace(points, distances, paused, 0);
+            expect(pace).toBeUndefined();
+        });
+
+        it('should flip median when fast segments outnumber slow', () => {
+            const t0 = new Date('2024-01-15T10:00:00Z');
+            const points: TrackPoint[] = [];
+            for (let s = 0; s <= 3; s++) {
+                points.push(makePoint(55.0 + s * 0.000018, 37.0,
+                    new Date(t0.getTime() + s * 1000).toISOString()));
+            }
+            for (let s = 1; s <= 7; s++) {
+                points.push(makePoint(55.0 + 3 * 0.000018 + s * 0.000036, 37.0,
+                    new Date(t0.getTime() + (3 + s) * 1000).toISOString()));
+            }
+            const distances = calculateCumulativeDistances(points);
+            const paused = points.map(() => false);
+            const pace = computeMedianPace(points, distances, paused, 8);
+            expect(pace).toBeDefined();
+            expect(pace!).toBeLessThan(280);
         });
     });
 
@@ -448,6 +705,132 @@ describe('Telemetry Core', () => {
             expect(beforeGap.paceSecondsPerKm).toBeDefined();
             expect(beforeGap.paceSecondsPerKm!).toBeLessThan(720);
         });
+
+        it('should produce one frame for a single point', () => {
+            const points = [makePoint(55.0, 37.0, '2024-01-15T10:00:00Z')];
+            const timeline = buildTelemetryTimeline(points);
+            expect(timeline).toHaveLength(1);
+            expect(timeline[0]!.distanceKm).toBe(0);
+            expect(timeline[0]!.movingTimeSeconds).toBe(0);
+            expect(timeline[0]!.timeOffset).toBe(0);
+        });
+
+        it('should produce frames with defined pace for two moving points', () => {
+            const points = [
+                makePoint(55.0, 37.0, '2024-01-15T10:00:00Z'),
+                makePoint(55.00003, 37.0, '2024-01-15T10:00:01Z'),
+            ];
+            const timeline = buildTelemetryTimeline(points);
+            expect(timeline).toHaveLength(2);
+            expect(timeline[1]!.paceSecondsPerKm).toBeDefined();
+            expect(timeline[1]!.paceSecondsPerKm!).toBeLessThan(600);
+            expect(timeline[1]!.paceSecondsPerKm!).toBeGreaterThan(120);
+        });
+
+        it('should mark all frames as paused when no meaningful movement', () => {
+            const t0 = new Date('2024-01-15T10:00:00Z').getTime();
+            const points = [
+                makePoint(55.0, 37.0, new Date(t0).toISOString()),
+                makePoint(55.00001, 37.0, new Date(t0 + 1000).toISOString()),
+                makePoint(55.00001, 37.0, new Date(t0 + 11000).toISOString()),
+                makePoint(55.00001, 37.0, new Date(t0 + 21000).toISOString()),
+            ];
+            const timeline = buildTelemetryTimeline(points);
+            expect(timeline[2]!.isPaused).toBe(true);
+            expect(timeline[3]!.isPaused).toBe(true);
+        });
+    });
+
+    describe('fillMissingPaceValues', () => {
+        it('should return empty array for empty input', () => {
+            expect(fillMissingPaceValues([], [])).toEqual([]);
+        });
+
+        it('should pass through all-defined values (with median filter)', () => {
+            const values: Array<number | undefined> =
+                [250, 250, 250, 250, 250, 250, 250];
+            const result = fillMissingPaceValues(
+                values,
+                [false, false, false, false, false, false, false],
+            );
+            expect(result).toHaveLength(7);
+            expect(result[3]).toBe(250);
+        });
+
+        it('should filter single outlier via median filter', () => {
+            const values: Array<number | undefined> =
+                [250, 250, 250, 500, 250, 250, 250];
+            const result = fillMissingPaceValues(
+                values,
+                [false, false, false, false, false, false, false],
+            );
+            expect(result[3]).toBe(250);
+            expect(result[0]).toBe(250);
+            expect(result[6]).toBe(250);
+        });
+
+        it('should extrapolate leading undefined values', () => {
+            const values: Array<number | undefined> =
+                [undefined, undefined, undefined, 250, 260, 270, 280];
+            const result = fillMissingPaceValues(
+                values,
+                [false, false, false, false, false, false, false],
+            );
+            expect(result[0]).toBe(250);
+            expect(result[1]).toBe(250);
+            expect(result[2]).toBe(250);
+        });
+
+        it('should extrapolate trailing undefined values', () => {
+            const values: Array<number | undefined> =
+                [250, 260, 270, 280, undefined, undefined, undefined];
+            const result = fillMissingPaceValues(
+                values,
+                [false, false, false, false, false, false, false],
+            );
+            expect(result[4]).toBe(280);
+            expect(result[5]).toBe(280);
+            expect(result[6]).toBe(280);
+        });
+
+        it('should hold pace across pause gaps instead of interpolating', () => {
+            const values: Array<number | undefined> =
+                [200, undefined, undefined, 300, 300, 300, 300];
+            const paused = [false, true, true, false, false, false, false];
+            const result = fillMissingPaceValues(values, paused);
+            expect(result[1]).toBe(200);
+            expect(result[2]).toBe(200);
+        });
+
+        it('should linearly interpolate gaps between valid values when no pause', () => {
+            const values: Array<number | undefined> =
+                [200, undefined, undefined, 300, 300, 300, 300];
+            const paused = [false, false, false, false, false, false, false];
+            const result = fillMissingPaceValues(values, paused);
+            expect(result[0]).toBe(200);
+            expect(result[1]).toBeDefined();
+            expect(result[2]).toBeDefined();
+            expect(result[1]!).toBeGreaterThan(200);
+            expect(result[1]!).toBeLessThan(300);
+            expect(result[2]!).toBeGreaterThan(200);
+            expect(result[2]!).toBeLessThan(300);
+        });
+
+        it('should return all undefined for all-undefined input', () => {
+            const values: Array<number | undefined> =
+                [undefined, undefined, undefined];
+            const result = fillMissingPaceValues(
+                values,
+                [false, false, false],
+            );
+            expect(result).toEqual([undefined, undefined, undefined]);
+        });
+
+        it('should return single value unchanged', () => {
+            const values: Array<number | undefined> = [300];
+            const result = fillMissingPaceValues(values, [false]);
+            expect(result).toEqual([300]);
+        });
     });
 
     describe('getTelemetryAtTime', () => {
@@ -602,7 +985,8 @@ describe('Telemetry Core', () => {
         it('should respond quickly to speed increase (walking → running)', () => {
             // Simulating: athlete walks slowly (10+ min/km) for first 5 seconds,
             // then starts running (7 min/km) from second 5 onwards
-            // With 2-second window, pace should update within 2-3 seconds after speed change
+            // With median-of-speeds (5-segment window), the median flips from
+            // walking to running within ~3 seconds at 1 Hz GPS.
             const t0 = new Date('2024-01-15T10:00:00Z').getTime();
             const points: TrackPoint[] = [];
 
@@ -633,19 +1017,15 @@ describe('Telemetry Core', () => {
             expect(walkingPace).not.toBeNull();
             expect(walkingPace!.paceSecondsPerKm).toBeDefined();
 
-            // Check pace at second 7 (3 seconds after speed change, should reflect running)
-            // With 2-second minimum window, we should see significant speedup by now
-            const runningPace = getTelemetryAtTime(frames, 7, 0);
+            // Check pace at second 8 (3 seconds after speed change, median should now reflect running)
+            // Walking ~500 sec/km, running ~250 sec/km — at least 20% faster
+            const runningPace = getTelemetryAtTime(frames, 8, 0);
             expect(runningPace).not.toBeNull();
             expect(runningPace!.paceSecondsPerKm).toBeDefined();
-
-            // Running should be significantly faster than walking
-            // Walking ~500 sec/km, running ~250 sec/km
-            // With 2s window and transition, running pace should be at least 20% faster
             expect(runningPace!.paceSecondsPerKm!).toBeLessThan(walkingPace!.paceSecondsPerKm! * 0.8);
 
-            // By second 8, pace should be very close to true running pace
-            const settledPace = getTelemetryAtTime(frames, 8, 0);
+            // By second 9, pace should be fully settled at running pace
+            const settledPace = getTelemetryAtTime(frames, 9, 0);
             expect(settledPace!.paceSecondsPerKm!).toBeLessThan(350); // Close to 250 sec/km
         });
 
@@ -693,14 +1073,51 @@ describe('Telemetry Core', () => {
             const maxPace = Math.max(...paceValues);
             const avgPace = paceValues.reduce((a, b) => a + b, 0) / paceValues.length;
 
-            // For steady ~5:00/km running (300 sec/km), jitter should be within ±~1:05 min/km (±65 sec/km)
-            // This prevents the "6→8 min/km jumps" issue while keeping display responsive
-            const maxAllowedVariance = 65; // seconds per km (~±1:05 min/km at 5:00 pace)
+            // With median-of-speeds, jitter should be well within ±30 sec/km (±30s at 5:00 pace = ±10%)
+            const maxAllowedVariance = 30; // seconds per km (tightened from 65)
             expect(maxPace - minPace).toBeLessThanOrEqual(maxAllowedVariance);
 
             // Average should be close to expected 300 sec/km (±30 sec)
             expect(avgPace).toBeGreaterThan(270); // > 4:30 min/km
             expect(avgPace).toBeLessThan(330);    // < 5:30 min/km
+        });
+
+        it('should limit pace error from multi-segment GPS burst (+4m two seconds in a row)', () => {
+            // Two consecutive GPS outliers (+4m each at seconds 5-6).
+            // The current rolling-window-first-valid approach gives 3:32/km for
+            // the affected frame (raw). With median-of-speeds this should stay < 15% error.
+            const t0 = new Date('2024-01-15T10:00:00Z').getTime();
+            const trueSpeedMs = 2.38; // ~7:00/km
+            const points: TrackPoint[] = [];
+
+            for (let s = 0; s <= 20; s++) {
+                const baseDist = s * trueSpeedMs;
+                // Inject +4m noise at seconds 5 and 6
+                const noiseDist = (s >= 5 && s <= 6) ? 4.0 : 0;
+                const totalDist = baseDist + noiseDist * (s >= 5 ? 1 : 0);
+                const lat = 55.0 + totalDist / 111320;
+                points.push(makePoint(lat, 37.0, new Date(t0 + s * 1000).toISOString()));
+            }
+
+            const frames = buildTelemetryTimeline(points);
+
+            // Collect pace from second 8 onward (settle after the burst)
+            const paceValues: number[] = [];
+            for (let sec = 8; sec <= 20; sec++) {
+                const frame = getTelemetryAtTime(frames, sec, 0);
+                if (frame?.paceSecondsPerKm !== undefined) {
+                    paceValues.push(frame.paceSecondsPerKm);
+                }
+            }
+
+            expect(paceValues.length).toBeGreaterThan(8);
+            const avg = paceValues.reduce((a, b) => a + b, 0) / paceValues.length;
+
+            // Median-of-speeds filters the burst at segment level: the +4m outlier
+            // on segments 5-6 doesn't shift the median. Allow ±15% (≈63 sec/km)
+            // from true 420 sec/km.
+            expect(avg).toBeGreaterThan(357);
+            expect(avg).toBeLessThan(483);
         });
 
         it('should compute stable valid pace for 9-second clip window', () => {
@@ -831,6 +1248,60 @@ describe('Telemetry Core', () => {
 
             expect(withoutDuration!.paceSecondsPerKm).toBe(withShortDuration!.paceSecondsPerKm);
             expect(withoutDuration!.paceSecondsPerKm).toBe(withLongDuration!.paceSecondsPerKm);
+        });
+
+        it('should hold pace constant across medium GPX gaps (1-5s)', () => {
+            const customFrames = [
+                {
+                    timeOffset: 0, paceSecondsPerKm: 300, hr: 140,
+                    distanceKm: 0, elevationM: 100,
+                    elapsedTime: '0:00', movingTimeSeconds: 0,
+                },
+                {
+                    timeOffset: 3, paceSecondsPerKm: 360, hr: 145,
+                    distanceKm: 0.01, elevationM: 101,
+                    elapsedTime: '0:03', movingTimeSeconds: 3,
+                },
+            ];
+            const result = getTelemetryAtTime(customFrames, 1.5, 0);
+            expect(result).not.toBeNull();
+            expect(result!.paceSecondsPerKm).toBe(300);
+        });
+
+        it('should hold pace constant across large GPX gaps (>5s)', () => {
+            const customFrames = [
+                {
+                    timeOffset: 0, paceSecondsPerKm: 444, hr: 140,
+                    distanceKm: 0, elevationM: 100,
+                    elapsedTime: '0:00', movingTimeSeconds: 0,
+                },
+                {
+                    timeOffset: 8, paceSecondsPerKm: 304, hr: 145,
+                    distanceKm: 0.02, elevationM: 101,
+                    elapsedTime: '0:08', movingTimeSeconds: 8,
+                },
+            ];
+            const result = getTelemetryAtTime(customFrames, 4, 0);
+            expect(result).not.toBeNull();
+            expect(result!.paceSecondsPerKm).toBe(444);
+        });
+
+        it('should keep pace stable within one second for multi-frame data', () => {
+            const frames = buildTelemetryTimeline([
+                makePoint(55.0000, 37.0000, '2024-01-15T10:00:00Z'),
+                makePoint(55.00004, 37.0000, '2024-01-15T10:00:01Z'),
+                makePoint(55.00008, 37.0000, '2024-01-15T10:00:02Z'),
+                makePoint(55.00012, 37.0000, '2024-01-15T10:00:03Z'),
+                makePoint(55.00016, 37.0000, '2024-01-15T10:00:04Z'),
+                makePoint(55.00020, 37.0000, '2024-01-15T10:00:05Z'),
+            ]);
+            const a = getTelemetryAtTime(frames, 2.1, 0);
+            const b = getTelemetryAtTime(frames, 2.9, 0);
+            expect(a).not.toBeNull();
+            expect(b).not.toBeNull();
+            expect(a!.paceSecondsPerKm).toBeDefined();
+            expect(b!.paceSecondsPerKm).toBeDefined();
+            expect(a!.paceSecondsPerKm).toBeCloseTo(b!.paceSecondsPerKm!, 10);
         });
     });
 });
