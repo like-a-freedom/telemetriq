@@ -23,7 +23,7 @@ ENV SITE_URL=${SITE_URL}
 RUN bun run build
 
 # Production stage - serve with Caddy
-FROM caddy:2.10.2-alpine AS production
+FROM caddy:2.11.3-alpine AS production
 COPY --from=build /app/dist /usr/share/caddy
 COPY Caddyfile /etc/caddy/Caddyfile
 
