@@ -3,9 +3,19 @@
     <header class="processing-view__header">
       <h2>Video processing</h2>
       <p class="processing-view__subtitle">
-        Please do not close this tab until processing is complete
+        Please keep this tab in the foreground until processing completes
       </p>
     </header>
+
+    <!-- Background warning -->
+    <div v-if="!pageVisible && processingStore.isProcessing" class="processing-view__bg-warning">
+      <p>⚠️ Tab in background — browser may suspend processing. Return to this tab to continue.</p>
+    </div>
+
+    <!-- WakeLock indicator -->
+    <div v-if="wakeLock.isActive" class="processing-view__wakelock-badge">
+      <span>🔒 Screen wake lock active</span>
+    </div>
 
     <!-- WebGPU Status -->
     <div v-if="webGPUStatus" class="processing-view__webgpu-status">
@@ -107,7 +117,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, watch, ref } from "vue";
+import { onMounted, onUnmounted, watch, ref } from "vue";
 import { useRouter } from "vue-router";
 import {
   useFilesStore,
@@ -120,6 +130,7 @@ import { buildTelemetryTimeline } from "../modules/telemetryCore";
 import { VideoProcessor } from "../modules/videoProcessor";
 import { getWebGPUStatus, toggleWebGPU } from "../modules/webgpu";
 import { useSeo } from "../composables/useSeo";
+import { useWakeLock } from "../composables/useWakeLock";
 
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
 import ProgressBar from "../components/ProgressBar.vue";
@@ -146,6 +157,8 @@ const webGPUStatus = ref<{
   enabled: boolean;
   available: boolean;
 } | null>(null);
+const pageVisible = ref(document.visibilityState === 'visible');
+const wakeLock = useWakeLock();
 
 // Check WebGPU status
 function checkWebGPUStatus() {
@@ -168,6 +181,7 @@ async function startProcessingFlow(): Promise<void> {
   const totalFrames = Math.ceil(videoMeta.duration * videoMeta.fps);
 
   processingStore.startProcessing(totalFrames);
+  await wakeLock.request();
 
   try {
     if (isE2E) {
@@ -195,15 +209,29 @@ async function startProcessingFlow(): Promise<void> {
     await processingStore.finalizeResult(result);
   } catch (err) {
     processingStore.setError(normalizeProcessingError(err));
+  } finally {
+    await wakeLock.release();
   }
 }
 
+function onVisibilityChange(): void {
+  pageVisible.value = !document.hidden;
+}
+
 onMounted(() => {
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  wakeLock.ensureVisibilityListener();
+
   checkWebGPUStatus();
 
   if (processingStore.hasResult && !isE2E) {
-    goToResult();
-    return;
+    if (filesStore.isReady) {
+      // Stale result from a previous session but user has new files — clear and re-process
+      processingStore.reset();
+    } else {
+      goToResult();
+      return;
+    }
   }
 
   if (!filesStore.isReady && !isE2E) {
@@ -214,6 +242,10 @@ onMounted(() => {
   if (filesStore.isReady) {
     void startProcessingFlow();
   }
+});
+
+onUnmounted(() => {
+  document.removeEventListener("visibilitychange", onVisibilityChange);
 });
 
 watch(
@@ -404,6 +436,30 @@ watch(
 
 .webgpu-badge--active .webgpu-badge__toggle:hover {
   background: rgba(100, 108, 255, 0.5);
+}
+
+.processing-view__bg-warning {
+  text-align: center;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  background: rgba(255, 152, 0, 0.12);
+  border: 1px solid rgba(255, 152, 0, 0.3);
+  border-radius: 8px;
+  color: #ffb74d;
+  font-size: 0.85rem;
+  animation: pulse-warning 2s ease-in-out infinite;
+}
+
+@keyframes pulse-warning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.processing-view__wakelock-badge {
+  text-align: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary, #aaa);
 }
 
 @media (max-width: 640px) {
