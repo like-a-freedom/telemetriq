@@ -111,7 +111,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { useFilesStore, useSettingsStore } from "../stores";
+import { useFilesStore, useProcessingStore, useSettingsStore } from "../stores";
 import { checkBrowserCapabilities } from "../modules/fileValidation";
 import { useSeo } from "../composables/useSeo";
 import { useFormatters } from "../composables/useFormatters";
@@ -128,6 +128,7 @@ useSeo({
 
 const router = useRouter();
 const filesStore = useFilesStore();
+const processingStore = useProcessingStore();
 const settingsStore = useSettingsStore();
 const { formatDuration, formatFileSize } = useFormatters();
 
@@ -168,10 +169,12 @@ onMounted(() => {
 });
 
 async function onVideoSelected(file: File): Promise<void> {
+  processingStore.reset();
   await filesStore.setVideoFile(file);
 }
 
 async function onGpxSelected(file: File): Promise<void> {
+  processingStore.reset();
   await filesStore.setGpxFile(file);
 }
 
@@ -184,6 +187,7 @@ function onGpxRemoved(): void {
 }
 
 function goToPreview(): void {
+  processingStore.reset();
   settingsStore.setScreen("preview");
   router.push("/preview");
 }
