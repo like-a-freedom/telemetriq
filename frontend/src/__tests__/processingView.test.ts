@@ -154,7 +154,7 @@ describe("ProcessingView", () => {
       expect(processingStore.hasResult).toBe(false);
     });
 
-    it("should start processing when stale result is cleared and files are ready", async () => {
+    it("should start and complete processing (mock resolves immediately) when stale result is cleared", async () => {
       const processingStore = useProcessingStore();
       processingStore.setResult(
         new Blob(["old-result"], { type: "video/mp4" }),
@@ -170,10 +170,19 @@ describe("ProcessingView", () => {
         },
       });
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // The mock VideoProcessor returns a blob immediately, so processing starts
+      // and completes in the same microtask cycle
+      await new Promise((resolve) => setTimeout(resolve, 20));
 
-      expect(processingStore.isProcessing).toBe(true);
-      expect(processingStore.hasResult).toBe(false);
+      // Stale result was cleared and new result produced
+      expect(processingStore.hasResult).toBe(true);
+      // Processing is no longer active (completed)
+      expect(processingStore.isProcessing).toBe(false);
+      // Wake lock was requested and released
+      expect(mockWakeLock.request).toHaveBeenCalled();
+      expect(mockWakeLock.release).toHaveBeenCalled();
+      // No redirect occurred — smart guard prevented stale-result redirect
+      expect(push).not.toHaveBeenCalled();
     });
   });
 
