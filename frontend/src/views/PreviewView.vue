@@ -240,7 +240,7 @@ const METRIC_CONTROLS: MetricControlDefinition[] = [
     key: "showPace",
     metric: "pace",
     label: "Pace",
-    hint: "Running pace derived from recent GPS movement.",
+    hint: "Current pace from synchronized GPX segments with isolated spike filtering.",
   },
   {
     key: "showDistance",
@@ -258,7 +258,7 @@ const METRIC_CONTROLS: MetricControlDefinition[] = [
     key: "showSpeed",
     metric: "speed",
     label: "Speed",
-    hint: "Current speed over a short rolling window.",
+    hint: "Current speed from synchronized GPX segments with isolated spike filtering.",
   },
   {
     key: "showGrade",

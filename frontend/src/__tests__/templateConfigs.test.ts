@@ -8,37 +8,10 @@ import {
     getTemplateMetadata,
     getAllTemplateMetadata,
 } from '../modules/templateConfigs';
-import type { TemplateId } from '../core/types';
+import { TEMPLATE_IDS } from '../modules/templates';
 
 describe('template-configs', () => {
-    const allTemplateIds: TemplateId[] = [
-        'horizon',
-        'margin',
-        'l-frame',
-        'classic',
-        'arc-gauge',
-        'hero-number',
-        'cinematic-bar',
-        'editorial',
-        'ticker-tape',
-        'whisper',
-        'two-tone',
-        'condensed-strip',
-        'soft-rounded',
-        'thin-line',
-        'swiss-grid',
-        'garmin-style',
-        'sports-broadcast',
-        'cockpit-hud',
-        'terminal',
-        'night-runner',
-        'data-block',
-        'race-tag',
-        'glass-panel',
-        'minimal-ring',
-        'focus-type',
-        'custom',
-    ];
+    const allTemplateIds = [...TEMPLATE_IDS];
 
     describe('getTemplateConfig', () => {
         it('should return config for horizon template', () => {
@@ -155,6 +128,8 @@ describe('template-configs', () => {
             expect(ids).toContain('night-runner');
             expect(ids).toContain('data-block');
             expect(ids).toContain('race-tag');
+            expect(ids).toContain('trail-run');
+            expect(ids).toContain('cycling-pro');
         });
 
         it('should have preview colors for each template', () => {

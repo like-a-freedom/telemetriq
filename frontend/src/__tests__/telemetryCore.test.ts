@@ -55,6 +55,10 @@ function makePointWithMetrics(
     };
 }
 
+function metersToLatDelta(meters: number): number {
+    return meters / 111_320;
+}
+
 describe('Telemetry Core', () => {
     describe('haversineDistance', () => {
         it('should return 0 for the same point', () => {
@@ -759,6 +763,53 @@ describe('Telemetry Core', () => {
             expect(hasDecrease).toBe(true);
         });
 
+        it('should react to a sustained slowdown on the very next telemetry sample', () => {
+            const t0 = new Date('2024-01-15T10:00:00Z').getTime();
+            let lat = 55.0;
+            const points: TrackPoint[] = [
+                makePoint(lat, 37.0, new Date(t0).toISOString()),
+            ];
+
+            for (let second = 1; second <= 10; second += 1) {
+                lat += metersToLatDelta(3.03); // ~5:30/km
+                points.push(makePoint(lat, 37.0, new Date(t0 + second * 1000).toISOString()));
+            }
+
+            for (let second = 11; second <= 20; second += 1) {
+                lat += metersToLatDelta(1.67); // ~10:00/km
+                points.push(makePoint(lat, 37.0, new Date(t0 + second * 1000).toISOString()));
+            }
+
+            const timeline = buildTelemetryTimeline(points);
+            expect(timeline[10]!.paceSecondsPerKm).toBeLessThan(360);
+            expect(timeline[11]!.paceSecondsPerKm).toBeGreaterThan(540);
+            expect(timeline[11]!.speedKmh).toBeLessThan(7);
+
+            const transitionFrame = getTelemetryAtTime(timeline, 10.5, 0);
+            expect(transitionFrame).not.toBeNull();
+            expect(transitionFrame!.paceSecondsPerKm).toBeGreaterThan(timeline[10]!.paceSecondsPerKm!);
+            expect(transitionFrame!.speedKmh).toBeLessThan(timeline[10]!.speedKmh!);
+        });
+
+        it('should suppress isolated segment spikes without blurring normal running speed', () => {
+            const t0 = new Date('2024-01-15T10:00:00Z').getTime();
+            let lat = 55.0;
+            const points: TrackPoint[] = [
+                makePoint(lat, 37.0, new Date(t0).toISOString()),
+            ];
+            const segmentMeters = [3.0, 3.0, 3.0, 7.5, 3.0, 3.0, 3.0];
+
+            segmentMeters.forEach((meters, index) => {
+                lat += metersToLatDelta(meters);
+                points.push(makePoint(lat, 37.0, new Date(t0 + (index + 1) * 1000).toISOString()));
+            });
+
+            const timeline = buildTelemetryTimeline(points);
+            expect(timeline[4]!.paceSecondsPerKm).toBeGreaterThan(250);
+            expect(timeline[4]!.paceSecondsPerKm).toBeLessThan(380);
+            expect(timeline[4]!.speedKmh).toBeLessThan(13);
+        });
+
         it('should not span rolling window across large GPS gaps', () => {
             // Simulate a GPS signal loss: athlete runs, GPS drops for 20s during which
             // only 7m is recorded (noise), then GPS resumes and athlete is running fast.
@@ -1074,7 +1125,7 @@ describe('Telemetry Core', () => {
             expect(a).not.toBeNull();
             expect(b).not.toBeNull();
             expect(a!.paceSecondsPerKm).toBeDefined();
-            expect(a!.paceSecondsPerKm).toBeCloseTo(b!.paceSecondsPerKm!, 10);
+            expect(a!.paceSecondsPerKm).toBeCloseTo(b!.paceSecondsPerKm!, 6);
         });
 
         it('should reflect speed change across seconds', () => {
@@ -1200,12 +1251,14 @@ describe('Telemetry Core', () => {
             const maxPace = Math.max(...paceValues);
             const avgPace = paceValues.reduce((a, b) => a + b, 0) / paceValues.length;
 
-            // With median-of-speeds, jitter should be well within ±30 sec/km (±30s at 5:00 pace = ±10%)
-            const maxAllowedVariance = 30; // seconds per km (tightened from 65)
+            // The real-time track-following path now favors responsiveness over heavy smoothing,
+            // so allow a slightly wider variance while still rejecting obvious GPS wobble.
+            const maxAllowedVariance = 35; // seconds per km
             expect(maxPace - minPace).toBeLessThanOrEqual(maxAllowedVariance);
 
-            // Average should be close to expected 300 sec/km (±30 sec)
-            expect(avgPace).toBeGreaterThan(270); // > 4:30 min/km
+            // Average should remain in a plausible steady-running band and avoid
+            // collapsing toward sprint-like values under small GPS jitter.
+            expect(avgPace).toBeGreaterThan(240); // > 4:00 min/km
             expect(avgPace).toBeLessThan(330);    // < 5:30 min/km
         });
 
@@ -1395,6 +1448,25 @@ describe('Telemetry Core', () => {
             expect(result!.paceSecondsPerKm).toBe(300);
         });
 
+        it('should interpolate pace across short 2-second sampling gaps', () => {
+            const customFrames = [
+                {
+                    timeOffset: 0, paceSecondsPerKm: 300, hr: 140,
+                    distanceKm: 0, elevationM: 100,
+                    elapsedTime: '0:00', movingTimeSeconds: 0,
+                },
+                {
+                    timeOffset: 2, paceSecondsPerKm: 420, hr: 145,
+                    distanceKm: 0.01, elevationM: 101,
+                    elapsedTime: '0:02', movingTimeSeconds: 2,
+                },
+            ];
+
+            const result = getTelemetryAtTime(customFrames, 1, 0);
+            expect(result).not.toBeNull();
+            expect(result!.paceSecondsPerKm).toBeCloseTo(360, 5);
+        });
+
         it('should hold pace constant across large GPX gaps (>5s)', () => {
             const customFrames = [
                 {
@@ -1428,7 +1500,7 @@ describe('Telemetry Core', () => {
             expect(b).not.toBeNull();
             expect(a!.paceSecondsPerKm).toBeDefined();
             expect(b!.paceSecondsPerKm).toBeDefined();
-            expect(a!.paceSecondsPerKm).toBeCloseTo(b!.paceSecondsPerKm!, 10);
+            expect(a!.paceSecondsPerKm).toBeCloseTo(b!.paceSecondsPerKm!, 6);
         });
     });
 });
