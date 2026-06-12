@@ -28,6 +28,7 @@ export function renderTrailRunLayout(
     const metricTop = topInset + graphHeight + Math.round(h * 0.028 * tuning.spacingScale);
     const metricBandBottom = metricTop + Math.round(h * (compact ? 0.082 : 0.07));
     const leftPad = Math.max(Math.round(w * 0.014), compact ? Math.round(w * 0.05) : 0);
+    const horizontal = w > h;
 
     ctx.save();
     applyTextShadow(ctx, config);
@@ -59,24 +60,37 @@ export function renderTrailRunLayout(
 
     const columns = allColumns;
 
-    const columnWidth = w / columns.length;
-    columns.forEach((metric, index) => {
-        const columnLeft = index * columnWidth + (index === 0 ? leftPad : 0);
-        drawTrailMetric(
-            ctx,
-            columnLeft,
-            metricTop,
-            h,
-            tuning.textScale,
-            compact,
-            config,
-            metric,
-        );
+    if (horizontal) {
+        // Horizontal mode: keep metrics as a tight group to avoid
+        // visual disconnection across the wide frame.  Use a narrower
+        // centered band (55% of width) and let the trace breathe
+        // across the full top.
+        const bandWidth = Math.round(w * 0.55);
+        const bandLeft = Math.round((w - bandWidth) / 2);
+        const colWidth = bandWidth / columns.length;
 
-        if (index < columns.length - 1) {
-            drawColumnSeparator(ctx, columnLeft + columnWidth - Math.round(w * 0.028), metricTop - Math.round(h * 0.004), h);
-        }
-    });
+        columns.forEach((metric, index) => {
+            const columnLeft = bandLeft + index * colWidth;
+            drawTrailMetric(ctx, columnLeft, metricTop, h, tuning.textScale, compact, config, metric);
+
+            if (index < columns.length - 1) {
+                const sepX = columnLeft + colWidth - Math.round(w * 0.016);
+                const sepY = metricTop - Math.round(h * 0.004);
+                drawColumnSeparator(ctx, sepX, sepY, h);
+            }
+        });
+    } else {
+        // Vertical mode: spread columns across the full width as before.
+        const columnWidth = w / columns.length;
+        columns.forEach((metric, index) => {
+            const columnLeft = index * columnWidth + (index === 0 ? leftPad : 0);
+            drawTrailMetric(ctx, columnLeft, metricTop, h, tuning.textScale, compact, config, metric);
+
+            if (index < columns.length - 1) {
+                drawColumnSeparator(ctx, columnLeft + columnWidth - Math.round(w * 0.028), metricTop - Math.round(h * 0.004), h);
+            }
+        });
+    }
 
     ctx.restore();
 }
