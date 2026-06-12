@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { autoSync } from '../src/modules/sync-engine';
+import { autoSync } from '../src/modules/syncEngine';
 
 function parseGpxMinimal(xml: string) {
     const pts = [];
@@ -20,7 +20,7 @@ function parseGpxMinimal(xml: string) {
     return pts;
 }
 
-const gpxPath = path.resolve(__dirname, '../../test_data/iphone/iphone-track.gpx');
+const gpxPath = path.resolve(__dirname, '../../test_data/iphone/example_01/iphone-track.gpx');
 const xml = fs.readFileSync(gpxPath, 'utf-8');
 const points = parseGpxMinimal(xml);
 

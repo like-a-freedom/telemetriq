@@ -11,6 +11,9 @@ const TIME_RANGE_BUFFER_SECONDS = 300; // 5 minutes
 /** Max divergence between GPS and time offsets to accept GPS refinement */
 const GPS_REFINEMENT_TOLERANCE_SECONDS = 30;
 
+/** Maximum spatial distance for considering a GPS-to-track match credible */
+const MAX_GPS_MATCH_DISTANCE_METERS = 150;
+
 /** Manual sync range in seconds (±30 minutes) */
 export const MANUAL_SYNC_RANGE_SECONDS = 1800;
 
@@ -63,7 +66,7 @@ export function autoSync(
 
     // GPS-only path (no video creation time)
     if (!hasTime) {
-        return findNearestGps(gpxPoints, videoStartLat!, videoStartLon!);
+        return syncFromGpsOnly(gpxPoints, videoStartLat!, videoStartLon!);
     }
 
     // --- Time-based offset ---
@@ -84,8 +87,17 @@ export function autoSync(
 
         // Time outside GPX range → fall back to global GPS search
         const gpsResult = findNearestGps(gpxPoints, videoStartLat!, videoStartLon!);
+        if (!isStrongGpsMatch(gpsResult)) {
+            return {
+                offsetSeconds: timeOffset,
+                autoSynced: true,
+                warning: `Video time is outside GPX range (${formatTimeDiff(timeOffset)}), and video GPS does not closely match the GPX track${formatGpsDistanceSuffix(gpsResult)}. Time-based sync was applied.`,
+            };
+        }
+
         return {
-            ...gpsResult,
+            offsetSeconds: gpsResult.offsetSeconds,
+            autoSynced: true,
             warning: `Video time is outside GPX range (${formatTimeDiff(timeOffset)}). GPS-based sync was applied.`,
         };
     }
@@ -100,6 +112,32 @@ export function autoSync(
     }
 
     return { offsetSeconds: timeOffset, autoSynced: true };
+}
+
+type GpsMatch = {
+    offsetSeconds: number;
+    distanceMeters: number;
+};
+
+function syncFromGpsOnly(
+    gpxPoints: TrackPoint[],
+    lat: number,
+    lon: number,
+): SyncConfig {
+    const gpsMatch = findNearestGps(gpxPoints, lat, lon);
+
+    if (!isStrongGpsMatch(gpsMatch)) {
+        return {
+            offsetSeconds: 0,
+            autoSynced: false,
+            warning: `Auto-sync is not possible without a close GPS match${formatGpsDistanceSuffix(gpsMatch)}.`,
+        };
+    }
+
+    return {
+        offsetSeconds: gpsMatch.offsetSeconds,
+        autoSynced: true,
+    };
 }
 
 /**
@@ -118,11 +156,11 @@ function refineWithGps(
         timeOffset, TIME_RANGE_BUFFER_SECONDS,
     );
 
-    if (!gps) {
+    if (!isStrongGpsMatch(gps)) {
         return {
             offsetSeconds: timeOffset,
             autoSynced: true,
-            warning: 'Video GPS does not match near the expected time. Time-based sync was applied.',
+            warning: `Video GPS does not closely match the GPX track near the expected time${formatGpsDistanceSuffix(gps)}. Time-based sync was applied.`,
         };
     }
 
@@ -145,7 +183,7 @@ function findNearestGps(
     gpxPoints: TrackPoint[],
     lat: number,
     lon: number,
-): SyncConfig {
+): GpsMatch {
     let minDist = Infinity;
     let closestIdx = 0;
 
@@ -161,7 +199,10 @@ function findNearestGps(
     const gpxStartMs = gpxPoints[0]!.time.getTime();
     const offsetSeconds = (gpxPoints[closestIdx]!.time.getTime() - gpxStartMs) / 1000;
 
-    return { offsetSeconds, autoSynced: true };
+    return {
+        offsetSeconds,
+        distanceMeters: minDist * 1000,
+    };
 }
 
 /**
@@ -174,7 +215,7 @@ function findNearestGpsInWindow(
     lon: number,
     centerOffset: number,
     windowSeconds: number,
-): SyncConfig | undefined {
+): GpsMatch | undefined {
     const gpxStartMs = gpxPoints[0]!.time.getTime();
     const minOffset = centerOffset - windowSeconds;
     const maxOffset = centerOffset + windowSeconds;
@@ -203,7 +244,22 @@ function findNearestGpsInWindow(
 
     const offsetSeconds = (gpxPoints[closestIdx]!.time.getTime() - gpxStartMs) / 1000;
 
-    return { offsetSeconds, autoSynced: true };
+    return {
+        offsetSeconds,
+        distanceMeters: minDist * 1000,
+    };
+}
+
+function isStrongGpsMatch(match: GpsMatch | undefined): match is GpsMatch {
+    return match !== undefined && match.distanceMeters <= MAX_GPS_MATCH_DISTANCE_METERS;
+}
+
+function formatGpsDistanceSuffix(match: GpsMatch | undefined): string {
+    if (!match || !Number.isFinite(match.distanceMeters)) {
+        return '';
+    }
+
+    return ` (${formatDistance(match.distanceMeters)} away)`;
 }
 
 /**
@@ -221,6 +277,15 @@ function formatTimeDiff(seconds: number): string {
     if (secs > 0 || parts.length === 0) parts.push(`${secs} sec`);
 
     return parts.join(' ');
+}
+
+function formatDistance(distanceMeters: number): string {
+    const safeDistance = Math.max(0, distanceMeters);
+    if (safeDistance >= 1000) {
+        return `${(safeDistance / 1000).toFixed(1)} km`;
+    }
+
+    return `${Math.round(safeDistance)} m`;
 }
 
 /**

@@ -93,6 +93,7 @@ Telemetry regressions should cover:
 - isolated spikes vs. sustained pace/speed changes
 - sparse GPX gaps and missing samples
 - preview/export parity for rendered overlays
+- auto-sync edge cases: weak GPS matches, looped tracks, outside-range fallbacks, and real metadata-driven warning states
 
 E2E requires Playwright browsers installed — run `npx playwright install` if needed.
 
@@ -189,6 +190,21 @@ Telemetriq intentionally optimizes overlay metrics for **on-video alignment** ra
 - sparse GPX gaps keep the last known pace instead of inventing ramps through missing data
 
 When updating telemetry math, validate both preview-time and export-time behavior so the live canvas overlay and processed video stay in sync.
+
+### Auto-sync heuristics
+
+Automatic video/GPX sync combines two signals:
+
+- video creation time / capture time metadata
+- video GPS metadata when available
+
+The sync engine now treats GPS as a refinement signal, not unconditional truth:
+
+- GPS can refine time-based sync only when the nearest GPX candidate is temporally plausible **and** spatially close
+- weak GPS matches produce warnings and preserve the time-based offset
+- GPS-only sync is rejected when no close track match exists
+
+This avoids false auto-sync on looped routes, stale location tags, and mismatched video/GPX pairs.
 
 ---
 
