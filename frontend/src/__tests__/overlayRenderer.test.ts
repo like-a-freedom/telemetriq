@@ -26,6 +26,7 @@ type StubContext = {
     stroke: ReturnType<typeof vi.fn>;
     moveTo: ReturnType<typeof vi.fn>;
     lineTo: ReturnType<typeof vi.fn>;
+    bezierCurveTo: ReturnType<typeof vi.fn>;
     arc: ReturnType<typeof vi.fn>;
     createLinearGradient: ReturnType<typeof vi.fn>;
     translate: ReturnType<typeof vi.fn>;
@@ -64,6 +65,7 @@ function createStubContext(canvasRef: unknown): StubContext {
         stroke: vi.fn(),
         moveTo: vi.fn(),
         lineTo: vi.fn(),
+        bezierCurveTo: vi.fn(),
         arc: vi.fn(),
         createLinearGradient: vi.fn(() => fakeGradient),
         translate: vi.fn(),
