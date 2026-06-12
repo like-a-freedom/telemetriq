@@ -42,22 +42,22 @@ export function renderTrailRunLayout(
     const allColumns: readonly TrailMetric[] = [
         {
             label: 'HR',
-            value: frame.hr !== undefined ? Math.round(frame.hr).toString() : '--',
+            value: frame.hr !== undefined ? Math.round(frame.hr).toString() : 'N/A',
             unit: 'bpm',
         },
         {
             label: 'GRADE',
-            value: frame.gradePercent !== undefined ? Math.round(frame.gradePercent).toString() : '--',
+            value: frame.gradePercent !== undefined ? Math.round(frame.gradePercent).toString() : 'N/A',
             unit: '%',
         },
         {
             label: 'ELEVATION',
-            value: frame.elevationM !== undefined ? Math.round(frame.elevationM).toString() : '--',
+            value: frame.elevationM !== undefined ? Math.round(frame.elevationM).toString() : 'N/A',
             unit: 'm',
         },
     ];
 
-    const columns = allColumns.filter((metric) => metric.value !== '--');
+    const columns = allColumns;
 
     const columnWidth = w / columns.length;
     columns.forEach((metric, index) => {
@@ -250,7 +250,7 @@ function drawTrailMetric(
     ctx.font = `500 ${labelSize}px ${config.fontFamily}`;
     ctx.fillText(metric.label, left, top);
 
-    ctx.fillStyle = '#FFFFFF';
+    ctx.fillStyle = config.textColor || '#FFFFFF';
     ctx.font = `300 ${valueSize}px ${config.fontFamily}`;
     ctx.fillText(metric.value, left, valueBaseline);
 
@@ -260,7 +260,7 @@ function drawTrailMetric(
     // (e.g. grade "8") or four digits (e.g. elevation "2921").
     const valueWidth = ctx.measureText(metric.value).width;
     const unitGap = Math.round(valueSize * 0.08);
-    ctx.fillStyle = metric.value === '--' ? 'rgba(255,255,255,0.58)' : 'rgba(255,255,255,0.8)';
+    ctx.fillStyle = metric.value === 'N/A' ? 'rgba(255,255,255,0.58)' : 'rgba(255,255,255,0.8)';
     ctx.font = `500 ${unitSize}px ${config.fontFamily}`;
     // Vertically align the unit slightly above the value baseline so it
     // reads as a superscript annotation rather than overlapping the number.

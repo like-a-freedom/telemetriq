@@ -2,7 +2,7 @@
   <div class="preview-view">
     <header class="preview-view__header">
       <button class="preview-view__back" @click="goBack" data-testid="back-btn">
-        ← Back
+        Back
       </button>
       <h2>Preview & Sync</h2>
     </header>
@@ -578,7 +578,6 @@ function applyManualTime(): void {
 .preview-view__player {
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
 .preview-view__sync-controls {
@@ -772,7 +771,7 @@ function applyManualTime(): void {
 }
 
 .preview-view__checkbox--disabled {
-  opacity: 0.56;
+  opacity: 0.5;
   cursor: not-allowed;
   border-style: solid;
   transform: none;
@@ -847,16 +846,16 @@ function applyManualTime(): void {
 
 .preview-view__metric-state--locked {
   background: rgba(100, 108, 255, 0.2);
-  color: #e7e9ff;
+  color: var(--color-text);
 }
 
 .preview-view__metric-state--disabled {
   background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.58);
+  color: var(--color-text-secondary);
 }
 
 .preview-view__metric-hint {
-  color: var(--color-text-secondary, #8c8c8c);
+  color: var(--color-text-secondary, #999);
   font-size: 0.75rem;
   line-height: 1.35;
 }
@@ -865,21 +864,16 @@ function applyManualTime(): void {
   margin: 0 0 1rem;
   padding: 0.95rem 1rem;
   border-radius: 12px;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 167, 38, 0.16),
-    rgba(84, 45, 9, 0.36)
-  );
+  background: var(--color-warning-surface);
   border: 1px solid rgba(255, 196, 107, 0.34);
-  box-shadow: inset 0 1px 0 rgba(255, 224, 163, 0.06);
-  color: #ffe1a7;
+  color: var(--color-warning-text);
   font-size: 0.82rem;
   line-height: 1.5;
 }
 
 .preview-view__warning-title {
   margin: 0;
-  color: #fff3d1;
+  color: var(--color-warning-text);
   font-size: 0.73rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -981,16 +975,19 @@ function applyManualTime(): void {
 }
 
 .preview-view__btn--primary {
-  background: linear-gradient(135deg, #646cff, #7b82ff);
+  background: linear-gradient(135deg, var(--color-primary), #7b82ff);
   color: white;
   margin-top: 0.5rem;
-  box-shadow: 0 10px 24px rgba(100, 108, 255, 0.2);
 }
 
 .preview-view__btn--primary:hover {
-  background: linear-gradient(135deg, #5a63ff, #7078ff);
-  transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(100, 108, 255, 0.32);
+  background: linear-gradient(135deg, var(--color-primary-hover), #7078ff);
+  transform: translateY(-1px);
+}
+
+.preview-view__btn--primary:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .preview-view__btn--secondary {

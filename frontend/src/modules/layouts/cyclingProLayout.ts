@@ -29,7 +29,6 @@ export function renderCyclingProLayout(
     const shortSide = Math.min(w, h);
     const portrait = h > w;
     const accentColor = config.accentColor || '#00E676';
-    const unitColor = '#FF5A36';
     const left = Math.round(w * (portrait ? 0.038 : 0.028));
     const top = Math.round(h * (portrait ? 0.068 : 0.07));
     const sidebarWidth = portrait
@@ -64,7 +63,7 @@ export function renderCyclingProLayout(
             y: top + index * metricBlockHeight,
             label: metric.label,
             unit: metric.unit,
-            unitColor,
+            unitColor: accentColor,
             value: Math.round(rawValue).toString(),
             progress: Math.max(0, Math.min(1, rawValue / metric.max)),
             width: sidebarWidth,
@@ -94,8 +93,7 @@ export function renderCyclingProLayout(
         maxSpeed: 60,
         fontFamily: config.fontFamily,
         accentColor,
-        unitColor,
-        textColor: '#FFFFFF',
+        textColor: config.textColor || '#FFFFFF',
         backgroundColor: portrait ? 'rgba(2, 14, 7, 0.68)' : 'rgba(2, 14, 7, 0.74)',
     });
 
@@ -234,7 +232,7 @@ function drawDistanceCallout(
     ctx.font = `300 ${valueSize}px ${params.fontFamily}`;
     ctx.fillText(params.distanceValue, params.x, params.baselineY);
 
-    ctx.fillStyle = '#FF5A36';
+    ctx.fillStyle = params.accentColor;
     ctx.font = `700 ${unitSize}px ${params.fontFamily}`;
     ctx.fillText('KM', params.x + ctx.measureText(params.distanceValue).width + 8, params.baselineY - Math.round(unitSize * 0.18));
 }

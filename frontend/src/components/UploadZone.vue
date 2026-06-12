@@ -29,7 +29,7 @@
     </div>
 
     <div v-else class="upload-zone__file-info">
-      <div class="upload-zone__file-icon">✅</div>
+      <div class="upload-zone__file-icon"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
       <p class="upload-zone__file-name">{{ fileName }}</p>
       <p class="upload-zone__file-size">{{ fileSizeFormatted }}</p>
       <button
@@ -37,7 +37,7 @@
         @click.stop="removeFile"
         data-testid="remove-file"
       >
-        ✕ Remove
+        <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Remove
       </button>
     </div>
 

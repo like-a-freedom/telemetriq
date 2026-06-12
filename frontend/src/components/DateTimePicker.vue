@@ -12,7 +12,13 @@
         class="datetime-picker__display"
         aria-haspopup="dialog"
       />
-      <span class="datetime-picker__icon">📅</span>
+      <span class="datetime-picker__icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M5 1v3M11 1v3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          <path d="M2.5 6.5h11" stroke="currentColor" stroke-width="1"/>
+        </svg>
+      </span>
     </div>
 
     <div
@@ -22,9 +28,9 @@
     >
       <div class="datetime-picker__popup-body">
         <div class="calendar-header">
-          <button class="month-btn" @click.prevent="changeMonth(-1)">◀</button>
+          <button class="dt-picker__month-btn" @click.prevent="changeMonth(-1)">◀</button>
           <div class="month-title">{{ monthTitle }}</div>
-          <button class="month-btn" @click.prevent="changeMonth(1)">▶</button>
+          <button class="dt-picker__month-btn" @click.prevent="changeMonth(1)">▶</button>
         </div>
 
         <div class="calendar-grid">
@@ -32,7 +38,7 @@
           <button
             v-for="cell in monthCells"
             :key="cell.key"
-            class="calendar-cell"
+            class="dt-picker__cell"
             :class="{
               'is-today': cell.isToday,
               'is-selected': cell.isSelected,
@@ -45,12 +51,12 @@
           </button>
         </div>
 
-        <div class="time-row">
+        <div class="dt-picker__time-row">
           <div class="time-control" role="group" aria-label="Time">
-            <div class="time-box">
+            <div class="dt-picker__time-box">
               <div class="time-label">HH</div>
               <input
-                class="time-input"
+                class="dt-picker__time-input"
                 type="number"
                 min="0"
                 max="23"
@@ -59,10 +65,10 @@
               />
             </div>
             <div class="time-sep" aria-hidden="true">:</div>
-            <div class="time-box">
+            <div class="dt-picker__time-box">
               <div class="time-label">MM</div>
               <input
-                class="time-input"
+                class="dt-picker__time-input"
                 type="number"
                 min="0"
                 max="59"
@@ -71,10 +77,10 @@
               />
             </div>
             <div class="time-sep" aria-hidden="true">:</div>
-            <div class="time-box">
+            <div class="dt-picker__time-box">
               <div class="time-label">SS</div>
               <input
-                class="time-input"
+                class="dt-picker__time-input"
                 type="number"
                 min="0"
                 max="59"
@@ -85,9 +91,9 @@
           </div>
         </div>
 
-        <div class="popup-actions">
-          <button class="btn" @click="apply">Apply</button>
-          <button class="btn btn--ghost" @click="closePopup">Cancel</button>
+        <div class="dt-picker__actions">
+          <button class="dt-picker__btn" @click="apply">Apply</button>
+          <button class="dt-picker__btn dt-picker__btn--ghost" @click="closePopup">Cancel</button>
         </div>
       </div>
     </div>
@@ -325,7 +331,7 @@ onBeforeUnmount(() => {
   background: var(--color-bg-secondary, #1a1a1a);
   border: 1px solid var(--color-border, #303030);
   border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   padding: 0.75rem;
   min-width: 320px;
 }
@@ -344,7 +350,7 @@ onBeforeUnmount(() => {
   font-weight: 600;
 }
 
-.month-btn {
+.dt-picker__month-btn {
   background: transparent;
   border: 1px solid var(--color-border, #404040);
   color: var(--color-text, #fff);
@@ -365,7 +371,7 @@ onBeforeUnmount(() => {
   font-size: 0.75rem;
 }
 
-.calendar-cell {
+.dt-picker__cell {
   background: transparent;
   border: none;
   color: var(--color-text, #fff);
@@ -373,19 +379,19 @@ onBeforeUnmount(() => {
   border-radius: 6px;
   cursor: pointer;
 }
-.calendar-cell.is-today {
+.dt-picker__cell.is-today {
   box-shadow: inset 0 0 0 1px rgba(100, 108, 255, 0.15);
 }
-.calendar-cell.is-selected {
+.dt-picker__cell.is-selected {
   background: var(--color-primary, #646cff);
   color: white;
 }
-.calendar-cell.is-disabled {
+.dt-picker__cell.is-disabled {
   color: var(--color-text-secondary, #6e6e6e);
   opacity: 0.5;
 }
 
-.time-row {
+.dt-picker__time-row {
   display: flex;
   gap: 0.5rem;
   align-items: center;
@@ -397,7 +403,7 @@ onBeforeUnmount(() => {
   gap: 0.5rem;
   background: transparent;
 }
-.time-box {
+.dt-picker__time-box {
   position: relative;
   min-width: 64px;
   display: inline-flex;
@@ -409,7 +415,6 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   border: 1px solid var(--color-border, #404040);
   background: var(--color-bg-tertiary, #242424);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.01);
 }
 .time-label {
   font-size: 0.65rem;
@@ -417,7 +422,7 @@ onBeforeUnmount(() => {
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
-.time-input {
+.dt-picker__time-input {
   width: 100%;
   text-align: center;
   border: none;
@@ -433,23 +438,23 @@ onBeforeUnmount(() => {
   padding: 0 0.25rem;
 }
 /* hide native number spinners for cleaner look */
-.time-input::-webkit-outer-spin-button,
-.time-input::-webkit-inner-spin-button {
+.dt-picker__time-input::-webkit-outer-spin-button,
+.dt-picker__time-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   appearance: none;
   margin: 0;
 }
-.time-input[type="number"] {
+.dt-picker__time-input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
 
-.popup-actions {
+.dt-picker__actions {
   display: flex;
   gap: 0.5rem;
   justify-content: flex-end;
 }
-.btn {
+.dt-picker__btn {
   padding: 0.5rem 0.85rem;
   border-radius: 8px;
   border: none;
@@ -457,10 +462,16 @@ onBeforeUnmount(() => {
   color: white;
   cursor: pointer;
 }
-.btn--ghost {
+.dt-picker__btn--ghost {
   background: transparent;
   border: 1px solid var(--color-border, #404040);
   color: var(--color-text, #fff);
+}
+
+.dt-picker__btn:focus-visible,
+.dt-picker__month-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 @media (max-width: 640px) {

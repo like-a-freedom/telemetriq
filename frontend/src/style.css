@@ -12,6 +12,19 @@
   --color-text: #ffffffde;
   --color-text-secondary: #999;
 
+  --color-warning-text: #ffcc80;
+  --color-warning-surface: #3a2a12;
+
+  --color-status-auto: #36b37e;
+  --color-status-manual: #ff9f43;
+
+  --color-overlay-text: #ffffff;
+  --color-overlay-scrim: #000000;
+
+  --color-trail-accent: #ff3b30;
+  --color-cycling-accent: #00e676;
+  --color-cycling-accent-strong: #00c853;
+
   /* UI caret (data-URI SVG) — canonical icon used for all dropdown/caret visuals */
   --ui-caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238f8f8f' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
 
@@ -60,6 +73,9 @@ button {
     --color-border: #ddd;
     --color-text: #213547;
     --color-text-secondary: #666;
+
+    --color-warning-text: #7a5200;
+    --color-warning-surface: #fff3e0;
   }
 }
 

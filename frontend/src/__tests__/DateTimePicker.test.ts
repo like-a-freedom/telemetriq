@@ -21,7 +21,7 @@ describe('DateTimePicker', () => {
         expect(wrapper.find('.datetime-picker__popup').exists()).toBe(true);
 
         // pick first enabled calendar cell
-        const cells = wrapper.findAll('.calendar-cell');
+        const cells = wrapper.findAll('.dt-picker__cell');
         const enabled = cells.find((c) => !c.classes().includes('is-disabled'))!;
         await enabled.trigger('click');
 
@@ -30,15 +30,15 @@ describe('DateTimePicker', () => {
         expect(labels.map(l => l.text())).toEqual(['HH', 'MM', 'SS']);
 
         // set time
-        const hh = wrapper.find('input.time-input[type="number"]');
+        const hh = wrapper.find('input.dt-picker__time-input[type="number"]');
         await hh.setValue('08');
-        const mins = wrapper.findAll('input.time-input')[1];
+        const mins = wrapper.findAll('input.dt-picker__time-input')[1];
         await mins.setValue('30');
-        const secs = wrapper.findAll('input.time-input')[2];
+        const secs = wrapper.findAll('input.dt-picker__time-input')[2];
         await secs.setValue('15');
 
         // apply
-        await wrapper.find('.popup-actions .btn').trigger('click');
+        await wrapper.find('.dt-picker__actions .dt-picker__btn').trigger('click');
 
         const emitted = wrapper.emitted('update:modelValue');
         expect(emitted).toBeTruthy();

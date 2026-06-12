@@ -1,7 +1,7 @@
 <template>
   <div class="result-view">
     <header class="result-view__header">
-      <h2>🎉 Video is ready!</h2>
+      <h2>Video is ready!</h2>
       <p class="result-view__subtitle">
         Your video with telemetry is ready for download
       </p>
@@ -39,14 +39,14 @@
         @click="downloadResult"
         data-testid="download-btn"
       >
-        ⬇️ Download video
+        <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download
       </button>
       <button
         class="result-view__btn"
         @click="startOver"
         data-testid="start-over-btn"
       >
-        🔄 Start over
+        <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Start over
       </button>
     </div>
   </div>
@@ -183,7 +183,7 @@ function startOver(): void {
   border-radius: 12px;
   overflow: hidden;
   margin-bottom: 1.5rem;
-  background: #000;
+  background: var(--color-bg);
 }
 
 .result-view__video {
@@ -230,6 +230,11 @@ function startOver(): void {
   background: var(--color-bg-hover, #333);
 }
 
+.result-view__btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 .result-view__btn--primary {
   background: var(--color-success, #4caf50);
   border-color: var(--color-success, #4caf50);
@@ -237,7 +242,8 @@ function startOver(): void {
 }
 
 .result-view__btn--primary:hover {
-  background: #43a047;
+  background: var(--color-success);
+  opacity: 0.85;
   transform: translateY(-1px);
 }
 
