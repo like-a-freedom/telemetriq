@@ -46,7 +46,7 @@ function createFixture(label: VideoProcessingFixture['label'], relativePath: str
 export function discoverVideoProcessingFixtures(): VideoProcessingFixture[] {
     return [
         createFixture('baseline-mp4', 'test.mp4'),
-        createFixture('dji-hevc', 'dji/dji-osmo-pocket-3.MP4'),
+        createFixture('dji-hevc', 'dji/vertical/dji-osmo-pocket-3.MP4'),
         createFixture('iphone-mov', 'iphone/example_01/iphone-16-pro-max.MOV'),
     ].filter((fixture) => fixture.exists);
 }
