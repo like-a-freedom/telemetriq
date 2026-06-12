@@ -20,7 +20,7 @@ export function renderTrailRunLayout(
     const tuning = getResolutionTuning(w, h);
     const shortSide = Math.min(w, h);
     const compact = shortSide < 480;
-    const history = (renderContext.hrHistory ?? []).slice(-60);
+    const history = smoothHrHistory((renderContext.hrHistory ?? []).slice(-60));
     const topInset = Math.round(h * 0.038);
     const graphLeft = Math.round(w * 0.04);
     const graphWidth = Math.round(w * 0.82);
@@ -104,6 +104,33 @@ export function renderTrailRunLayout(
  * continuity.  The tension parameter controls how tight the curve hugs
  * the control points (0 = linear, 0.5 = standard Catmull‑Rom).
  */
+function smoothHrHistory(history: readonly number[]): number[] {
+    if (history.length < 3) {
+        return [...history];
+    }
+
+    const alpha = 0.28;
+    const forward: number[] = new Array(history.length);
+    let prev = history[0]!;
+
+    forward[0] = prev;
+    for (let i = 1; i < history.length; i++) {
+        prev = prev + alpha * (history[i]! - prev);
+        forward[i] = prev;
+    }
+
+    const backward: number[] = new Array(history.length);
+    prev = forward[history.length - 1]!
+    backward[history.length - 1] = prev;
+
+    for (let i = history.length - 2; i >= 0; i--) {
+        prev = prev + alpha * (forward[i]! - prev);
+        backward[i] = prev;
+    }
+
+    return backward;
+}
+
 function catmullRomChain(
     points: readonly { x: number; y: number }[],
     samples: number,
@@ -154,6 +181,39 @@ function catmullRomChain(
     return result;
 }
 
+function buildSmoothBezierSegments(
+    points: readonly { x: number; y: number }[],
+    samples: number,
+): Array<{ start: { x: number; y: number }; cp1: { x: number; y: number }; cp2: { x: number; y: number }; end: { x: number; y: number } }> {
+    const dense = catmullRomChain(points, samples);
+
+    if (dense.length < 2) {
+        return [];
+    }
+
+    const segments = [];
+
+    for (let i = 0; i < dense.length - 1; i++) {
+        const prev = dense[i - 1] ?? dense[i]!;
+        const current = dense[i]!;
+        const next = dense[i + 1]!;
+        const next2 = dense[i + 2] ?? next;
+
+        const cp1 = {
+            x: current.x + (next.x - prev.x) / 6,
+            y: current.y + (next.y - prev.y) / 6,
+        };
+        const cp2 = {
+            x: next.x - (next2.x - current.x) / 6,
+            y: next.y - (next2.y - current.y) / 6,
+        };
+
+        segments.push({ start: current, cp1, cp2, end: next });
+    }
+
+    return segments;
+}
+
 function drawHeartRateTrace(
     ctx: OverlayContext2D,
     history: number[],
@@ -174,16 +234,15 @@ function drawHeartRateTrace(
     ctx.lineTo(left + width, top + height);
     ctx.stroke();
 
-    // Build smooth Catmull‑Rom curve through the raw HR history.
-    // The spline is sampled at ~3× the original point count so the
-    // curve reads as a continuous wave without oversampling into
-    // linear interpolation territory.
+    // Build a dense Catmull‑Rom spline and render it as cubic Bézier
+    // segments. This keeps the trace fluid instead of looking like a
+    // stepped polyline when the HR history is short or sparse.
     const rawPoints = history.map((value, index) => ({
         x: left + (index / Math.max(1, history.length - 1)) * width,
         y: top + height - ((value - minHr) / range) * height,
     }));
-    const samples = Math.max(4, history.length * 3);
-    const splinePoints = catmullRomChain(rawPoints, samples);
+    const samples = Math.max(96, history.length * 16);
+    const bezierSegments = buildSmoothBezierSegments(rawPoints, samples);
 
     ctx.strokeStyle = accentColor;
     ctx.lineWidth = Math.max(1.8, width * 0.0022);
@@ -192,10 +251,21 @@ function drawHeartRateTrace(
     ctx.shadowColor = 'rgba(0,0,0,0.58)';
     ctx.shadowBlur = 10;
     ctx.beginPath();
-    ctx.moveTo(splinePoints[0]!.x, splinePoints[0]!.y);
 
-    for (let i = 1; i < splinePoints.length; i++) {
-        ctx.lineTo(splinePoints[i]!.x, splinePoints[i]!.y);
+    if (bezierSegments.length > 0) {
+        const first = bezierSegments[0]!;
+        ctx.moveTo(first.start.x, first.start.y);
+
+        for (const segment of bezierSegments) {
+            ctx.bezierCurveTo(
+                segment.cp1.x,
+                segment.cp1.y,
+                segment.cp2.x,
+                segment.cp2.y,
+                segment.end.x,
+                segment.end.y,
+            );
+        }
     }
 
     ctx.stroke();

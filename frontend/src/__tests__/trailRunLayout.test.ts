@@ -82,7 +82,7 @@ describe('trailRun layout', () => {
             hrHistory: [148, 150, 152, 155, 159],
         });
 
-        expect(ctx.lineTo).toHaveBeenCalled();
+        expect(ctx.bezierCurveTo).toHaveBeenCalled();
         expect(ctx.arc).toHaveBeenCalled();
         expect(ctx.fillText).toHaveBeenCalledWith('HR', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).toHaveBeenCalledWith('GRADE', expect.any(Number), expect.any(Number));
