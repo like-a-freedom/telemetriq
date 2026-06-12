@@ -122,22 +122,24 @@ describe('PreviewView (synchronization panel)', () => {
         expect(wrapper.text()).toContain('Position');
     });
 
-    it('renders the expanded telemetry metric controls', () => {
+    it('renders the expanded telemetry metric controls for available metrics only', () => {
         makeStores({ autoSynced: false });
 
         const wrapper = mount(PreviewView, {
             global: { stubs: ['VideoPlayer', 'SyncSlider', 'TemplateSelector', 'DateTimePicker'] },
         });
 
+        // Default horizon template supports: pace, hr, distance, time
         expect(wrapper.text()).toContain('Heart rate');
         expect(wrapper.text()).toContain('Pace');
         expect(wrapper.text()).toContain('Distance');
         expect(wrapper.text()).toContain('Time');
-        expect(wrapper.text()).toContain('Speed');
-        expect(wrapper.text()).toContain('Grade');
-        expect(wrapper.text()).toContain('Elevation');
-        expect(wrapper.text()).toContain('Cadence');
-        expect(wrapper.text()).toContain('Power');
+        // These are not supported by horizon template, so should not be shown
+        expect(wrapper.text()).not.toContain('Speed');
+        expect(wrapper.text()).not.toContain('Grade');
+        expect(wrapper.text()).not.toContain('Elevation');
+        expect(wrapper.text()).not.toContain('Cadence');
+        expect(wrapper.text()).not.toContain('Power');
     });
 
     it('does not render the noisy metric tag badges in the preview panel', () => {
@@ -160,7 +162,7 @@ describe('PreviewView (synchronization panel)', () => {
 
         expect(wrapper.text()).toContain('Template data check');
         expect(wrapper.text()).toContain('Trail Run needs elevation samples');
-        expect(wrapper.text()).toContain('render as N/A');
+        expect(wrapper.text()).toContain('will not be displayed');
     });
 
     it('warns when cycling-pro is selected without cadence and power data', () => {
@@ -174,7 +176,7 @@ describe('PreviewView (synchronization panel)', () => {
         expect(wrapper.text()).toContain('Template data check');
         expect(wrapper.text()).toContain('Cycling Pro has no cadence samples');
         expect(wrapper.text()).toContain('Cycling Pro has no power samples');
-        expect(wrapper.text()).toContain('render as N/A');
+        expect(wrapper.text()).toContain('will not be displayed');
     });
 
     it('shows locked badges for template-required metrics', () => {

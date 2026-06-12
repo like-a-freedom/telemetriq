@@ -22,8 +22,8 @@
       </label>
       <input
         type="range"
-        :min="-maxRange"
-        :max="maxRange"
+        :min="sliderMin"
+        :max="sliderMax"
         :step="0.5"
         :value="offsetSeconds"
         @input="onSliderChange"
@@ -31,9 +31,9 @@
         data-testid="sync-range"
       />
       <div class="sync-slider__range-labels">
-        <span>-{{ formatTime(maxRange) }}</span>
-        <span>0</span>
-        <span>+{{ formatTime(maxRange) }}</span>
+        <span>{{ formatTime(sliderMin) }}</span>
+        <span>{{ formatTime(autoSyncOffsetSeconds) }}</span>
+        <span>{{ formatTime(sliderMax) }}</span>
       </div>
     </div>
 
@@ -76,8 +76,10 @@ import { getSyncRangeSeconds } from "../modules/syncEngine";
 
 const props = defineProps<{
   offsetSeconds: number;
+  autoSyncOffsetSeconds: number;
   isAutoSynced: boolean;
   videoDurationSeconds?: number;
+  gpxTrackDurationSeconds?: number;
   error?: string | null;
   warning?: string | null;
 }>();
@@ -86,10 +88,25 @@ const emit = defineEmits<{
   (e: "update:offsetSeconds", value: number): void;
 }>();
 
-const maxRange = computed(() => {
-  const base = getSyncRangeSeconds(props.videoDurationSeconds);
-  const current = Math.ceil(Math.abs(props.offsetSeconds)) + 1;
-  return Math.max(base, current);
+const halfRange = computed(() => {
+  const durationBased = getSyncRangeSeconds(props.videoDurationSeconds);
+  return Math.max(durationBased, 30);
+});
+
+const sliderMin = computed(() => {
+  const gpxDuration = props.gpxTrackDurationSeconds;
+  if (gpxDuration !== undefined && Number.isFinite(gpxDuration) && gpxDuration > 0) {
+    return Math.min(0, props.autoSyncOffsetSeconds);
+  }
+  return props.autoSyncOffsetSeconds - halfRange.value;
+});
+
+const sliderMax = computed(() => {
+  const gpxDuration = props.gpxTrackDurationSeconds;
+  if (gpxDuration !== undefined && Number.isFinite(gpxDuration) && gpxDuration > 0) {
+    return Math.max(gpxDuration, props.autoSyncOffsetSeconds);
+  }
+  return props.autoSyncOffsetSeconds + halfRange.value;
 });
 
 const formattedOffset = computed(() => {
@@ -105,10 +122,12 @@ const formattedOffset = computed(() => {
 });
 
 function formatTime(seconds: number): string {
-  if (seconds >= 60) {
-    return `${Math.floor(seconds / 60)}m`;
+  const sign = seconds < 0 ? '-' : '+';
+  const abs = Math.abs(seconds);
+  if (abs >= 60) {
+    return `${sign}${Math.floor(abs / 60)}m`;
   }
-  return `${seconds}s`;
+  return `${sign}${abs}s`;
 }
 
 function onSliderChange(event: Event): void {
@@ -121,7 +140,7 @@ function adjustOffset(delta: number): void {
 }
 
 function resetOffset(): void {
-  emit("update:offsetSeconds", 0);
+  emit("update:offsetSeconds", props.autoSyncOffsetSeconds);
 }
 </script>
 

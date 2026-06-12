@@ -14,6 +14,7 @@ const DEFAULT_SYNC_CONFIG: SyncConfig = {
 export const useSyncStore = defineStore('sync', () => {
     // State
     const syncConfig = ref<SyncConfig>({ ...DEFAULT_SYNC_CONFIG });
+    const autoSyncOffsetSeconds = ref(0);
     const isAutoSyncing = ref(false);
     const syncError = ref<string | null>(null);
     const syncWarning = ref<string | null>(null);
@@ -58,6 +59,7 @@ export const useSyncStore = defineStore('sync', () => {
             );
 
             syncConfig.value = result;
+            autoSyncOffsetSeconds.value = result.offsetSeconds;
             manualOverrideActive.value = false;
 
             if (result.warning) {
@@ -70,6 +72,7 @@ export const useSyncStore = defineStore('sync', () => {
         } catch (err) {
             syncError.value = formatErrorMessage(err);
             syncConfig.value = { ...DEFAULT_SYNC_CONFIG };
+            autoSyncOffsetSeconds.value = 0;
         } finally {
             isAutoSyncing.value = false;
         }
@@ -77,6 +80,7 @@ export const useSyncStore = defineStore('sync', () => {
 
     function reset(): void {
         syncConfig.value = { ...DEFAULT_SYNC_CONFIG };
+        autoSyncOffsetSeconds.value = 0;
         isAutoSyncing.value = false;
         syncError.value = null;
         syncWarning.value = null;
@@ -85,6 +89,7 @@ export const useSyncStore = defineStore('sync', () => {
 
     return {
         syncConfig,
+        autoSyncOffsetSeconds,
         isAutoSyncing,
         syncError,
         syncWarning,

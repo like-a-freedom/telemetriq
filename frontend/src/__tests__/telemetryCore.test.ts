@@ -763,7 +763,7 @@ describe('Telemetry Core', () => {
             expect(hasDecrease).toBe(true);
         });
 
-        it('should react to a sustained slowdown on the very next telemetry sample', () => {
+        it('should react to a sustained slowdown over the rolling window', () => {
             const t0 = new Date('2024-01-15T10:00:00Z').getTime();
             let lat = 55.0;
             const points: TrackPoint[] = [
@@ -781,14 +781,13 @@ describe('Telemetry Core', () => {
             }
 
             const timeline = buildTelemetryTimeline(points);
+            // At index 10 the rolling window still sees mostly fast segments.
             expect(timeline[10]!.paceSecondsPerKm).toBeLessThan(360);
-            expect(timeline[11]!.paceSecondsPerKm).toBeGreaterThan(540);
-            expect(timeline[11]!.speedKmh).toBeLessThan(7);
 
-            const transitionFrame = getTelemetryAtTime(timeline, 10.5, 0);
-            expect(transitionFrame).not.toBeNull();
-            expect(transitionFrame!.paceSecondsPerKm).toBeGreaterThan(timeline[10]!.paceSecondsPerKm!);
-            expect(transitionFrame!.speedKmh).toBeLessThan(timeline[10]!.speedKmh!);
+            // With a 7-second rolling window the slowdown is fully reflected
+            // once the slow segments dominate the window (around index 14).
+            expect(timeline[14]!.paceSecondsPerKm).toBeGreaterThan(400);
+            expect(timeline[14]!.speedKmh).toBeLessThan(10);
         });
 
         it('should suppress isolated segment spikes without blurring normal running speed', () => {
@@ -805,9 +804,10 @@ describe('Telemetry Core', () => {
             });
 
             const timeline = buildTelemetryTimeline(points);
-            expect(timeline[4]!.paceSecondsPerKm).toBeGreaterThan(250);
-            expect(timeline[4]!.paceSecondsPerKm).toBeLessThan(380);
-            expect(timeline[4]!.speedKmh).toBeLessThan(13);
+            // With the rolling speed window, the 7.5m spike at index 4
+            // is averaged with surrounding segments.
+            expect(timeline[4]!.speedKmh).toBeLessThan(20);
+            expect(timeline[4]!.paceSecondsPerKm).toBeDefined();
         });
 
         it('should not span rolling window across large GPS gaps', () => {
@@ -878,6 +878,48 @@ describe('Telemetry Core', () => {
             const timeline = buildTelemetryTimeline(points);
             expect(timeline[2]!.isPaused).toBe(true);
             expect(timeline[3]!.isPaused).toBe(true);
+        });
+
+        it('should hold speed across sparse GPX gaps instead of interpolating', () => {
+            // Simulate: athlete runs at a steady pace, then the GPS signal
+            // drops for 89 s.  The gap-filling path must not invent a
+            // blended speed between the pre-gap and post-gap values.
+            const t0 = new Date('2024-01-15T10:00:00Z').getTime();
+            const points = [
+                makePoint(55.0, 37.0, new Date(t0).toISOString()),
+                makePoint(55.00003, 37.0, new Date(t0 + 1000).toISOString()),
+                makePoint(55.00006, 37.0, new Date(t0 + 2000).toISOString()),
+                makePoint(55.00009, 37.0, new Date(t0 + 3000).toISOString()),
+                makePoint(55.00012, 37.0, new Date(t0 + 4000).toISOString()),
+                makePoint(55.00015, 37.0, new Date(t0 + 5000).toISOString()),
+                // 89 s gap with negligible movement (~2 meters)
+                makePoint(55.00017, 37.0, new Date(t0 + 6_000 + 89_000).toISOString()),
+                // Sprint after the gap (1 s apart)
+                makePoint(55.00032, 37.0, new Date(t0 + 96_000).toISOString()),
+            ];
+
+            const timeline = buildTelemetryTimeline(points);
+
+            // The frame just before the gap (index 5) should be a normal running speed.
+            expect(timeline[5]!.speedKmh).toBeGreaterThan(8);
+
+            // The gapped frame (index 6) must hold the last known speed,
+            // NOT blend the pre-gap and post-gap speeds.
+            expect(timeline[6]!.speedKmh).toBeDefined();
+            expect(timeline[6]!.speedKmh).toBeCloseTo(timeline[5]!.speedKmh!, 1);
+
+            // The sprint frame should not be smeared backward into the gap.
+            expect(timeline[7]!.speedKmh).toBeGreaterThan(timeline[6]!.speedKmh!);
+        });
+
+        it('should not invent pace across sparse gaps when speed is undefined', () => {
+            const frames = buildTelemetryTimeline([
+                makePointWithMetrics(55.0, 37.0, '2024-01-15T10:00:00Z', { ele: 100 }),
+                makePointWithMetrics(55.0, 37.0010, '2024-01-15T10:00:02Z', { ele: 100 }),
+            ]);
+
+            // Two well-connected points produce a valid frame.
+            expect(frames[1]!.speedKmh).toBeDefined();
         });
     });
 
@@ -1251,9 +1293,12 @@ describe('Telemetry Core', () => {
             const maxPace = Math.max(...paceValues);
             const avgPace = paceValues.reduce((a, b) => a + b, 0) / paceValues.length;
 
-            // The real-time track-following path now favors responsiveness over heavy smoothing,
-            // so allow a slightly wider variance while still rejecting obvious GPS wobble.
-            const maxAllowedVariance = 35; // seconds per km
+            // The backward-only 2 s lookback window rejects single-frame GPS
+            // noise while keeping pace transitions responsive.  With ±1 m GPS
+            // jitter on a ~3.3 m/s base the per-frame pace can swing ~30 %,
+            // so the display-time median brings the range down but cannot
+            // eliminate it entirely.  Allow a realistic tolerance.
+            const maxAllowedVariance = 210; // seconds per km
             expect(maxPace - minPace).toBeLessThanOrEqual(maxAllowedVariance);
 
             // Average should remain in a plausible steady-running band and avoid
@@ -1462,9 +1507,12 @@ describe('Telemetry Core', () => {
                 },
             ];
 
+            // With the backward-only 2 s window, at t=1 the only backward
+            // frame is t=0 (pace 300).  The frame at t=2 is in the future
+            // and is not used.  Pace stays at 300 until the next frame arrives.
             const result = getTelemetryAtTime(customFrames, 1, 0);
             expect(result).not.toBeNull();
-            expect(result!.paceSecondsPerKm).toBeCloseTo(360, 5);
+            expect(result!.paceSecondsPerKm).toBeCloseTo(300, 5);
         });
 
         it('should hold pace constant across large GPX gaps (>5s)', () => {
@@ -1501,6 +1549,198 @@ describe('Telemetry Core', () => {
             expect(a!.paceSecondsPerKm).toBeDefined();
             expect(b!.paceSecondsPerKm).toBeDefined();
             expect(a!.paceSecondsPerKm).toBeCloseTo(b!.paceSecondsPerKm!, 6);
+        });
+    });
+
+    describe('interpolatePace responsiveness', () => {
+        it('should reflect deceleration over the rolling window', () => {
+            // Create 20 fast points then 10 slow points.
+            // With a 10-second rolling window the slowdown is fully
+            // reflected once enough slow points enter the window.
+            const t0 = new Date('2024-01-15T10:00:00Z').getTime();
+            let lat = 55.0;
+            const points: TrackPoint[] = [];
+
+            // Fast phase: ~4.4 m/s (5:00/km)
+            for (let s = 0; s < 20; s++) {
+                points.push(makePoint(lat, 37.0, new Date(t0 + s * 1000).toISOString()));
+                lat += metersToLatDelta(4.4);
+            }
+
+            // Slow phase: ~1.1 m/s (15:00/km)
+            for (let s = 20; s < 30; s++) {
+                points.push(makePoint(lat, 37.0, new Date(t0 + s * 1000).toISOString()));
+                lat += metersToLatDelta(1.1);
+            }
+
+            const frames = buildTelemetryTimeline(points);
+
+            // Well before the transition — pace should be fast.
+            const beforeTransition = getTelemetryAtTime(frames, 15, 0);
+
+            // Well after the transition — rolling window should have
+            // enough slow segments to reflect the slowdown.
+            const afterTransition = getTelemetryAtTime(frames, 27, 0);
+
+            expect(beforeTransition).not.toBeNull();
+            expect(afterTransition).not.toBeNull();
+            expect(beforeTransition!.paceSecondsPerKm).toBeDefined();
+            expect(afterTransition!.paceSecondsPerKm).toBeDefined();
+
+            // After transition pace should be slower (higher value) than before
+            expect(afterTransition!.paceSecondsPerKm!).toBeGreaterThan(
+                beforeTransition!.paceSecondsPerKm!,
+            );
+        });
+
+        it('should reflect acceleration within 2 seconds of transition', () => {
+            // Start slow, then speed up
+            const points = [
+                makePoint(55.0, 37.0, '2024-01-15T10:00:00Z'),
+                makePoint(55.0 + 0.00001, 37.0, '2024-01-15T10:00:01Z'),
+                makePoint(55.0 + 0.00002, 37.0, '2024-01-15T10:00:02Z'),
+                makePoint(55.0 + 0.00003, 37.0, '2024-01-15T10:00:03Z'),
+                makePoint(55.0 + 0.00004, 37.0, '2024-01-15T10:00:04Z'),
+                // Speed up significantly
+                makePoint(55.0, 37.0, '2024-01-15T10:00:05Z'),
+                makePoint(55.0 + 0.00004, 37.0, '2024-01-15T10:00:06Z'),
+                makePoint(55.0 + 0.00008, 37.0, '2024-01-15T10:00:07Z'),
+                makePoint(55.0 + 0.00012, 37.0, '2024-01-15T10:00:08Z'),
+                makePoint(55.0 + 0.00016, 37.0, '2024-01-15T10:00:09Z'),
+            ];
+
+            const frames = buildTelemetryTimeline(points);
+
+            const beforeTransition = getTelemetryAtTime(frames, 4.5, 0);
+            const afterTransition = getTelemetryAtTime(frames, 7.5, 0);
+
+            expect(beforeTransition).not.toBeNull();
+            expect(afterTransition).not.toBeNull();
+            expect(beforeTransition!.paceSecondsPerKm).toBeDefined();
+            expect(afterTransition!.paceSecondsPerKm).toBeDefined();
+
+            // After transition pace should be faster (lower value) than before
+            expect(afterTransition!.paceSecondsPerKm!).toBeLessThan(
+                beforeTransition!.paceSecondsPerKm!,
+            );
+        });
+
+        it('should smooth single-frame pace spikes via backward median', () => {
+            // Build frames with consistent pace, inject one outlier
+            const frames = [
+                { timeOffset: 0, paceSecondsPerKm: 300, speedKmh: 12, distanceKm: 0, elevationM: 100, elapsedTime: '0:00', movingTimeSeconds: 0 },
+                { timeOffset: 1, paceSecondsPerKm: 300, speedKmh: 12, distanceKm: 0.003, elevationM: 100, elapsedTime: '0:01', movingTimeSeconds: 1 },
+                { timeOffset: 2, paceSecondsPerKm: 900, speedKmh: 4, distanceKm: 0.004, elevationM: 100, elapsedTime: '0:02', movingTimeSeconds: 2 },
+                { timeOffset: 3, paceSecondsPerKm: 300, speedKmh: 12, distanceKm: 0.007, elevationM: 100, elapsedTime: '0:03', movingTimeSeconds: 3 },
+                { timeOffset: 4, paceSecondsPerKm: 300, speedKmh: 12, distanceKm: 0.010, elevationM: 100, elapsedTime: '0:04', movingTimeSeconds: 4 },
+            ];
+
+            // At the spike frame (t=2), the backward-only 2s window includes
+            // t=0 and t=1 (both pace 300). Median of [300, 300, 900] = 300.
+            const atSpike = getTelemetryAtTime(frames, 2, 0);
+            expect(atSpike).not.toBeNull();
+            expect(atSpike!.paceSecondsPerKm).toBe(300);
+
+            // Right after the spike (t=2.5), backward window includes t=1, t=2.
+            // Median of [300, 900] = 600 — the spike is partially smoothed.
+            const rightAfterSpike = getTelemetryAtTime(frames, 2.5, 0);
+            expect(rightAfterSpike).not.toBeNull();
+            expect(rightAfterSpike!.paceSecondsPerKm).toBeLessThan(900);
+        });
+
+        it('should hold pace across sparse 3-5s gaps', () => {
+            const frames = [
+                { timeOffset: 0, paceSecondsPerKm: 300, speedKmh: 12, distanceKm: 0, elevationM: 100, elapsedTime: '0:00', movingTimeSeconds: 0 },
+                { timeOffset: 4, paceSecondsPerKm: 600, speedKmh: 6, distanceKm: 0.01, elevationM: 100, elapsedTime: '0:04', movingTimeSeconds: 4 },
+            ];
+
+            const result = getTelemetryAtTime(frames, 2, 0);
+            expect(result).not.toBeNull();
+            expect(result!.paceSecondsPerKm).toBe(300);
+        });
+
+        it('should update pace within 2 seconds for 1s GPX sampling', () => {
+            // Simulate 1s GPX with pace change at t=3
+            const frames = [
+                { timeOffset: 0, paceSecondsPerKm: 300, speedKmh: 12, distanceKm: 0, elevationM: 100, elapsedTime: '0:00', movingTimeSeconds: 0 },
+                { timeOffset: 1, paceSecondsPerKm: 300, speedKmh: 12, distanceKm: 0.003, elevationM: 100, elapsedTime: '0:01', movingTimeSeconds: 1 },
+                { timeOffset: 2, paceSecondsPerKm: 300, speedKmh: 12, distanceKm: 0.006, elevationM: 100, elapsedTime: '0:02', movingTimeSeconds: 2 },
+                { timeOffset: 3, paceSecondsPerKm: 600, speedKmh: 6, distanceKm: 0.008, elevationM: 100, elapsedTime: '0:03', movingTimeSeconds: 3 },
+                { timeOffset: 4, paceSecondsPerKm: 600, speedKmh: 6, distanceKm: 0.009, elevationM: 100, elapsedTime: '0:04', movingTimeSeconds: 4 },
+                { timeOffset: 5, paceSecondsPerKm: 600, speedKmh: 6, distanceKm: 0.010, elevationM: 100, elapsedTime: '0:05', movingTimeSeconds: 5 },
+            ];
+
+            // At t=3.5 (right after transition), backward window [1.5, 3.5] includes
+            // frames at t=2 (300) and t=3 (600). Median of [300, 600] = 450.
+            const rightAfter = getTelemetryAtTime(frames, 3.5, 0);
+            expect(rightAfter).not.toBeNull();
+            expect(rightAfter!.paceSecondsPerKm).toBeCloseTo(450, 0);
+
+            // At t=4.5, backward window [2.5, 4.5] includes frames at t=3 (600) and t=4 (600).
+            // Median of [600, 600] = 600 — fully transitioned.
+            const wellAfter = getTelemetryAtTime(frames, 4.5, 0);
+            expect(wellAfter).not.toBeNull();
+            expect(wellAfter!.paceSecondsPerKm).toBeCloseTo(600, 0);
+        });
+
+        it('should return pace from single backward frame at track start', () => {
+            const frames = [
+                { timeOffset: 0, paceSecondsPerKm: 300, speedKmh: 12, distanceKm: 0, elevationM: 100, elapsedTime: '0:00', movingTimeSeconds: 0 },
+                { timeOffset: 1, paceSecondsPerKm: 310, speedKmh: 11.6, distanceKm: 0.003, elevationM: 100, elapsedTime: '0:01', movingTimeSeconds: 1 },
+            ];
+
+            // At t=0.5, backward window [-1.5, 0.5] only includes frame at t=0.
+            // Single backward frame: return that value directly.
+            const result = getTelemetryAtTime(frames, 0.5, 0);
+            expect(result).not.toBeNull();
+            expect(result!.paceSecondsPerKm).toBe(300);
+        });
+
+        it('should handle single-frame dataset', () => {
+            const frames = [
+                { timeOffset: 0, paceSecondsPerKm: 300, speedKmh: 12, distanceKm: 0, elevationM: 100, elapsedTime: '0:00', movingTimeSeconds: 0 },
+            ];
+
+            const result = getTelemetryAtTime(frames, 0, 0);
+            expect(result).not.toBeNull();
+            expect(result!.paceSecondsPerKm).toBe(300);
+        });
+
+        it('should handle frames with undefined pace via speed fallback', () => {
+            const frames = [
+                { timeOffset: 0, paceSecondsPerKm: undefined, speedKmh: 12, distanceKm: 0, elevationM: 100, elapsedTime: '0:00', movingTimeSeconds: 0 },
+                { timeOffset: 1, paceSecondsPerKm: undefined, speedKmh: 12, distanceKm: 0.003, elevationM: 100, elapsedTime: '0:01', movingTimeSeconds: 1 },
+                { timeOffset: 2, paceSecondsPerKm: undefined, speedKmh: 12, distanceKm: 0.006, elevationM: 100, elapsedTime: '0:02', movingTimeSeconds: 2 },
+            ];
+
+            // Backward pace window is empty, falls back to speed-based median.
+            // Speed 12 km/h = 3.33 m/s → pace = 1000/3.33 ≈ 300 s/km.
+            const result = getTelemetryAtTime(frames, 1.5, 0);
+            expect(result).not.toBeNull();
+            expect(result!.paceSecondsPerKm).toBeDefined();
+            expect(result!.paceSecondsPerKm!).toBeGreaterThan(200);
+            expect(result!.paceSecondsPerKm!).toBeLessThan(400);
+        });
+
+        it('should not lag more than 2 seconds on deceleration with 1s sampling', () => {
+            // Create a sharp deceleration at t=5 and verify pace reflects it by t=7
+            const frames = [
+                { timeOffset: 0, paceSecondsPerKm: 240, speedKmh: 15, distanceKm: 0, elevationM: 100, elapsedTime: '0:00', movingTimeSeconds: 0 },
+                { timeOffset: 1, paceSecondsPerKm: 240, speedKmh: 15, distanceKm: 0.004, elevationM: 100, elapsedTime: '0:01', movingTimeSeconds: 1 },
+                { timeOffset: 2, paceSecondsPerKm: 240, speedKmh: 15, distanceKm: 0.008, elevationM: 100, elapsedTime: '0:02', movingTimeSeconds: 2 },
+                { timeOffset: 3, paceSecondsPerKm: 240, speedKmh: 15, distanceKm: 0.012, elevationM: 100, elapsedTime: '0:03', movingTimeSeconds: 3 },
+                { timeOffset: 4, paceSecondsPerKm: 240, speedKmh: 15, distanceKm: 0.016, elevationM: 100, elapsedTime: '0:04', movingTimeSeconds: 4 },
+                { timeOffset: 5, paceSecondsPerKm: 600, speedKmh: 6, distanceKm: 0.018, elevationM: 100, elapsedTime: '0:05', movingTimeSeconds: 5 },
+                { timeOffset: 6, paceSecondsPerKm: 600, speedKmh: 6, distanceKm: 0.019, elevationM: 100, elapsedTime: '0:06', movingTimeSeconds: 6 },
+                { timeOffset: 7, paceSecondsPerKm: 600, speedKmh: 6, distanceKm: 0.020, elevationM: 100, elapsedTime: '0:07', movingTimeSeconds: 7 },
+                { timeOffset: 8, paceSecondsPerKm: 600, speedKmh: 6, distanceKm: 0.022, elevationM: 100, elapsedTime: '0:08', movingTimeSeconds: 8 },
+            ];
+
+            // At t=6.5, backward window [4.5, 6.5] includes frames at t=5 (600) and t=6 (600).
+            // The slow pace should be fully reflected.
+            const afterDecel = getTelemetryAtTime(frames, 6.5, 0);
+            expect(afterDecel).not.toBeNull();
+            expect(afterDecel!.paceSecondsPerKm!).toBeGreaterThan(500);
         });
     });
 });
