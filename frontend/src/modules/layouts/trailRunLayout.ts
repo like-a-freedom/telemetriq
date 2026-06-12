@@ -81,6 +81,25 @@ export function renderTrailRunLayout(
     ctx.restore();
 }
 
+function fillHistoryToPixelDensity(history: number[], pixelCount: number): number[] {
+    if (history.length < 2 || pixelCount <= 1) {
+        return history;
+    }
+
+    const filled: number[] = new Array(pixelCount);
+    const step = (history.length - 1) / (pixelCount - 1);
+
+    for (let pixel = 0; pixel < pixelCount; pixel++) {
+        const srcIndex = pixel * step;
+        const lo = Math.floor(srcIndex);
+        const hi = Math.min(lo + 1, history.length - 1);
+        const t = srcIndex - lo;
+        filled[pixel] = Math.round(history[lo]! + t * (history[hi]! - history[lo]!));
+    }
+
+    return filled;
+}
+
 function drawHeartRateTrace(
     ctx: OverlayContext2D,
     history: number[],
@@ -101,6 +120,12 @@ function drawHeartRateTrace(
     ctx.lineTo(left + width, top + height);
     ctx.stroke();
 
+    // Pre-fill the history to one sample per horizontal pixel so the
+    // trace animates smoothly regardless of the original sampling cadence.
+    // Missing intermediate values are linearly interpolated between the
+    // nearest known samples.
+    const filled = fillHistoryToPixelDensity(history, Math.round(width));
+
     ctx.strokeStyle = accentColor;
     ctx.lineWidth = Math.max(1.8, width * 0.0022);
     ctx.lineCap = 'round';
@@ -109,16 +134,32 @@ function drawHeartRateTrace(
     ctx.shadowBlur = 10;
     ctx.beginPath();
 
-    history.forEach((value, index) => {
-        const x = left + (index / Math.max(1, history.length - 1)) * width;
-        const normalized = (value - minHr) / range;
-        const y = top + height - normalized * height;
-        if (index === 0) {
-            ctx.moveTo(x, y);
-            return;
-        }
-        ctx.lineTo(x, y);
-    });
+    // Convert the pixel‑dense samples to a smooth curve using
+    // Catmull‑Rom → cubic Bézier, so the trace reads as a
+    // continuous wave rather than a polyline.
+    const points = filled.map((value, index) => ({
+        x: left + (index / Math.max(1, filled.length - 1)) * width,
+        y: top + height - ((value - minHr) / range) * height,
+    }));
+
+    ctx.moveTo(points[0]!.x, points[0]!.y);
+
+    for (let i = 1; i < points.length - 1; i++) {
+        const prev = points[i - 1]!;
+        const curr = points[i]!;
+        const next = points[i + 1]!;
+
+        // Catmull‑Rom control points for cubic Bézier.
+        const cp1x = curr.x - (next.x - prev.x) / 6;
+        const cp1y = curr.y - (next.y - prev.y) / 6;
+        const cp2x = curr.x + (next.x - prev.x) / 6;
+        const cp2y = curr.y + (next.y - prev.y) / 6;
+
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, next.x, next.y);
+    }
+
+    // Close the curve to the final point.
+    ctx.lineTo(points[points.length - 1]!.x, points[points.length - 1]!.y);
 
     ctx.stroke();
     ctx.shadowBlur = 0;
