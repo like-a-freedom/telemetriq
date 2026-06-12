@@ -276,7 +276,7 @@ function buildCacheKey(
         valueSizeMultiplier: config.valueSizeMultiplier,
         accentColor: config.accentColor,
         trailRunHrHistory: config.templateId === 'trail-run'
-            ? (renderContext.hrHistory ?? []).slice(-60)
+            ? renderContext.hrHistory
             : undefined,
         width,
         height,
