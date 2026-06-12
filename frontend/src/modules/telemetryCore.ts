@@ -832,6 +832,9 @@ function createTelemetryFrame(
 
 // ── Display-time interpolation ──────────────────────────────────────────
 
+export const TRAIL_RUN_GRAPH_LOOKBACK_SECONDS = 60;
+export const TRAIL_RUN_GRAPH_SAMPLE_COUNT = 180;
+
 /**
  * Get a telemetry frame at a specific video time offset.
  * Uses binary search and linear interpolation between precomputed frame values.
@@ -874,6 +877,49 @@ export function getTelemetryWindow(
     return frames.slice(startIndex, endIndex + 1).filter((frame) => {
         return frame.timeOffset >= windowStartTime && frame.timeOffset <= gpxTime;
     });
+}
+
+export function getInterpolatedHeartRateHistory(
+    frames: TelemetryFrame[],
+    videoTimeSeconds: number,
+    syncOffsetSeconds: number,
+    lookbackSeconds = TRAIL_RUN_GRAPH_LOOKBACK_SECONDS,
+    sampleCount = TRAIL_RUN_GRAPH_SAMPLE_COUNT,
+): number[] {
+    const gpxTime = calculateGpxTime(videoTimeSeconds, syncOffsetSeconds, frames);
+    if (gpxTime === null) {
+        return [];
+    }
+
+    const clampedSampleCount = Math.max(0, Math.floor(sampleCount));
+    if (clampedSampleCount === 0) {
+        return [];
+    }
+
+    const clampedLookbackSeconds = Math.max(0, lookbackSeconds);
+    const firstFrame = frames[0]!;
+    const windowStartTime = Math.max(firstFrame.timeOffset, gpxTime - clampedLookbackSeconds);
+    const duration = Math.max(0, gpxTime - windowStartTime);
+    const result: number[] = [];
+
+    let { before, after } = findBracketingIndices(frames, windowStartTime);
+
+    for (let index = 0; index < clampedSampleCount; index++) {
+        const progress = clampedSampleCount === 1 ? 1 : index / (clampedSampleCount - 1);
+        const sampleTime = windowStartTime + duration * progress;
+
+        while (after < frames.length - 1 && frames[after]!.timeOffset < sampleTime) {
+            before = after;
+            after += 1;
+        }
+
+        const hr = interpolateHeartRateForGraph(frames[before]!, frames[after]!, sampleTime);
+        if (hr !== undefined) {
+            result.push(hr);
+        }
+    }
+
+    return result;
 }
 
 function calculateGpxTime(
@@ -971,6 +1017,23 @@ function interpolateHeartRate(before: TelemetryFrame, after: TelemetryFrame, t: 
     if (before.hr !== undefined && after.hr !== undefined) {
         return Math.round(lerp(before.hr, after.hr, t));
     }
+    return before.hr ?? after.hr;
+}
+
+function interpolateHeartRateForGraph(
+    before: TelemetryFrame,
+    after: TelemetryFrame,
+    sampleTime: number,
+): number | undefined {
+    if (before.hr !== undefined && after.hr !== undefined) {
+        if (after.timeOffset === before.timeOffset) {
+            return before.hr;
+        }
+
+        const t = (sampleTime - before.timeOffset) / (after.timeOffset - before.timeOffset);
+        return lerp(before.hr, after.hr, Math.max(0, Math.min(1, t)));
+    }
+
     return before.hr ?? after.hr;
 }
 

@@ -25,7 +25,9 @@ import type { TelemetryFrame, ExtendedOverlayConfig } from "../core/types";
 import { renderOverlay } from "../modules/overlayRenderer";
 import {
   getTelemetryAtTime,
-  getTelemetryWindow,
+  getInterpolatedHeartRateHistory,
+  TRAIL_RUN_GRAPH_LOOKBACK_SECONDS,
+  TRAIL_RUN_GRAPH_SAMPLE_COUNT,
 } from "../modules/telemetryCore";
 
 const props = defineProps<{
@@ -102,23 +104,13 @@ async function drawOverlay(): Promise<void> {
   );
 
   if (frame) {
-    const hrHistory = getTelemetryWindow(
+    const hrHistory = getInterpolatedHeartRateHistory(
       props.telemetryFrames,
       currentTime.value,
       props.syncOffset,
-      60
-    )
-      .map((sample) => sample.hr)
-      .filter((value): value is number => value !== undefined);
-
-    if (frame.hr !== undefined) {
-      hrHistory.push(frame.hr);
-      // Cap at ~60 s of video-frame-rate data so the trace never
-      // grows unbounded (~1800 entries for 30 fps * 60 s).
-      if (hrHistory.length > 1800) {
-        hrHistory.splice(0, hrHistory.length - 1800);
-      }
-    }
+      TRAIL_RUN_GRAPH_LOOKBACK_SECONDS,
+      TRAIL_RUN_GRAPH_SAMPLE_COUNT
+    );
 
     await renderOverlay(
       ctx,

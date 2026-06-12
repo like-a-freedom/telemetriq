@@ -1,6 +1,11 @@
 import type { TelemetryFrame, ExtendedOverlayConfig, ProcessingProgress, VideoMeta, VideoProcessingProfile } from '../core/types';
 import { ProcessingError } from '../core/errors';
-import { getTelemetryAtTime, getTelemetryWindow } from './telemetryCore';
+import {
+    getInterpolatedHeartRateHistory,
+    getTelemetryAtTime,
+    TRAIL_RUN_GRAPH_LOOKBACK_SECONDS,
+    TRAIL_RUN_GRAPH_SAMPLE_COUNT,
+} from './telemetryCore';
 import { renderOverlay, DEFAULT_OVERLAY_CONFIG } from './overlayRenderer';
 import { transcodeWithForcedKeyframes, remuxWithFfmpeg } from './ffmpegUtils';
 import { createKeyframeDetector, detectSourceGopSize } from './keyframeDetector';
@@ -564,22 +569,13 @@ export class VideoProcessor {
             videoMeta.duration,
         );
 
-        const hrHistory = getTelemetryWindow(
+        const hrHistory = getInterpolatedHeartRateHistory(
             telemetryFrames,
             videoTimeSec,
             safeSyncOffsetSeconds,
-            60,
-        )
-            .map((sample) => sample.hr)
-            .filter((value): value is number => value !== undefined);
-
-        if (telemetry?.hr !== undefined) {
-            hrHistory.push(telemetry.hr);
-            // Cap at ~60 s of encoded-frame-rate data.
-            if (hrHistory.length > 1800) {
-                hrHistory.splice(0, hrHistory.length - 1800);
-            }
-        }
+            TRAIL_RUN_GRAPH_LOOKBACK_SECONDS,
+            TRAIL_RUN_GRAPH_SAMPLE_COUNT,
+        );
 
         drawVideoFrameWithRotation(ctx, frame, videoMeta.width, videoMeta.height, videoRotation);
         if (telemetry) {

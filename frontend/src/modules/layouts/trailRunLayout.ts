@@ -20,7 +20,7 @@ export function renderTrailRunLayout(
     const tuning = getResolutionTuning(w, h);
     const shortSide = Math.min(w, h);
     const compact = shortSide < 480;
-    const history = smoothHrHistory((renderContext.hrHistory ?? []).slice(-60));
+    const history = smoothHrHistory(renderContext.hrHistory ?? []);
     const topInset = Math.round(h * 0.038);
     const graphLeft = Math.round(w * 0.04);
     const graphWidth = Math.round(w * 0.82);
