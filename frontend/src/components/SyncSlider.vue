@@ -111,22 +111,41 @@ const sliderMax = computed(() => {
 
 const formattedOffset = computed(() => {
   const seconds = props.offsetSeconds;
-  const sign = seconds >= 0 ? "+" : "";
-  if (Math.abs(seconds) >= 60) {
-    const min = Math.floor(Math.abs(seconds) / 60);
-    const sec = Math.abs(seconds) % 60;
-    const prefix = seconds < 0 ? "-" : "+";
-    return `${prefix}${min}m ${sec.toFixed(1)}s`;
+  if (seconds === 0) return '0s';
+
+  const prefix = seconds < 0 ? "-" : "+";
+  const abs = Math.abs(seconds);
+  const totalMin = Math.floor(abs / 60);
+  const sec = abs % 60;
+
+  if (totalMin >= 60) {
+    const hours = Math.floor(totalMin / 60);
+    const min = totalMin % 60;
+    return `${prefix}${hours}h ${min}m ${Math.round(sec)}s`;
   }
-  return `${sign}${seconds.toFixed(1)}s`;
+
+  if (totalMin > 0) {
+    return `${prefix}${totalMin}m ${Math.round(sec)}s`;
+  }
+
+  return `${prefix}${seconds.toFixed(1)}s`;
 });
 
 function formatTime(seconds: number): string {
+  if (seconds === 0) return '0';
+
   const sign = seconds < 0 ? '-' : '+';
   const abs = Math.abs(seconds);
-  if (abs >= 60) {
-    return `${sign}${Math.floor(abs / 60)}m`;
+  const totalMin = Math.floor(abs / 60);
+
+  if (totalMin >= 60) {
+    return `${sign}${Math.floor(totalMin / 60)}h ${totalMin % 60}m`;
   }
+
+  if (totalMin > 0) {
+    return `${sign}${totalMin}m`;
+  }
+
   return `${sign}${abs}s`;
 }
 
