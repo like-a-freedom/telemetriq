@@ -81,23 +81,63 @@ export function renderTrailRunLayout(
     ctx.restore();
 }
 
-function fillHistoryToPixelDensity(history: number[], pixelCount: number): number[] {
-    if (history.length < 2 || pixelCount <= 1) {
-        return history;
+/**
+ * Build a smooth Catmull‑Rom curve through `points` and evaluate it at
+ * `samples` equally‑spaced positions along the curve parameter.
+ *
+ * Each interior span uses a cardinal cubic spline that passes exactly
+ * through the two neighbouring control points while keeping C¹
+ * continuity.  The tension parameter controls how tight the curve hugs
+ * the control points (0 = linear, 0.5 = standard Catmull‑Rom).
+ */
+function catmullRomChain(
+    points: readonly { x: number; y: number }[],
+    samples: number,
+    _tension = 0.35,
+): { x: number; y: number }[] {
+    if (points.length < 2) return points as { x: number; y: number }[];
+    if (points.length === 2) {
+        const result: { x: number; y: number }[] = [];
+        for (let i = 0; i < samples; i++) {
+            const t = i / (samples - 1);
+            result.push({
+                x: points[0]!.x + t * (points[1]!.x - points[0]!.x),
+                y: points[0]!.y + t * (points[1]!.y - points[0]!.y),
+            });
+        }
+        return result;
     }
 
-    const filled: number[] = new Array(pixelCount);
-    const step = (history.length - 1) / (pixelCount - 1);
+    const segSamples = Math.ceil(samples / (points.length - 1));
+    const result: { x: number; y: number }[] = [];
 
-    for (let pixel = 0; pixel < pixelCount; pixel++) {
-        const srcIndex = pixel * step;
-        const lo = Math.floor(srcIndex);
-        const hi = Math.min(lo + 1, history.length - 1);
-        const t = srcIndex - lo;
-        filled[pixel] = Math.round(history[lo]! + t * (history[hi]! - history[lo]!));
+    for (let i = 0; i < points.length - 1; i++) {
+        const p0 = points[Math.max(0, i - 1)]!;
+        const p1 = points[i]!;
+        const p2 = points[i + 1]!;
+        const p3 = points[Math.min(points.length - 1, i + 2)]!;
+
+        for (let k = 0; k < segSamples; k++) {
+            const t = k / segSamples;
+            const t2 = t * t;
+            const t3 = t2 * t;
+
+            const x =
+                0.5 * ((2 * p1.x) +
+                    (-p0.x + p2.x) * t +
+                    (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+                    (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
+            const y =
+                0.5 * ((2 * p1.y) +
+                    (-p0.y + p2.y) * t +
+                    (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+                    (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
+
+            result.push({ x, y });
+        }
     }
 
-    return filled;
+    return result;
 }
 
 function drawHeartRateTrace(
@@ -120,11 +160,16 @@ function drawHeartRateTrace(
     ctx.lineTo(left + width, top + height);
     ctx.stroke();
 
-    // Pre-fill the history to one sample per horizontal pixel so the
-    // trace animates smoothly regardless of the original sampling cadence.
-    // Missing intermediate values are linearly interpolated between the
-    // nearest known samples.
-    const filled = fillHistoryToPixelDensity(history, Math.round(width));
+    // Build smooth Catmull‑Rom curve through the raw HR history.
+    // The spline is sampled at ~3× the original point count so the
+    // curve reads as a continuous wave without oversampling into
+    // linear interpolation territory.
+    const rawPoints = history.map((value, index) => ({
+        x: left + (index / Math.max(1, history.length - 1)) * width,
+        y: top + height - ((value - minHr) / range) * height,
+    }));
+    const samples = Math.max(4, history.length * 3);
+    const splinePoints = catmullRomChain(rawPoints, samples);
 
     ctx.strokeStyle = accentColor;
     ctx.lineWidth = Math.max(1.8, width * 0.0022);
@@ -133,33 +178,11 @@ function drawHeartRateTrace(
     ctx.shadowColor = 'rgba(0,0,0,0.58)';
     ctx.shadowBlur = 10;
     ctx.beginPath();
+    ctx.moveTo(splinePoints[0]!.x, splinePoints[0]!.y);
 
-    // Convert the pixel‑dense samples to a smooth curve using
-    // Catmull‑Rom → cubic Bézier, so the trace reads as a
-    // continuous wave rather than a polyline.
-    const points = filled.map((value, index) => ({
-        x: left + (index / Math.max(1, filled.length - 1)) * width,
-        y: top + height - ((value - minHr) / range) * height,
-    }));
-
-    ctx.moveTo(points[0]!.x, points[0]!.y);
-
-    for (let i = 1; i < points.length - 1; i++) {
-        const prev = points[i - 1]!;
-        const curr = points[i]!;
-        const next = points[i + 1]!;
-
-        // Catmull‑Rom control points for cubic Bézier.
-        const cp1x = curr.x - (next.x - prev.x) / 6;
-        const cp1y = curr.y - (next.y - prev.y) / 6;
-        const cp2x = curr.x + (next.x - prev.x) / 6;
-        const cp2y = curr.y + (next.y - prev.y) / 6;
-
-        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, next.x, next.y);
+    for (let i = 1; i < splinePoints.length; i++) {
+        ctx.lineTo(splinePoints[i]!.x, splinePoints[i]!.y);
     }
-
-    // Close the curve to the final point.
-    ctx.lineTo(points[points.length - 1]!.x, points[points.length - 1]!.y);
 
     ctx.stroke();
     ctx.shadowBlur = 0;
