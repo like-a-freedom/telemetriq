@@ -1,67 +1,92 @@
 <template>
   <div class="sync-slider" data-testid="sync-slider">
-    <div class="sync-slider__header">
-      <h3 class="sync-slider__title">Synchronization</h3>
-      <span
-        v-if="isAutoSynced"
-        class="sync-slider__badge sync-slider__badge--auto"
-      >
-        Auto
-      </span>
-      <span v-else class="sync-slider__badge sync-slider__badge--manual">
-        Manual
-      </span>
+    <div class="sync-slider__top">
+      <div class="sync-slider__status">
+        <span
+          class="sync-slider__dot"
+          :class="isAutoSynced ? 'sync-slider__dot--auto' : 'sync-slider__dot--manual'"
+        />
+        <span class="sync-slider__status-label">{{ isAutoSynced ? 'Auto' : 'Manual' }}</span>
+      </div>
+      <div class="sync-slider__readout">
+        <span class="sync-slider__readout-unit">Offset</span>
+        <span class="sync-slider__readout-value">{{ formattedOffset }}</span>
+      </div>
     </div>
 
-    <div class="sync-slider__controls">
-      <label class="sync-slider__label">
-        Offset: <strong>{{ formattedOffset }}</strong>
-        <span class="sync-slider__hint" title="Positive = video starts after GPX (GPX begins first). Negative = video starts before GPX (video has no telemetry initially).">
-          (?)
-        </span>
-      </label>
-      <input
-        type="range"
-        :min="sliderMin"
-        :max="sliderMax"
-        :step="0.5"
-        :value="offsetSeconds"
-        @input="onSliderChange"
-        class="sync-slider__range"
-        data-testid="sync-range"
-      />
-      <div class="sync-slider__range-labels">
+    <div class="sync-slider__track-area">
+      <div class="sync-slider__track-wrap">
+        <input
+          type="range"
+          :min="sliderMin"
+          :max="sliderMax"
+          :step="0.5"
+          :value="offsetSeconds"
+          @input="onSliderChange"
+          class="sync-slider__range"
+          data-testid="sync-range"
+        />
+      </div>
+      <div class="sync-slider__track-labels">
         <span>{{ formatTime(sliderMin) }}</span>
-        <span>{{ formatTime(autoSyncOffsetSeconds) }}</span>
+        <span class="sync-slider__track-center">{{ formatTime(autoSyncOffsetSeconds) }}</span>
         <span>{{ formatTime(sliderMax) }}</span>
       </div>
     </div>
 
-    <div class="sync-slider__fine-controls">
+    <div class="sync-slider__controls">
       <button
         @click="adjustOffset(-1)"
         class="sync-slider__btn"
         data-testid="sync-minus1"
       >
-        -1s
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="3" y="6" width="8" height="2" rx="1" fill="currentColor"/>
+        </svg>
+        <span>1s</span>
       </button>
-      <button @click="adjustOffset(-0.5)" class="sync-slider__btn">
-        -0.5s
+      <button
+        @click="adjustOffset(-0.5)"
+        class="sync-slider__btn"
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="4" y="6" width="6" height="2" rx="1" fill="currentColor"/>
+        </svg>
+        <span>0.5</span>
       </button>
+
       <button
         @click="resetOffset"
         class="sync-slider__btn sync-slider__btn--reset"
         data-testid="sync-reset"
+        title="Reset to auto-sync position"
       >
-        Reset
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M7 2.5a4.5 4.5 0 104.065 2.652" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          <path d="M7 1v3h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </button>
-      <button @click="adjustOffset(0.5)" class="sync-slider__btn">+0.5s</button>
+
+      <button
+        @click="adjustOffset(0.5)"
+        class="sync-slider__btn"
+      >
+        <span>0.5</span>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="4" y="6" width="6" height="2" rx="1" fill="currentColor"/>
+          <rect x="6" y="4" width="2" height="6" rx="1" fill="currentColor"/>
+        </svg>
+      </button>
       <button
         @click="adjustOffset(1)"
         class="sync-slider__btn"
         data-testid="sync-plus1"
       >
-        +1s
+        <span>1s</span>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="3" y="6" width="8" height="2" rx="1" fill="currentColor"/>
+          <rect x="6" y="3" width="2" height="8" rx="1" fill="currentColor"/>
+        </svg>
       </button>
     </div>
 
@@ -165,164 +190,246 @@ function resetOffset(): void {
 
 <style scoped>
 .sync-slider {
-  background: var(--color-bg-secondary, #1a1a1a);
-  border-radius: 12px;
-  padding: 1.5rem;
+  padding: 1.25rem 1.5rem 1.25rem;
+  border: 1px solid var(--color-border, #333);
+  border-radius: 10px;
+  background: var(--color-bg-secondary, #141414);
 }
 
-.sync-slider__header {
+/* ── Top row: status dot + readout ── */
+.sync-slider__top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 0.875rem;
+}
+
+.sync-slider__status {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
+  gap: 0.4rem;
 }
 
-.sync-slider__title {
-  font-size: 1rem;
-  margin: 0;
-  color: var(--color-text, #fff);
+.sync-slider__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.3s, box-shadow 0.3s;
 }
 
-.sync-slider__badge {
+.sync-slider__dot--auto {
+  background: #36b37e;
+  box-shadow: 0 0 6px rgba(54, 179, 126, 0.5);
+}
+
+.sync-slider__dot--manual {
+  background: #ff9f43;
+  box-shadow: 0 0 6px rgba(255, 159, 67, 0.5);
+}
+
+.sync-slider__status-label {
   font-size: 0.7rem;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
   font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  color: var(--color-text-secondary, #888);
 }
 
-.sync-slider__badge--auto {
-  background: rgba(76, 175, 80, 0.2);
-  color: #4caf50;
+.sync-slider__readout {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
 }
 
-.sync-slider__badge--manual {
-  background: rgba(255, 152, 0, 0.2);
-  color: #ff9800;
+.sync-slider__readout-unit {
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary, #666);
 }
 
-.sync-slider__label {
-  display: block;
-  font-size: 0.9rem;
-  margin-bottom: 0.5rem;
-  color: var(--color-text-secondary, #aaa);
+.sync-slider__readout-value {
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", "Consolas", monospace;
+  font-size: 1.35rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--color-text, #fff);
+  letter-spacing: -0.01em;
+  tab-size: 1;
+}
+
+/* ── Slider track ── */
+.sync-slider__track-area {
+  margin-bottom: 0.875rem;
+}
+
+.sync-slider__track-wrap {
+  position: relative;
+  height: 28px;
+  display: flex;
+  align-items: center;
 }
 
 .sync-slider__range {
+  -webkit-appearance: none;
+  appearance: none;
   width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  outline: none;
   cursor: pointer;
-  accent-color: var(--color-primary, #646cff);
+  background: var(--color-bg-tertiary, #1e1e1e);
+  transition: background 0.2s;
 }
 
-.sync-slider__range-labels {
+.sync-slider__range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+}
+
+.sync-slider__range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-text, #fff);
+  border: 2px solid var(--color-bg, #0a0a0a);
+  cursor: pointer;
+  margin-top: -5px;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+.sync-slider__range::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.12);
+}
+
+.sync-slider__range::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-bg-tertiary, #1e1e1e);
+  border: none;
+}
+
+.sync-slider__range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-text, #fff);
+  border: 2px solid var(--color-bg, #0a0a0a);
+  cursor: pointer;
+}
+
+.sync-slider__range:focus-visible {
+  outline: 2px solid var(--color-primary, #646cff);
+  outline-offset: 4px;
+}
+
+.sync-slider__track-labels {
   display: flex;
   justify-content: space-between;
-  font-size: 0.75rem;
-  color: var(--color-text-secondary, #888);
-  margin-top: 0.25rem;
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--color-text-secondary, #555);
+  margin-top: 0.3rem;
+  font-variant-numeric: tabular-nums;
 }
 
-.sync-slider__fine-controls {
+.sync-slider__track-center {
+  color: var(--color-text-secondary, #777);
+  font-weight: 600;
+}
+
+/* ── Control buttons ── */
+.sync-slider__controls {
   display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
+  align-items: center;
   justify-content: center;
+  gap: 0.35rem;
 }
 
 .sync-slider__btn {
-  padding: 0.35rem 0.75rem;
-  background: var(--color-bg-tertiary, #2a2a2a);
-  border: 1px solid var(--color-border, #404040);
-  color: var(--color-text, #fff);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--color-border, #333);
   border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary, #888);
+  font-size: 0.7rem;
+  font-weight: 500;
   cursor: pointer;
-  font-size: 0.8rem;
-  transition: all 0.2s;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+  line-height: 1;
+  user-select: none;
 }
 
 .sync-slider__btn:hover {
-  background: var(--color-bg-hover, #333);
-  border-color: var(--color-primary, #646cff);
+  color: var(--color-text, #fff);
+  border-color: var(--color-text-secondary, #666);
+  background: var(--color-bg-tertiary, #1e1e1e);
+}
+
+.sync-slider__btn:active {
+  background: var(--color-bg-hover, #2a2a2a);
+  transform: scale(0.96);
+}
+
+.sync-slider__btn svg {
+  display: block;
+  flex-shrink: 0;
 }
 
 .sync-slider__btn--reset {
-  background: var(--color-primary, #646cff);
+  padding: 0.35rem 0.5rem;
   border-color: var(--color-primary, #646cff);
+  color: var(--color-primary, #646cff);
+}
+
+.sync-slider__btn--reset:hover {
+  background: var(--color-primary, #646cff);
+  color: #fff;
+}
+
+/* ── Messages ── */
+.sync-slider__warning {
+  margin: 0.75rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #ff9f43;
 }
 
 .sync-slider__error {
-  color: var(--color-error, #f44336);
-  font-size: 0.85rem;
   margin: 0.75rem 0 0;
-}
-
-.sync-slider__warning {
-  color: #ffb74d;
-  font-size: 0.85rem;
-  margin: 0.75rem 0 0;
-}
-
-.sync-slider__hint {
-  color: var(--color-text-secondary, #888);
   font-size: 0.75rem;
-  margin-left: 0.5rem;
-  cursor: help;
+  line-height: 1.4;
+  color: #f44336;
 }
 
+/* ── Mobile ── */
 @media (max-width: 640px) {
   .sync-slider {
-    padding: 1rem;
+    padding: 1rem 1rem 1rem;
   }
 
-  .sync-slider__fine-controls {
+  .sync-slider__readout-value {
+    font-size: 1.1rem;
+  }
+
+  .sync-slider__controls {
     flex-wrap: wrap;
-    gap: 0.4rem;
+    gap: 0.3rem;
   }
 
   .sync-slider__btn {
-    padding: 0.5rem 0.6rem;
-    font-size: 0.75rem;
     min-width: 44px;
     min-height: 44px;
-  }
-
-  .sync-slider__range {
-    height: 24px;
-    -webkit-appearance: none;
-    appearance: none;
-    background: transparent;
-  }
-
-  .sync-slider__range::-webkit-slider-runnable-track {
-    height: 8px;
-    border-radius: 4px;
-    background: var(--color-bg-tertiary, #2a2a2a);
-  }
-
-  .sync-slider__range::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: var(--color-primary, #646cff);
-    margin-top: -8px;
-    cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-  }
-
-  .sync-slider__range::-moz-range-track {
-    height: 8px;
-    border-radius: 4px;
-    background: var(--color-bg-tertiary, #2a2a2a);
-  }
-
-  .sync-slider__range::-moz-range-thumb {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: var(--color-primary, #646cff);
-    border: none;
-    cursor: pointer;
+    justify-content: center;
   }
 }
 </style>
