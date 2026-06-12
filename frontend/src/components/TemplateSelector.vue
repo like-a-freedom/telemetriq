@@ -96,15 +96,6 @@ function onTemplateChange(event: Event): void {
   border-color: var(--color-primary, #646cff);
 }
 
-/* custom caret + hide native arrow to guarantee spacing */
-.template-dropdown__select {
-  -webkit-appearance: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238f8f8f' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.9rem center;
-  background-size: 10px 6px;
-}
 .template-dropdown__select::-ms-expand {
   display: none;
 }

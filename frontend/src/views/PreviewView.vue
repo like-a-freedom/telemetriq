@@ -111,68 +111,66 @@
             Configure what appears on the video. Changes apply in real-time.
           </p>
 
+          <div
+            v-if="selectedTemplateWarnings.length"
+            class="preview-view__warning-block"
+            data-testid="template-data-warning"
+          >
+            <p class="preview-view__warning-title">Template data check</p>
+            <ul class="preview-view__warning-list">
+              <li v-for="warning in selectedTemplateWarnings" :key="warning">
+                {{ warning }}
+              </li>
+            </ul>
+          </div>
+
           <div class="preview-view__settings">
             <label
+              v-for="control in metricControls"
+              :key="control.key"
               class="preview-view__checkbox"
               :class="{
-                'preview-view__checkbox--disabled': !templateCapabilities.isMetricAvailable('hr'),
+                'preview-view__checkbox--disabled': !control.available,
+                'preview-view__checkbox--locked': control.required,
               }"
             >
               <input
                 type="checkbox"
-                v-model="settingsStore.overlayConfig.showHr"
-                :disabled="!templateCapabilities.isMetricAvailable('hr')"
-                :title="templateCapabilities.getMetricDisableReason('hr')"
+                :checked="control.checked"
+                :disabled="control.disabled"
+                :title="control.reason"
+                @change="onMetricToggle(control.key, $event)"
               />
-              <span>❤️ Heart rate</span>
-            </label>
-            <label
-              class="preview-view__checkbox"
-              :class="{
-                'preview-view__checkbox--disabled': !templateCapabilities.isMetricAvailable('pace'),
-              }"
-            >
-              <input
-                type="checkbox"
-                v-model="settingsStore.overlayConfig.showPace"
-                :disabled="!templateCapabilities.isMetricAvailable('pace')"
-                :title="templateCapabilities.getMetricDisableReason('pace')"
-              />
-              <span>🏃 Pace</span>
-            </label>
-            <label
-              class="preview-view__checkbox"
-              :class="{
-                'preview-view__checkbox--disabled': !templateCapabilities.isMetricAvailable('distance'),
-              }"
-            >
-              <input
-                type="checkbox"
-                v-model="settingsStore.overlayConfig.showDistance"
-                :disabled="!templateCapabilities.isMetricAvailable('distance')"
-                :title="templateCapabilities.getMetricDisableReason('distance')"
-              />
-              <span>📏 Distance</span>
-            </label>
-            <label
-              class="preview-view__checkbox"
-              :class="{
-                'preview-view__checkbox--disabled': !templateCapabilities.isMetricAvailable('time'),
-              }"
-            >
-              <input
-                type="checkbox"
-                v-model="settingsStore.overlayConfig.showTime"
-                :disabled="!templateCapabilities.isMetricAvailable('time')"
-                :title="templateCapabilities.getMetricDisableReason('time')"
-              />
-              <span>⏱️ Time</span>
+              <span class="preview-view__metric-meta">
+                <span class="preview-view__metric-title">
+                  <span class="preview-view__metric-chip">{{
+                    control.badge
+                  }}</span>
+                  <span>{{ control.label }}</span>
+                  <span
+                    v-if="control.stateLabel"
+                    class="preview-view__metric-state"
+                    :class="
+                      control.required
+                        ? 'preview-view__metric-state--locked'
+                        : 'preview-view__metric-state--disabled'
+                    "
+                    >{{ control.stateLabel }}</span
+                  >
+                </span>
+                <span class="preview-view__metric-hint">
+                  {{ control.helperText }}
+                </span>
+              </span>
             </label>
           </div>
 
           <div class="preview-view__divider"></div>
 
-          <div class="preview-view__field" v-if="templateCapabilities.supportsFeature('supportsPosition')">
+          <div
+            class="preview-view__field"
+            v-if="templateCapabilities.supportsFeature('supportsPosition')"
+          >
             <label class="preview-view__label">Position</label>
             <select
               v-model="settingsStore.overlayConfig.position"
@@ -191,7 +189,7 @@
           @click="startProcessing"
           data-testid="process-btn"
         >
-          🚀 Start processing
+          Start processing
         </button>
       </aside>
     </div>
@@ -199,12 +197,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useFilesStore, useSyncStore, useSettingsStore } from "../stores";
 import { useTemplateCapabilities } from "../composables/useTemplateCapabilities";
 import { buildTelemetryTimeline } from "../modules/telemetryCore";
-import type { TelemetryFrame } from "../core/types";
+import type { ExtendedOverlayConfig, TelemetryFrame } from "../core/types";
+import type { MetricType } from "../modules/templates";
 import { useSeo } from "../composables/useSeo";
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
 import VideoPlayer from "../components/VideoPlayer.vue";
@@ -214,6 +213,91 @@ import SyncSlider from "../components/SyncSlider.vue";
 import TemplateSelector from "../components/TemplateSelector.vue";
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
 import DateTimePicker from "../components/DateTimePicker.vue";
+
+type MetricToggleKey =
+  | "showHr"
+  | "showPace"
+  | "showDistance"
+  | "showTime"
+  | "showSpeed"
+  | "showGrade"
+  | "showElevation"
+  | "showCadence"
+  | "showPower";
+
+interface MetricControlDefinition {
+  key: MetricToggleKey;
+  metric: MetricType;
+  label: string;
+  badge: string;
+  hint: string;
+}
+
+const METRIC_CONTROLS: MetricControlDefinition[] = [
+  {
+    key: "showHr",
+    metric: "hr",
+    label: "Heart rate",
+    badge: "HR",
+    hint: "Beat-by-beat effort from your GPX track.",
+  },
+  {
+    key: "showPace",
+    metric: "pace",
+    label: "Pace",
+    badge: "PAC",
+    hint: "Running pace derived from recent GPS movement.",
+  },
+  {
+    key: "showDistance",
+    metric: "distance",
+    label: "Distance",
+    badge: "DST",
+    hint: "Total distance covered since the start.",
+  },
+  {
+    key: "showTime",
+    metric: "time",
+    label: "Time",
+    badge: "MOV",
+    hint: "Moving time that excludes pauses.",
+  },
+  {
+    key: "showSpeed",
+    metric: "speed",
+    label: "Speed",
+    badge: "SPD",
+    hint: "Current speed over a short rolling window.",
+  },
+  {
+    key: "showGrade",
+    metric: "grade",
+    label: "Grade",
+    badge: "GRD",
+    hint: "Slope percentage based on smoothed elevation.",
+  },
+  {
+    key: "showElevation",
+    metric: "elevation",
+    label: "Elevation",
+    badge: "ELV",
+    hint: "Current altitude from GPX elevation samples.",
+  },
+  {
+    key: "showCadence",
+    metric: "cadence",
+    label: "Cadence",
+    badge: "CAD",
+    hint: "Stride or pedal cadence when present in GPX extensions.",
+  },
+  {
+    key: "showPower",
+    metric: "power",
+    label: "Power",
+    badge: "PWR",
+    hint: "Power data from compatible devices and GPX extensions.",
+  },
+];
 
 // SEO
 useSeo({
@@ -248,6 +332,67 @@ const videoUrl = ref<string | null>(null);
 const telemetryFrames = ref<TelemetryFrame[]>([]);
 const manualStartTime = ref("");
 const manualTimezone = ref(180); // Default: UTC+3 (Moscow)
+
+const metricControls = computed(() =>
+  METRIC_CONTROLS.map((control) => {
+    const available = templateCapabilities.isMetricAvailable(control.metric);
+    const required = templateCapabilities.isMetricRequired(control.metric);
+    const reason = required
+      ? "Required by the selected template"
+      : templateCapabilities.getMetricDisableReason(control.metric);
+
+    return {
+      ...control,
+      checked: settingsStore.overlayConfig[control.key],
+      available,
+      required,
+      disabled: !available || required,
+      reason,
+      stateLabel: required ? "Locked" : !available ? "Unavailable" : undefined,
+      helperText: required
+        ? "Always visible in this template."
+        : !available
+        ? reason ?? "Not available for this template."
+        : control.hint,
+    };
+  })
+);
+
+const gpxPoints = computed(() => filesStore.gpxData?.points ?? []);
+
+const telemetryDataAvailability = computed(() => ({
+  elevation: gpxPoints.value.some((point) => point.ele !== undefined),
+  cadence: gpxPoints.value.some((point) => point.cadence !== undefined),
+  power: gpxPoints.value.some((point) => point.power !== undefined),
+}));
+
+const selectedTemplateWarnings = computed(() => {
+  if (
+    settingsStore.currentTemplateId === "trail-run" &&
+    !telemetryDataAvailability.value.elevation
+  ) {
+    return [
+      "Trail Run needs elevation samples in the GPX file. Grade and elevation will render as N/A with the current file.",
+    ];
+  }
+
+  if (settingsStore.currentTemplateId === "cycling-pro") {
+    const warnings: string[] = [];
+    if (!telemetryDataAvailability.value.cadence) {
+      warnings.push(
+        "Cycling Pro has no cadence samples in the current GPX file. Cadence will render as N/A."
+      );
+    }
+    if (!telemetryDataAvailability.value.power) {
+      warnings.push(
+        "Cycling Pro has no power samples in the current GPX file. Power will render as N/A."
+      );
+    }
+    return warnings;
+  }
+
+  return [];
+});
 
 const timezones = [
   { value: -720, label: "UTC-12" },
@@ -323,6 +468,17 @@ function startProcessing(): void {
 
 function onManualOffsetChange(offsetSeconds: number): void {
   syncStore.setManualOffset(offsetSeconds, filesStore.videoMeta?.duration);
+}
+
+function onMetricToggle(key: MetricToggleKey, event: Event): void {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) {
+    return;
+  }
+
+  settingsStore.updateOverlayConfig({
+    [key]: target.checked,
+  } as Partial<ExtendedOverlayConfig>);
 }
 
 function parseManualDateTimeWithTimezone(
@@ -607,19 +763,50 @@ function applyManualTime(): void {
   font-size: 0.9rem;
   color: var(--color-text, #fff);
   cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 6px;
-  transition: background 0.15s;
+  padding: 0.65rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.015);
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
 }
 
 .preview-view__checkbox:hover {
-  background: var(--color-bg-tertiary, #242424);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
 }
 
 .preview-view__checkbox--disabled {
-  opacity: 0.4;
+  opacity: 0.56;
   cursor: not-allowed;
-  pointer-events: none;
+  border-style: solid;
+  transform: none;
+}
+
+.preview-view__checkbox--disabled:hover {
+  background: rgba(255, 255, 255, 0.015);
+  border-color: rgba(255, 255, 255, 0.06);
+  transform: none;
+}
+
+.preview-view__checkbox--locked {
+  cursor: default;
+  background: linear-gradient(
+    135deg,
+    rgba(100, 108, 255, 0.14),
+    rgba(100, 108, 255, 0.05)
+  );
+  border-color: rgba(100, 108, 255, 0.3);
+}
+
+.preview-view__checkbox--locked:hover {
+  background: linear-gradient(
+    135deg,
+    rgba(100, 108, 255, 0.16),
+    rgba(100, 108, 255, 0.06)
+  );
+  border-color: rgba(100, 108, 255, 0.36);
+  transform: none;
 }
 
 .preview-view__checkbox input[type="checkbox"] {
@@ -629,8 +816,109 @@ function applyManualTime(): void {
   accent-color: var(--color-primary, #646cff);
 }
 
+.preview-view__checkbox input[type="checkbox"]:disabled {
+  cursor: default;
+}
+
 .preview-view__checkbox span {
   flex: 1;
+}
+
+.preview-view__metric-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.preview-view__metric-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  font-weight: 600;
+}
+
+.preview-view__metric-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.4rem;
+  padding: 0.18rem 0.42rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.preview-view__checkbox--locked .preview-view__metric-chip {
+  background: rgba(100, 108, 255, 0.16);
+  border-color: rgba(100, 108, 255, 0.24);
+  color: rgba(235, 237, 255, 0.94);
+}
+
+.preview-view__metric-state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.16rem 0.42rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.preview-view__metric-state--locked {
+  background: rgba(100, 108, 255, 0.2);
+  color: #e7e9ff;
+}
+
+.preview-view__metric-state--disabled {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.preview-view__metric-hint {
+  color: var(--color-text-secondary, #8c8c8c);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.preview-view__warning-block {
+  margin: 0 0 1rem;
+  padding: 0.95rem 1rem;
+  border-radius: 12px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 167, 38, 0.16),
+    rgba(84, 45, 9, 0.36)
+  );
+  border: 1px solid rgba(255, 196, 107, 0.34);
+  box-shadow: inset 0 1px 0 rgba(255, 224, 163, 0.06);
+  color: #ffe1a7;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.preview-view__warning-title {
+  margin: 0;
+  color: #fff3d1;
+  font-size: 0.73rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.preview-view__warning-list {
+  margin: 0.55rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.preview-view__warning-list li + li {
+  margin-top: 0.35rem;
 }
 
 .preview-view__divider {
@@ -678,15 +966,6 @@ function applyManualTime(): void {
   border-color: var(--color-primary, #646cff);
 }
 
-/* custom caret + hide native arrow to guarantee spacing */
-.preview-view__select {
-  -webkit-appearance: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238f8f8f' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.9rem center;
-  background-size: 10px 6px;
-}
 .preview-view__select::-ms-expand {
   display: none;
 }
@@ -694,16 +973,6 @@ function applyManualTime(): void {
 .preview-view__timezone-row .preview-view__select {
   -webkit-appearance: none;
   appearance: none;
-}
-
-/* Fix: ensure the unified caret (var(--ui-caret)) is always shown for the timezone select.
-   Some Chromium rendering/pathologies can reset background-image when `background` shorthand
-   is used earlier — explicitly set background-image here after other rules. */
-.preview-view__timezone-row .preview-view__select {
-  background-image: var(--ui-caret);
-  background-repeat: no-repeat;
-  background-position: right 0.9rem center;
-  background-size: 10px 6px;
 }
 
 .preview-view__input {
@@ -738,15 +1007,16 @@ function applyManualTime(): void {
 }
 
 .preview-view__btn--primary {
-  background: var(--color-primary, #646cff);
+  background: linear-gradient(135deg, #646cff, #7b82ff);
   color: white;
   margin-top: 0.5rem;
+  box-shadow: 0 10px 24px rgba(100, 108, 255, 0.2);
 }
 
 .preview-view__btn--primary:hover {
-  background: #535bf2;
+  background: linear-gradient(135deg, #5a63ff, #7078ff);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(100, 108, 255, 0.3);
+  box-shadow: 0 12px 28px rgba(100, 108, 255, 0.32);
 }
 
 .preview-view__btn--secondary {

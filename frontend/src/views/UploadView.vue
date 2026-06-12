@@ -76,8 +76,22 @@
           label="Points"
           :value="filesStore.gpxData.points.length.toString()"
         />
-        <FileInfo v-if="hasHrData" label="Heart rate" value="✅ Present" />
-        <FileInfo v-else label="Heart rate" value="❌ Absent" />
+        <FileInfo
+          :label="'Heart rate'"
+          :value="hasHrData ? '✅ Present' : '❌ Absent'"
+        />
+        <FileInfo
+          :label="'Elevation'"
+          :value="hasElevationData ? '✅ Present' : '❌ Absent'"
+        />
+        <FileInfo
+          :label="'Cadence'"
+          :value="hasCadenceData ? '✅ Present' : '❌ Absent'"
+        />
+        <FileInfo
+          :label="'Power'"
+          :value="hasPowerData ? '✅ Present' : '❌ Absent'"
+        />
       </div>
     </div>
 
@@ -162,6 +176,20 @@ const videoWarnings = computed(
 
 const hasHrData = computed(() => {
   return filesStore.gpxData?.points.some((p) => p.hr !== undefined) ?? false;
+});
+
+const hasElevationData = computed(() => {
+  return filesStore.gpxData?.points.some((p) => p.ele !== undefined) ?? false;
+});
+
+const hasCadenceData = computed(() => {
+  return (
+    filesStore.gpxData?.points.some((p) => p.cadence !== undefined) ?? false
+  );
+});
+
+const hasPowerData = computed(() => {
+  return filesStore.gpxData?.points.some((p) => p.power !== undefined) ?? false;
 });
 
 onMounted(() => {

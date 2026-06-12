@@ -6,6 +6,8 @@ import { renderHorizonLayout } from './layouts/horizonLayout';
 import { renderMarginLayout } from './layouts/marginLayout';
 import { renderLFrameLayout } from './layouts/lframeLayout';
 import { renderClassicLayout } from './layouts/classicLayout';
+import { renderTrailRunLayout } from './layouts/trailRunLayout';
+import { renderCyclingProLayout } from './layouts/cyclingProLayout';
 import { renderExtendedLayout } from './layouts/extendedLayouts';
 import { WebGPUAdapter } from './webgpu/webgpuAdapter';
 
@@ -35,6 +37,11 @@ export interface MetricItem {
     unit: string;
 }
 
+export interface OverlayRenderContext {
+    hrHistory?: number[];
+    destinationHasBaseFrame?: boolean;
+}
+
 /** Default overlay configuration */
 export const DEFAULT_OVERLAY_CONFIG: ExtendedOverlayConfig = {
     templateId: 'horizon',
@@ -46,6 +53,11 @@ export const DEFAULT_OVERLAY_CONFIG: ExtendedOverlayConfig = {
     showPace: true,
     showDistance: true,
     showTime: true,
+    showSpeed: false,
+    showGrade: false,
+    showElevation: false,
+    showCadence: false,
+    showPower: false,
     fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     textColor: '#FFFFFF',
     backgroundColor: '#000000',
@@ -79,18 +91,20 @@ export async function renderOverlay(
     videoWidth: number,
     videoHeight: number,
     config: ExtendedOverlayConfig = DEFAULT_OVERLAY_CONFIG,
+    renderContext: OverlayRenderContext = {},
 ): Promise<void> {
     const effectiveConfig = getEffectiveConfig(config);
     const metrics = buildMetrics(frame, effectiveConfig);
+    const shouldRenderFixedTemplate = shouldRenderWithoutMetrics(effectiveConfig);
 
-    if (metrics.length === 0) {
+    if (metrics.length === 0 && !shouldRenderFixedTemplate) {
         return;
     }
 
     // Check cache first using display-level values (reduces unnecessary rerenders).
     const cacheStrategy = getCacheStrategy(videoWidth, videoHeight);
     const cacheKey = cacheStrategy !== 'none'
-        ? buildCacheKey(metrics, effectiveConfig, videoWidth, videoHeight)
+        ? buildCacheKey(metrics, effectiveConfig, videoWidth, videoHeight, renderContext)
         : undefined;
 
     if (cacheKey) {
@@ -111,15 +125,18 @@ export async function renderOverlay(
     }
 
     const layoutMode = effectiveConfig.layoutMode || 'box';
-    renderLayout(overlayCtx, metrics, frame, videoWidth, videoHeight, effectiveConfig, layoutMode);
+    renderLayout(overlayCtx, metrics, frame, videoWidth, videoHeight, effectiveConfig, layoutMode, renderContext);
 
     if (cacheKey) {
         cacheOverlay(cacheKey, overlayCanvas, videoWidth, videoHeight, cacheStrategy);
     }
 
-    // Use WebGPU only for compositing base frame + already-rendered overlay.
+    // Use WebGPU compositing only when the destination canvas already contains a
+    // base frame. Preview overlays render into a transparent top-layer canvas,
+    // so GPU compositing is unnecessary there and can produce visible blank-frame
+    // flashes while async composition finishes.
     let composited = false;
-    if (WebGPUAdapter.isSupported()) {
+    if (renderContext.destinationHasBaseFrame && WebGPUAdapter.isSupported()) {
         try {
             const adapter = WebGPUAdapter.getInstance();
             if (adapter.isEnabled()) {
@@ -164,7 +181,18 @@ function renderLayout(
     h: number,
     config: ExtendedOverlayConfig,
     layoutMode: string,
+    renderContext: OverlayRenderContext,
 ): void {
+    if (layoutMode === 'trail-run') {
+        renderTrailRunLayout(ctx, frame, w, h, config, renderContext);
+        return;
+    }
+
+    if (layoutMode === 'cycling-pro') {
+        renderCyclingProLayout(ctx, frame, w, h, config);
+        return;
+    }
+
     if (layoutMode === 'corner-frame') {
         renderLFrameLayout(ctx, metrics, frame, w, h, config);
         return;
@@ -195,8 +223,27 @@ export function buildMetrics(frame: TelemetryFrame, config: ExtendedOverlayConfi
     if (config.showTime) {
         items.push({ label: 'Time', value: frame.elapsedTime, unit: '' });
     }
+    if (config.showSpeed && frame.speedKmh !== undefined) {
+        items.push({ label: 'Speed', value: frame.speedKmh.toFixed(frame.speedKmh >= 100 ? 0 : 1), unit: 'km/h' });
+    }
+    if (config.showGrade && frame.gradePercent !== undefined) {
+        items.push({ label: 'Grade', value: frame.gradePercent.toFixed(1), unit: '%' });
+    }
+    if (config.showElevation && frame.elevationM !== undefined) {
+        items.push({ label: 'Elevation', value: Math.round(frame.elevationM).toString(), unit: 'm' });
+    }
+    if (config.showCadence && frame.cadenceRpm !== undefined) {
+        items.push({ label: 'Cadence', value: Math.round(frame.cadenceRpm).toString(), unit: 'rpm' });
+    }
+    if (config.showPower && frame.powerWatts !== undefined) {
+        items.push({ label: 'Power', value: Math.round(frame.powerWatts).toString(), unit: 'W' });
+    }
 
     return items;
+}
+
+function shouldRenderWithoutMetrics(config: ExtendedOverlayConfig): boolean {
+    return config.layoutMode === 'trail-run' || config.layoutMode === 'cycling-pro';
 }
 
 function buildCacheKey(
@@ -204,6 +251,7 @@ function buildCacheKey(
     config: ExtendedOverlayConfig,
     width: number,
     height: number,
+    renderContext: OverlayRenderContext,
 ): string {
     return JSON.stringify({
         metrics,
@@ -214,6 +262,11 @@ function buildCacheKey(
         showPace: config.showPace,
         showDistance: config.showDistance,
         showTime: config.showTime,
+        showSpeed: config.showSpeed,
+        showGrade: config.showGrade,
+        showElevation: config.showElevation,
+        showCadence: config.showCadence,
+        showPower: config.showPower,
         templateId: config.templateId,
         layoutMode: config.layoutMode,
         fontFamily: config.fontFamily,
@@ -222,6 +275,9 @@ function buildCacheKey(
         valueFontWeight: config.valueFontWeight,
         valueSizeMultiplier: config.valueSizeMultiplier,
         accentColor: config.accentColor,
+        trailRunHrHistory: config.templateId === 'trail-run'
+            ? (renderContext.hrHistory ?? []).slice(-60)
+            : undefined,
         width,
         height,
     });
@@ -328,17 +384,19 @@ export async function renderOverlayOnFrame(
     videoFrame: VideoFrame,
     telemetryFrame: TelemetryFrame,
     config: ExtendedOverlayConfig = DEFAULT_OVERLAY_CONFIG,
+    renderContext: OverlayRenderContext = {},
 ): Promise<VideoFrame> {
     const width = videoFrame.displayWidth;
     const height = videoFrame.displayHeight;
 
     const effectiveConfig = getEffectiveConfig(config);
     const metrics = buildMetrics(telemetryFrame, effectiveConfig);
+    const shouldRenderFixedTemplate = shouldRenderWithoutMetrics(effectiveConfig);
 
-    if (metrics.length > 0) {
+    if (metrics.length > 0 || shouldRenderFixedTemplate) {
         const cacheStrategy = getCacheStrategy(width, height);
         const cacheKey = cacheStrategy !== 'none'
-            ? buildCacheKey(metrics, effectiveConfig, width, height)
+            ? buildCacheKey(metrics, effectiveConfig, width, height, renderContext)
             : undefined;
 
         let overlayCanvas: OffscreenCanvas | HTMLCanvasElement | null = null;
@@ -358,7 +416,7 @@ export async function renderOverlayOnFrame(
                     standaloneCtx.clearRect(0, 0, width, height);
                 }
                 const layoutMode = effectiveConfig.layoutMode || 'box';
-                renderLayout(standaloneCtx, metrics, telemetryFrame, width, height, effectiveConfig, layoutMode);
+                renderLayout(standaloneCtx, metrics, telemetryFrame, width, height, effectiveConfig, layoutMode, renderContext);
                 overlayCanvas = standaloneCanvas;
 
                 if (cacheKey) {
@@ -392,7 +450,10 @@ export async function renderOverlayOnFrame(
     const ctx = canvas.getContext('2d')!;
 
     ctx.drawImage(videoFrame, 0, 0, width, height);
-    await renderOverlay(ctx, telemetryFrame, width, height, config);
+    await renderOverlay(ctx, telemetryFrame, width, height, config, {
+        ...renderContext,
+        destinationHasBaseFrame: true,
+    });
 
     return new VideoFrame(canvas, {
         timestamp: videoFrame.timestamp,

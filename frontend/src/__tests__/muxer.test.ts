@@ -1,7 +1,7 @@
 /**
  * Unit tests for muxer module.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { DemuxedMedia } from '../modules/videoProcessingTypes';
 import type { VideoMeta } from '../core/types';
 
@@ -39,6 +39,34 @@ vi.mock('mediabunny', () => ({
 }));
 
 const { createMuxer } = await import('../modules/muxer');
+
+class MockEncodedVideoChunk {
+    data: Uint8Array | ArrayBuffer;
+    type: string;
+    timestamp: number;
+    duration: number;
+
+    constructor(init: { type?: string; timestamp?: number; duration?: number; data?: Uint8Array }) {
+        this.data = init.data ?? new Uint8Array();
+        this.type = init.type ?? 'key';
+        this.timestamp = init.timestamp ?? 0;
+        this.duration = init.duration ?? 0;
+    }
+
+    get byteLength(): number {
+        return this.data instanceof Uint8Array ? this.data.byteLength : (this.data ? this.data.byteLength : 0);
+    }
+
+    copyTo(dest: Uint8Array) {
+        const src = this.data instanceof Uint8Array ? this.data : new Uint8Array(this.data || 0);
+        const len = Math.min(src.length, dest.length);
+        if (len > 0) dest.set(src.subarray(0, len), 0);
+        return dest;
+    }
+}
+
+const originalEncodedVideoChunk = (globalThis as any).EncodedVideoChunk;
+const originalEncodedAudioChunk = (globalThis as any).EncodedAudioChunk;
 
 describe('muxer', () => {
     let muxer: ReturnType<typeof createMuxer>;
@@ -90,6 +118,14 @@ describe('muxer', () => {
         vi.clearAllMocks();
         mockEncodedPacket.fromEncodedChunk.mockReset();
         muxer = createMuxer();
+
+        (globalThis as any).EncodedVideoChunk = MockEncodedVideoChunk;
+        (globalThis as any).EncodedAudioChunk = MockEncodedVideoChunk;
+    });
+
+    afterEach(() => {
+        (globalThis as any).EncodedVideoChunk = originalEncodedVideoChunk;
+        (globalThis as any).EncodedAudioChunk = originalEncodedAudioChunk;
     });
 
     describe('muxMp4', () => {
@@ -100,34 +136,6 @@ describe('muxer', () => {
                 duration: chunk.duration,
                 type: chunk.type,
             }));
-
-            class MockEncodedVideoChunk {
-                data!: Uint8Array | ArrayBuffer;
-                type!: string;
-                timestamp!: number;
-                duration!: number;
-
-                constructor(init: any) {
-                    this.data = init?.data ?? new Uint8Array();
-                    this.type = init?.type ?? 'key';
-                    this.timestamp = init?.timestamp ?? 0;
-                    this.duration = init?.duration ?? 0;
-                }
-
-                get byteLength(): number {
-                    return this.data instanceof Uint8Array ? this.data.byteLength : (this.data ? this.data.byteLength : 0);
-                }
-
-                copyTo(dest: Uint8Array) {
-                    const src = this.data instanceof Uint8Array ? this.data : new Uint8Array(this.data || 0);
-                    const len = Math.min(src.length, dest.length);
-                    if (len > 0) dest.set(src.subarray(0, len), 0);
-                    return dest;
-                }
-            }
-
-            (globalThis as any).EncodedVideoChunk = MockEncodedVideoChunk;
-            (globalThis as any).EncodedAudioChunk = MockEncodedVideoChunk;
 
             const encodedChunks = [new MockEncodedVideoChunk({
                 type: 'key',
@@ -148,11 +156,8 @@ describe('muxer', () => {
             );
 
             expect(mockEncodedPacket.fromEncodedChunk).toHaveBeenCalled();
-            expect(result).toBeTruthy();
-            expect(typeof (result as any).size === 'number' || typeof (result as any).arrayBuffer === 'function').toBe(true);
-
-            delete (globalThis as any).EncodedVideoChunk;
-            delete (globalThis as any).EncodedAudioChunk;
+            expect(result).toBeInstanceOf(Blob);
+            expect((result as Blob).type).toBe('video/mp4');
         });
 
         it('should create streaming mux session', async () => {
@@ -183,34 +188,6 @@ describe('muxer', () => {
                 type: chunk.type,
             }));
 
-            class MockEncodedVideoChunk {
-                data!: Uint8Array | ArrayBuffer;
-                type!: string;
-                timestamp!: number;
-                duration!: number;
-
-                constructor(init: any) {
-                    this.data = init?.data ?? new Uint8Array();
-                    this.type = init?.type ?? 'key';
-                    this.timestamp = init?.timestamp ?? 0;
-                    this.duration = init?.duration ?? 0;
-                }
-
-                get byteLength(): number {
-                    return this.data instanceof Uint8Array ? this.data.byteLength : (this.data ? this.data.byteLength : 0);
-                }
-
-                copyTo(dest: Uint8Array) {
-                    const src = this.data instanceof Uint8Array ? this.data : new Uint8Array(this.data || 0);
-                    const len = Math.min(src.length, dest.length);
-                    if (len > 0) dest.set(src.subarray(0, len), 0);
-                    return dest;
-                }
-            }
-
-            (globalThis as any).EncodedVideoChunk = MockEncodedVideoChunk;
-            (globalThis as any).EncodedAudioChunk = MockEncodedVideoChunk;
-
             const videoOnlyDemuxed = {
                 ...mockDemuxed,
                 audioTrack: undefined,
@@ -231,10 +208,8 @@ describe('muxer', () => {
                 mockVideoMeta,
             );
 
-            expect(result).toBeTruthy();
-
-            delete (globalThis as any).EncodedVideoChunk;
-            delete (globalThis as any).EncodedAudioChunk;
+            expect(result).toBeInstanceOf(Blob);
+            expect((result as Blob).type).toBe('video/mp4');
         });
     });
 });

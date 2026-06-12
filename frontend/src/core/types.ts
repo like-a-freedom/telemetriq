@@ -10,6 +10,10 @@ export interface TrackPoint {
     time: Date;
     /** Heart rate in BPM (optional) */
     hr?: number;
+    /** Cadence in RPM (optional) */
+    cadence?: number;
+    /** Power in watts (optional) */
+    power?: number;
 }
 
 /** Result of GPX parsing */
@@ -36,6 +40,14 @@ export interface TelemetryFrame {
     hr?: number;
     /** Pace in seconds per km */
     paceSecondsPerKm?: number;
+    /** Speed in km/h */
+    speedKmh?: number;
+    /** Grade in percent */
+    gradePercent?: number;
+    /** Cadence in RPM */
+    cadenceRpm?: number;
+    /** Power in watts */
+    powerWatts?: number;
     /** Distance in km */
     distanceKm: number;
     /** Elevation in meters (if available) */
@@ -66,6 +78,8 @@ export type OverlayLayoutMode =
     | 'bottom-bar'     // Horizon: full-width gradient bar at bottom
     | 'side-margins'   // Margin: metrics on left/right margins
     | 'corner-frame'   // L-Frame: L-shaped frame at corner
+    | 'trail-run'
+    | 'cycling-pro'
     | 'arc-gauge'
     | 'hero-number'
     | 'cinematic-bar'
@@ -110,6 +124,11 @@ export interface OverlayFeatures {
     showPace: boolean;
     showDistance: boolean;
     showTime: boolean;
+    showSpeed: boolean;
+    showGrade: boolean;
+    showElevation: boolean;
+    showCadence: boolean;
+    showPower: boolean;
 }
 
 /** Visual styling configuration */

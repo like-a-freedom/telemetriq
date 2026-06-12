@@ -1,6 +1,3 @@
-/**
- * Unit tests for file validation module.
- */
 import { describe, it, expect, afterEach } from 'vitest';
 import {
     validateVideoFile,
@@ -32,7 +29,42 @@ describe('file-validation', () => {
             expect(result.valid).toBe(true);
         });
 
-        it('should reject unsupported extension', () => {
+        it('should accept valid M4V file', () => {
+            const file = new File([new ArrayBuffer(1000)], 'test.m4v', { type: 'video/x-m4v' });
+            const result = validateVideoFile(file);
+
+            expect(result.valid).toBe(true);
+        });
+
+        it('should accept uppercase extension', () => {
+            const file = new File([new ArrayBuffer(1000)], 'test.MP4', { type: 'video/mp4' });
+            const result = validateVideoFile(file);
+
+            expect(result.valid).toBe(true);
+        });
+
+        it('should accept mixed case extension', () => {
+            const file = new File([new ArrayBuffer(1000)], 'test.Mp4', { type: 'video/mp4' });
+            const result = validateVideoFile(file);
+
+            expect(result.valid).toBe(true);
+        });
+
+        it('should accept files with multiple dots in name', () => {
+            const file = new File([new ArrayBuffer(1000)], 'my.video.backup.mp4', { type: 'video/mp4' });
+            const result = validateVideoFile(file);
+
+            expect(result.valid).toBe(true);
+        });
+
+        it('should accept files with whitespace in name', () => {
+            const file = new File([new ArrayBuffer(1000)], 'my video.mp4', { type: 'video/mp4' });
+            const result = validateVideoFile(file);
+
+            expect(result.valid).toBe(true);
+        });
+
+        it('should reject unsupported extension (.avi)', () => {
             const file = new File([new ArrayBuffer(1000)], 'test.avi', { type: 'video/x-msvideo' });
             const result = validateVideoFile(file);
 
@@ -40,8 +72,15 @@ describe('file-validation', () => {
             expect(result.errors.some(e => e.includes('Unsupported format'))).toBe(true);
         });
 
+        it('should reject unsupported extension (.webm)', () => {
+            const file = new File([new ArrayBuffer(1000)], 'test.webm', { type: 'video/webm' });
+            const result = validateVideoFile(file);
+
+            expect(result.valid).toBe(false);
+        });
+
         it('should reject oversized file', () => {
-            const largeSize = 5 * 1024 * 1024 * 1024; // 5 GB
+            const largeSize = 5 * 1024 * 1024 * 1024;
             const file = createFileWithSize(largeSize);
             const result = validateVideoFile(file);
 
@@ -73,8 +112,15 @@ describe('file-validation', () => {
             expect(result.errors.some(e => e.includes('Unsupported format'))).toBe(true);
         });
 
+        it('should handle file without MIME type', () => {
+            const file = new File([new ArrayBuffer(1000)], 'test.mp4');
+            const result = validateVideoFile(file);
+
+            expect(result.valid).toBe(true);
+        });
+
         it('should accept file at exactly 4GB limit', () => {
-            const maxSize = 4 * 1024 * 1024 * 1024; // 4 GB
+            const maxSize = 4 * 1024 * 1024 * 1024;
             const file = createFileWithSize(maxSize);
             const result = validateVideoFile(file);
 

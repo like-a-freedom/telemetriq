@@ -15,8 +15,7 @@ describe('useTemplateCapabilities', () => {
 
     it('should return current template id', () => {
         const capabilities = useTemplateCapabilities();
-        // Default is horizon
-        expect(['horizon', 'margin', 'l-frame', 'classic']).toContain(capabilities.currentTemplateId.value);
+        expect(capabilities.currentTemplateId.value).toBe('horizon');
     });
 
     it('should return capabilities for current template', () => {
@@ -53,7 +52,7 @@ describe('useTemplateCapabilities', () => {
     it('should update when template changes to minimal-ring', async () => {
         const settingsStore = useSettingsStore();
         const capabilities = useTemplateCapabilities();
-        
+
         // Change to minimal-ring
         settingsStore.selectTemplate('minimal-ring');
         await nextTick();
@@ -66,7 +65,7 @@ describe('useTemplateCapabilities', () => {
     it('availableMetrics should include correct metrics for minimal-ring', async () => {
         const settingsStore = useSettingsStore();
         const capabilities = useTemplateCapabilities();
-        
+
         settingsStore.selectTemplate('minimal-ring');
         await nextTick();
 
@@ -80,7 +79,7 @@ describe('useTemplateCapabilities', () => {
     it('requiredMetrics should include pace for minimal-ring', async () => {
         const settingsStore = useSettingsStore();
         const capabilities = useTemplateCapabilities();
-        
+
         settingsStore.selectTemplate('minimal-ring');
         await nextTick();
 
@@ -91,7 +90,7 @@ describe('useTemplateCapabilities', () => {
 
     it('supportsFeature should return correct values for horizon', () => {
         const capabilities = useTemplateCapabilities();
-        
+
         // Horizon supports these
         expect(capabilities.supportsFeature('supportsBackgroundOpacity')).toBe(true);
         expect(capabilities.supportsFeature('supportsGradient')).toBe(true);
@@ -100,13 +99,13 @@ describe('useTemplateCapabilities', () => {
     it('should reflect minimal-ring capabilities correctly', async () => {
         const settingsStore = useSettingsStore();
         const capabilities = useTemplateCapabilities();
-        
+
         settingsStore.selectTemplate('minimal-ring');
         await nextTick();
 
         // Verify template ID changed
         expect(capabilities.currentTemplateId.value).toBe('minimal-ring');
-        
+
         // Verify capabilities match template definition
         expect(capabilities.currentCapabilities.value.supportedMetrics)
             .toEqual(minimalRingTemplate.capabilities.supportedMetrics);
@@ -115,12 +114,31 @@ describe('useTemplateCapabilities', () => {
     it('getMetricDisableReason should return reason for unsupported metric', async () => {
         const settingsStore = useSettingsStore();
         const capabilities = useTemplateCapabilities();
-        
+
         settingsStore.selectTemplate('minimal-ring');
         await nextTick();
 
         const reason = capabilities.getMetricDisableReason('time');
-        expect(reason).toBeTruthy();
-        expect(reason.toLowerCase()).toContain('minimal ring');
+        expect(reason).toContain('Minimal Ring');
+    });
+
+    it('should expose trail-run metrics when trail-run is selected', async () => {
+        const settingsStore = useSettingsStore();
+        const capabilities = useTemplateCapabilities();
+
+        settingsStore.selectTemplate('trail-run');
+        await nextTick();
+
+        expect(capabilities.availableMetrics.value).toEqual(['hr', 'grade', 'elevation']);
+    });
+
+    it('should expose cycling-pro metrics when cycling-pro is selected', async () => {
+        const settingsStore = useSettingsStore();
+        const capabilities = useTemplateCapabilities();
+
+        settingsStore.selectTemplate('cycling-pro');
+        await nextTick();
+
+        expect(capabilities.availableMetrics.value).toEqual(['hr', 'cadence', 'power', 'speed', 'distance']);
     });
 });

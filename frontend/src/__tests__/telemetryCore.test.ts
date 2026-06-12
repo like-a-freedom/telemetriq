@@ -41,6 +41,20 @@ function makePointWithElevation(
     };
 }
 
+function makePointWithMetrics(
+    lat: number,
+    lon: number,
+    timeStr: string,
+    metrics: Partial<Pick<TrackPoint, 'ele' | 'hr' | 'cadence' | 'power'>> = {},
+): TrackPoint {
+    return {
+        lat,
+        lon,
+        time: new Date(timeStr),
+        ...metrics,
+    };
+}
+
 describe('Telemetry Core', () => {
     describe('haversineDistance', () => {
         it('should return 0 for the same point', () => {
@@ -603,6 +617,81 @@ describe('Telemetry Core', () => {
             expect(timeline[1]!.elevationM).toBe(125);
         });
 
+        it('should propagate cadence and power into telemetry frames', () => {
+            const points = [
+                makePointWithMetrics(55.7558, 37.6173, '2024-01-15T10:00:00Z', {
+                    ele: 120,
+                    hr: 140,
+                    cadence: 86,
+                    power: 250,
+                }),
+                makePointWithMetrics(55.7567, 37.6182, '2024-01-15T10:00:05Z', {
+                    ele: 125,
+                    hr: 145,
+                    cadence: 92,
+                    power: 310,
+                }),
+            ];
+
+            const timeline = buildTelemetryTimeline(points);
+
+            expect(timeline[0]!.cadenceRpm).toBe(86);
+            expect(timeline[0]!.powerWatts).toBe(250);
+            expect(timeline[1]!.cadenceRpm).toBe(92);
+            expect(timeline[1]!.powerWatts).toBe(310);
+        });
+
+        it('should derive cycling speed without capping valid 54 km/h segments', () => {
+            const frames = buildTelemetryTimeline([
+                makePointWithMetrics(55.0, 37.0, '2024-01-15T10:00:00Z', { ele: 100 }),
+                makePointWithMetrics(55.000675, 37.0, '2024-01-15T10:00:05Z', { ele: 100 }),
+            ]);
+
+            expect(frames[1]!.speedKmh).toBeGreaterThan(50);
+        });
+
+        it('should return undefined grade when elevation data is absent', () => {
+            const frames = buildTelemetryTimeline([
+                makePoint(55.0, 37.0, '2024-01-15T10:00:00Z'),
+                makePoint(55.0, 37.0006, '2024-01-15T10:00:10Z'),
+            ]);
+
+            expect(frames[1]!.gradePercent).toBeUndefined();
+        });
+
+        it('should derive grade from a smoothed elevation window', () => {
+            const frames = buildTelemetryTimeline([
+                makePointWithMetrics(55.0, 37.0, '2024-01-15T10:00:00Z', { ele: 100.0 }),
+                makePointWithMetrics(55.0, 37.0003, '2024-01-15T10:00:05Z', { ele: 102.0 }),
+                makePointWithMetrics(55.0, 37.0006, '2024-01-15T10:00:10Z', { ele: 104.0 }),
+                makePointWithMetrics(55.0, 37.0009, '2024-01-15T10:00:15Z', { ele: 106.0 }),
+            ]);
+
+            expect(frames[3]!.gradePercent).toBeGreaterThan(8);
+            expect(frames[3]!.gradePercent).toBeLessThan(13);
+        });
+
+        it('should not emit spiky double-digit grade on nearly flat noisy elevation', () => {
+            const frames = buildTelemetryTimeline([
+                makePointWithMetrics(55.0, 37.0, '2024-01-15T10:00:00Z', { ele: 100.0 }),
+                makePointWithMetrics(55.0, 37.0003, '2024-01-15T10:00:05Z', { ele: 100.8 }),
+                makePointWithMetrics(55.0, 37.0006, '2024-01-15T10:00:10Z', { ele: 99.9 }),
+                makePointWithMetrics(55.0, 37.0009, '2024-01-15T10:00:15Z', { ele: 100.4 }),
+            ]);
+
+            expect(Math.abs(frames[3]!.gradePercent ?? 0)).toBeLessThan(8);
+        });
+
+        it('should drop speed and grade updates across sparse time gaps', () => {
+            const frames = buildTelemetryTimeline([
+                makePointWithMetrics(55.0, 37.0, '2024-01-15T10:00:00Z', { ele: 100 }),
+                makePointWithMetrics(55.0, 37.0010, '2024-01-15T10:00:20Z', { ele: 110 }),
+            ]);
+
+            expect(frames[1]!.speedKmh).toBeUndefined();
+            expect(frames[1]!.gradePercent).toBeUndefined();
+        });
+
         it('should fill missing pace values by interpolation/extrapolation for smooth output', () => {
             // First 3 points: stationary (no movement) → raw pace undefined
             // Then running at ~3 m/s for several seconds → pace defined
@@ -876,6 +965,39 @@ describe('Telemetry Core', () => {
             expect(result!.elevationM).toBeCloseTo(115, 5);
         });
 
+        it('should interpolate speed, grade, cadence, and power between frames', () => {
+            const telemetryFrames = buildTelemetryTimeline([
+                makePointWithMetrics(55.7558, 37.6173, '2024-01-15T10:00:00Z', {
+                    ele: 100,
+                    hr: 140,
+                    cadence: 80,
+                    power: 220,
+                }),
+                makePointWithMetrics(55.7558, 37.6179, '2024-01-15T10:00:05Z', {
+                    ele: 103,
+                    hr: 145,
+                    cadence: 90,
+                    power: 280,
+                }),
+                makePointWithMetrics(55.7558, 37.6185, '2024-01-15T10:00:10Z', {
+                    ele: 106,
+                    hr: 150,
+                    cadence: 100,
+                    power: 340,
+                }),
+            ]);
+
+            const result = getTelemetryAtTime(telemetryFrames, 7.5, 0);
+
+            expect(result).not.toBeNull();
+            expect(result!.speedKmh).toBeDefined();
+            expect(result!.gradePercent).toBeDefined();
+            expect(result!.cadenceRpm).toBeGreaterThan(90);
+            expect(result!.cadenceRpm).toBeLessThan(100);
+            expect(result!.powerWatts).toBeGreaterThan(280);
+            expect(result!.powerWatts).toBeLessThan(340);
+        });
+
         it('should apply sync offset correctly', () => {
             // With offset of 30, videoTime=0 maps to gpxTime=30
             const result = getTelemetryAtTime(frames, 0, 30);
@@ -1038,19 +1160,24 @@ describe('Telemetry Core', () => {
 
             // Steady running: ~3.33 m/s = 5:00 min/km
             // Add small GPS noise (±1m) to simulate real GPS data
-            const noisePattern = [0, 0.000008, -0.000003, 0.000005, -0.000007,
+            const latNoisePattern = [0, 0.000008, -0.000003, 0.000005, -0.000007,
                 0.000004, -0.000006, 0.000002, -0.000004, 0.000003,
                 0.000007, -0.000005, 0.000004, -0.000008, 0.000006,
                 -0.000003, 0.000005, -0.000004, 0.000007, -0.000006,
                 0.000002]; // ±~1m noise
+            const lonNoisePattern = [0, 0.000002, -0.000005, 0.000003, -0.000004,
+                0.000006, -0.000002, 0.000004, -0.000007, 0.000005,
+                -0.000003, 0.000006, -0.000004, 0.000002, -0.000005,
+                0.000007, -0.000003, 0.000004, -0.000006, 0.000002,
+                -0.000004]; // ±~1m longitude noise
 
             for (let s = 0; s <= 20; s++) {
                 // Base movement: ~3.33m/s (0.000030° lat/s)
                 const baseLat = 55.0 + s * 0.000030;
-                const noisyLat = baseLat + (noisePattern[s] ?? 0);
+                const noisyLat = baseLat + (latNoisePattern[s] ?? 0);
                 points.push(makePoint(
                     noisyLat,
-                    37.0 + (Math.random() * 0.000002 - 0.000001), // Small lon noise
+                    37.0 + (lonNoisePattern[s] ?? 0),
                     new Date(t0 + s * 1000).toISOString()
                 ));
             }

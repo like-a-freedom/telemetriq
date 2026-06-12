@@ -1,8 +1,9 @@
 /**
- * Unit tests for BrowserFileSystem (IndexedDB file storage).
+ * Unit tests for BrowserFileSystem.
  *
- * Note: These tests verify the interface contract. Full IndexedDB functionality
- * is tested in E2E tests with a real browser environment.
+ * Tests interface contract and method signatures.
+ * Functional IndexedDB round-trip behavior requires a real browser environment
+ * and is validated in E2E tests.
  */
 import { describe, it, expect } from 'vitest';
 import { BrowserFileSystem, type FileSystemInterface } from '../modules/fileSystem';
@@ -11,7 +12,6 @@ describe('FileSystemInterface', () => {
     it('should define the required interface methods', () => {
         const fs: FileSystemInterface = new BrowserFileSystem();
 
-        // Verify all interface methods are defined
         expect(typeof fs.writeFile).toBe('function');
         expect(typeof fs.readFile).toBe('function');
         expect(typeof fs.deleteFile).toBe('function');
@@ -21,11 +21,10 @@ describe('FileSystemInterface', () => {
     it('should have correct method signatures', () => {
         const fs: FileSystemInterface = new BrowserFileSystem();
 
-        // Method signatures should accept correct parameters
-        expect(fs.writeFile.length).toBe(2); // key: string, data: Blob
-        expect(fs.readFile.length).toBe(1); // key: string
-        expect(fs.deleteFile.length).toBe(1); // key: string
-        expect(fs.listFiles.length).toBe(0); // no parameters
+        expect(fs.writeFile.length).toBe(2);
+        expect(fs.readFile.length).toBe(1);
+        expect(fs.deleteFile.length).toBe(1);
+        expect(fs.listFiles.length).toBe(0);
     });
 });
 

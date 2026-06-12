@@ -67,8 +67,8 @@ describe('processingStore persisted result recovery', () => {
         expect(persistedFiles.size).toBe(1);
 
         store.reset();
-        await new Promise((resolve) => setTimeout(resolve, 0));
-
-        expect(persistedFiles.size).toBe(0);
+        await vi.waitFor(() => {
+            expect(persistedFiles.size).toBe(0);
+        });
     });
 });

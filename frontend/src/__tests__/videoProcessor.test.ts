@@ -188,7 +188,7 @@ describe('VideoProcessor', () => {
         expect(processor).toBeInstanceOf(VideoProcessor);
     });
 
-    it('should cancel processing', () => {
+    it('should reject process after cancel', async () => {
         const file = new File([], 'test.mp4');
         const processor = new VideoProcessor({
             videoFile: file,
@@ -198,7 +198,7 @@ describe('VideoProcessor', () => {
         });
 
         processor.cancel();
-        expect((processor as any).abortController.signal.aborted).toBe(true);
+        await expect(processor.process()).rejects.toThrow();
     });
 
     it('should normalize non-finite sync offset to zero', () => {

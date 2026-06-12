@@ -53,12 +53,23 @@ async function draw(): Promise<void> {
   }
 
   // Render overlay
+  const hrHistory =
+    props.frame.hr !== undefined
+      ? Array.from({ length: 12 }, (_, index) =>
+          Math.max(80, props.frame.hr! - 10 + index)
+        )
+      : undefined;
+
   await renderOverlay(
     ctx,
     props.frame,
     canvasWidth.value,
     canvasHeight.value,
-    props.config
+    props.config,
+    {
+      hrHistory,
+      destinationHasBaseFrame: true,
+    }
   );
 }
 
