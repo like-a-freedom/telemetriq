@@ -13,7 +13,7 @@ import type { TrackPoint } from '../core/types';
 import { SyncError } from '../core/errors';
 import { parseGpx } from '../modules/gpxParser';
 
-const IPHONE_GPX_PATH = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../test_data/iphone/iphone-track.gpx');
+const IPHONE_GPX_PATH = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../test_data/iphone/example_01/iphone-track.gpx');
 const HAS_IPHONE_GPX = fs.existsSync(IPHONE_GPX_PATH);
 
 function makePoint(lat: number, lon: number, timeStr: string): TrackPoint {
@@ -64,6 +64,19 @@ describe('Sync Engine', () => {
             const result = autoSync(points, undefined, 55.7558, 37.6173);
             expect(result.autoSynced).toBe(true);
             expect(result.offsetSeconds).toBe(0);
+        });
+
+        it('should fail GPS-only auto-sync when the nearest track point is still far away', () => {
+            const points = [
+                makePoint(55.7558, 37.6173, '2024-01-15T10:00:00Z'),
+                makePoint(55.7567, 37.6173, '2024-01-15T10:00:30Z'),
+            ];
+
+            const result = autoSync(points, undefined, 55.7700, 37.6173);
+
+            expect(result.autoSynced).toBe(false);
+            expect(result.offsetSeconds).toBe(0);
+            expect(result.warning).toContain('close GPS match');
         });
 
         it('should sync by video time within GPX range without warning', () => {
@@ -168,6 +181,26 @@ describe('Sync Engine', () => {
             expect(result.offsetSeconds).toBe(0); // GPS matched to first point
         });
 
+        it('should ignore GPS refinement when the nearest point in the time window is too far away', () => {
+            const points = [
+                makePoint(55.7558, 37.6173, '2024-01-15T10:00:00Z'),
+                makePoint(55.7567, 37.6173, '2024-01-15T10:01:00Z'),
+                makePoint(55.7576, 37.6173, '2024-01-15T10:02:00Z'),
+            ];
+
+            const result = autoSync(
+                points,
+                new Date('2024-01-15T10:00:30Z'),
+                55.7700,
+                37.6173,
+            );
+
+            expect(result.autoSynced).toBe(true);
+            expect(result.offsetSeconds).toBe(30);
+            expect(result.warning).toContain('does not closely match');
+            expect(result.warning).toContain('Time-based sync was applied');
+        });
+
         it('should prefer time when GPS points to a different timeline segment', () => {
             const points = [
                 makePoint(55.7559, 37.6174, '2024-01-15T10:00:00Z'),
@@ -201,6 +234,27 @@ describe('Sync Engine', () => {
             expect(result.offsetSeconds).toBe(60); // GPS matched second point
             expect(result.warning).toContain('Video time is outside GPX range');
             expect(result.warning).toContain('GPS-based sync was applied');
+        });
+
+        it('should keep time-based sync when outside-range GPS fallback is too far away', () => {
+            const points = [
+                makePoint(55.7558, 37.6173, '2024-01-15T10:00:00Z'),
+                makePoint(55.7567, 37.6173, '2024-01-15T10:01:00Z'),
+                makePoint(55.7576, 37.6173, '2024-01-15T10:02:00Z'),
+            ];
+
+            const result = autoSync(
+                points,
+                new Date('2024-01-15T13:20:00Z'),
+                55.7700,
+                37.6173,
+            );
+
+            expect(result.autoSynced).toBe(true);
+            expect(result.offsetSeconds).toBe(12_000);
+            expect(result.warning).toContain('Video time is outside GPX range');
+            expect(result.warning).toContain('does not closely match');
+            expect(result.warning).toContain('Time-based sync was applied');
         });
 
         it('should handle video time exactly matching GPX start', () => {
@@ -330,6 +384,23 @@ describe('Sync Engine', () => {
             expect(result.autoSynced).toBe(true);
             expect(result.offsetSeconds).toBeCloseTo(19373, -1); // within ±10s
             expect(result.warning).toBeUndefined();
+        });
+
+        (HAS_IPHONE_GPX ? it : it.skip)('should keep time-based sync and report weak GPS match for the real iPhone video metadata', () => {
+            const xml = fs.readFileSync(IPHONE_GPX_PATH, 'utf-8');
+            const gpx = parseGpx(xml);
+
+            const result = autoSync(
+                gpx.points,
+                new Date('2026-02-15T09:01:13Z'),
+                54.7602,
+                35.6026,
+            );
+
+            expect(result.autoSynced).toBe(true);
+            expect(result.offsetSeconds).toBe(-54);
+            expect(result.warning).toContain('does not closely match');
+            expect(result.warning).toContain('Time-based sync was applied');
         });
     });
 

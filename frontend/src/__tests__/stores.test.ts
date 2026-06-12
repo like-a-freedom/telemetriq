@@ -8,7 +8,7 @@ import { useProcessingStore } from '../stores/processingStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { parseGpx } from '../modules/gpxParser';
 
-const IPHONE_GPX_PATH = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../test_data/iphone/iphone-track.gpx');
+const IPHONE_GPX_PATH = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../test_data/iphone/example_01/iphone-track.gpx');
 const HAS_IPHONE_GPX = fs.existsSync(IPHONE_GPX_PATH);
 
 describe('Pinia Stores', () => {
@@ -309,6 +309,25 @@ describe('Pinia Stores', () => {
             expect(store.isAutoSynced).toBe(true);
             expect(store.syncError).toBeNull();
             expect(store.syncWarning).toBeNull();
+        });
+
+        it('should surface a manual-sync error when GPS-only auto-sync has no close match', async () => {
+            const store = useSyncStore();
+
+            await store.performAutoSync(
+                [
+                    { lat: 55.7558, lon: 37.6173, time: new Date('2024-01-15T10:00:00Z') },
+                    { lat: 55.7567, lon: 37.6173, time: new Date('2024-01-15T10:00:30Z') },
+                ],
+                undefined,
+                55.7700,
+                37.6173,
+            );
+
+            expect(store.offsetSeconds).toBe(0);
+            expect(store.isAutoSynced).toBe(false);
+            expect(store.syncError).toBe('Auto-sync failed. Use manual adjustment.');
+            expect(store.syncWarning).toContain('close GPS match');
         });
 
         it('should auto-sync with video time within threshold and set isAutoSynced', async () => {
