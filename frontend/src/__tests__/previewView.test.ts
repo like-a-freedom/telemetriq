@@ -140,6 +140,16 @@ describe('PreviewView (synchronization panel)', () => {
         expect(wrapper.text()).toContain('Power');
     });
 
+    it('does not render the noisy metric tag badges in the preview panel', () => {
+        makeStores({ autoSynced: false });
+
+        const wrapper = mount(PreviewView, {
+            global: { stubs: ['VideoPlayer', 'SyncSlider', 'TemplateSelector', 'DateTimePicker'] },
+        });
+
+        expect(wrapper.findAll('.preview-view__metric-chip')).toHaveLength(0);
+    });
+
     it('warns when trail-run is selected without elevation data', () => {
         const { settings } = makeStores({ autoSynced: false });
         settings.updateOverlayConfig({ templateId: 'trail-run' as never });

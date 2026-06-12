@@ -143,9 +143,6 @@
               />
               <span class="preview-view__metric-meta">
                 <span class="preview-view__metric-title">
-                  <span class="preview-view__metric-chip">{{
-                    control.badge
-                  }}</span>
                   <span>{{ control.label }}</span>
                   <span
                     v-if="control.stateLabel"
@@ -229,7 +226,6 @@ interface MetricControlDefinition {
   key: MetricToggleKey;
   metric: MetricType;
   label: string;
-  badge: string;
   hint: string;
 }
 
@@ -238,63 +234,54 @@ const METRIC_CONTROLS: MetricControlDefinition[] = [
     key: "showHr",
     metric: "hr",
     label: "Heart rate",
-    badge: "HR",
     hint: "Beat-by-beat effort from your GPX track.",
   },
   {
     key: "showPace",
     metric: "pace",
     label: "Pace",
-    badge: "PAC",
     hint: "Running pace derived from recent GPS movement.",
   },
   {
     key: "showDistance",
     metric: "distance",
     label: "Distance",
-    badge: "DST",
     hint: "Total distance covered since the start.",
   },
   {
     key: "showTime",
     metric: "time",
     label: "Time",
-    badge: "MOV",
     hint: "Moving time that excludes pauses.",
   },
   {
     key: "showSpeed",
     metric: "speed",
     label: "Speed",
-    badge: "SPD",
     hint: "Current speed over a short rolling window.",
   },
   {
     key: "showGrade",
     metric: "grade",
     label: "Grade",
-    badge: "GRD",
     hint: "Slope percentage based on smoothed elevation.",
   },
   {
     key: "showElevation",
     metric: "elevation",
     label: "Elevation",
-    badge: "ELV",
     hint: "Current altitude from GPX elevation samples.",
   },
   {
     key: "showCadence",
     metric: "cadence",
     label: "Cadence",
-    badge: "CAD",
     hint: "Stride or pedal cadence when present in GPX extensions.",
   },
   {
     key: "showPower",
     metric: "power",
     label: "Power",
-    badge: "PWR",
     hint: "Power data from compatible devices and GPX extensions.",
   },
 ];
@@ -836,27 +823,6 @@ function applyManualTime(): void {
   flex-wrap: wrap;
   gap: 0.45rem;
   font-weight: 600;
-}
-
-.preview-view__metric-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 2.4rem;
-  padding: 0.18rem 0.42rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.preview-view__checkbox--locked .preview-view__metric-chip {
-  background: rgba(100, 108, 255, 0.16);
-  border-color: rgba(100, 108, 255, 0.24);
-  color: rgba(235, 237, 255, 0.94);
 }
 
 .preview-view__metric-state {
