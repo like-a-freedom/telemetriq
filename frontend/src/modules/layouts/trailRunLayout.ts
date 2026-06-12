@@ -66,7 +66,6 @@ export function renderTrailRunLayout(
             ctx,
             columnLeft,
             metricTop,
-            columnWidth,
             h,
             tuning.textScale,
             compact,
@@ -186,7 +185,6 @@ function drawTrailMetric(
     ctx: OverlayContext2D,
     left: number,
     top: number,
-    columnWidth: number,
     h: number,
     textScale: number,
     compact: boolean,
@@ -215,10 +213,18 @@ function drawTrailMetric(
     ctx.font = `300 ${valueSize}px ${config.fontFamily}`;
     ctx.fillText(metric.value, left, valueBaseline);
 
-    const unitOffset = Math.min(columnWidth * 0.5, ctx.measureText(metric.value).width + Math.round(columnWidth * 0.065));
+    // Position the unit right after the value with a gap that scales
+    // with the value font size.  This keeps the spacing visually
+    // consistent regardless of whether the value is a single digit
+    // (e.g. grade "8") or four digits (e.g. elevation "2921").
+    const valueWidth = ctx.measureText(metric.value).width;
+    const unitGap = Math.round(valueSize * 0.08);
     ctx.fillStyle = metric.value === '--' ? 'rgba(255,255,255,0.58)' : 'rgba(255,255,255,0.8)';
     ctx.font = `500 ${unitSize}px ${config.fontFamily}`;
-    ctx.fillText(metric.unit, left + unitOffset, valueBaseline - Math.round(unitSize * 0.08));
+    // Vertically align the unit slightly above the value baseline so it
+    // reads as a superscript annotation rather than overlapping the number.
+    const unitVerticalOffset = Math.round(unitSize * 0.35);
+    ctx.fillText(metric.unit, left + valueWidth + unitGap, valueBaseline - unitVerticalOffset);
 }
 
 function drawColumnSeparator(
