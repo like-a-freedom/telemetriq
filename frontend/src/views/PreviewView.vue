@@ -339,9 +339,7 @@ const metricControls = computed(() =>
       disabled: !available || required,
       reason,
       stateLabel: required ? "Locked" : undefined,
-      helperText: required
-        ? "Always visible in this template."
-        : control.hint,
+      helperText: required ? "Always visible in this template." : control.hint,
     };
   }).filter((control) => control.available)
 );
