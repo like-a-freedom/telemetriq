@@ -119,6 +119,16 @@ function parseTrackPoints(doc: Document): TrackPoint[] {
         }
 
         const hr = extractHeartRate(trkpt);
+        const cadence = extractNumericExtensionMetric(
+            trkpt,
+            ['cad', 'cadence'],
+            (value) => value > 0 && value < 250,
+        );
+        const power = extractNumericExtensionMetric(
+            trkpt,
+            ['power', 'watts', 'powerinwatts'],
+            (value) => value >= 0 && value < 2500,
+        );
 
         points.push({
             lat,
@@ -126,6 +136,8 @@ function parseTrackPoints(doc: Document): TrackPoint[] {
             ele: ele !== undefined && !isNaN(ele) ? ele : undefined,
             time,
             hr,
+            cadence,
+            power,
         });
     }
 
@@ -154,6 +166,32 @@ function extractHeartRate(trkpt: Element): number | undefined {
         if (localName === 'hr' || localName === 'heartrate' || localName === 'heart_rate') {
             const val = parseInt(el.textContent ?? '', 10);
             if (!isNaN(val) && val > 0 && val < 300) return val;
+        }
+    }
+
+    return undefined;
+}
+
+function extractNumericExtensionMetric(
+    trkpt: Element,
+    localNames: string[],
+    isValid: (value: number) => boolean,
+): number | undefined {
+    const extensions = trkpt.querySelector('extensions');
+    if (!extensions) return undefined;
+
+    const normalizedLocalNames = new Set(localNames.map((name) => name.toLowerCase()));
+    const allElements = extensions.getElementsByTagName('*');
+
+    for (const element of allElements) {
+        const localName = (element.localName || element.nodeName.split(':').pop() || '').toLowerCase();
+        if (!normalizedLocalNames.has(localName)) {
+            continue;
+        }
+
+        const value = Number.parseFloat(element.textContent ?? '');
+        if (!Number.isNaN(value) && isValid(value)) {
+            return value;
         }
     }
 

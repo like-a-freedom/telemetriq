@@ -172,7 +172,7 @@ describe("ProcessingView", () => {
 
       // The mock VideoProcessor returns a blob immediately, so processing starts
       // and completes in the same microtask cycle
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await flushPromises();
 
       // Stale result was cleared and new result produced
       expect(processingStore.hasResult).toBe(true);
@@ -226,7 +226,7 @@ describe("ProcessingView", () => {
         },
       });
 
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await flushPromises();
 
       expect(mockWakeLock.request).toHaveBeenCalled();
     });
@@ -256,7 +256,7 @@ describe("ProcessingView", () => {
         },
       });
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await flushPromises();
 
       expect(mockWakeLock.release).toHaveBeenCalled();
     });

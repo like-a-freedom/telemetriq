@@ -5,7 +5,7 @@
 import type { ExtendedOverlayConfig, TemplateId } from '../../core/types';
 
 /** Metric type identifier */
-export type MetricType = 'pace' | 'hr' | 'distance' | 'time';
+export type MetricType = 'pace' | 'hr' | 'distance' | 'time' | 'speed' | 'grade' | 'elevation' | 'cadence' | 'power';
 
 /** Template capabilities - what the template supports and requires */
 export interface TemplateCapabilities {
@@ -108,7 +108,7 @@ export interface TemplateDefinition {
 
 export type TemplateMetadataInput = Omit<TemplateMetadata, 'id'> & Partial<Pick<TemplateMetadata, 'id'>>;
 
-export type TemplateConfigInput = Omit<ExtendedOverlayConfig, 'templateId'>
+export type TemplateConfigInput = Partial<Omit<ExtendedOverlayConfig, 'templateId'>>
   & Partial<Pick<ExtendedOverlayConfig, 'templateId'>>;
 
 export interface TemplateDefinitionInput {
@@ -125,6 +125,11 @@ export const BASE_TEMPLATE_CONFIG: Partial<ExtendedOverlayConfig> = {
   showPace: true,
   showDistance: true,
   showTime: true,
+  showSpeed: false,
+  showGrade: false,
+  showElevation: false,
+  showCadence: false,
+  showPower: false,
   borderWidth: 0,
   borderColor: 'transparent',
   cornerRadius: 0,
@@ -135,7 +140,7 @@ export const BASE_TEMPLATE_CONFIG: Partial<ExtendedOverlayConfig> = {
 
 /** Default capabilities - full-featured template */
 export const DEFAULT_CAPABILITIES: TemplateCapabilities = {
-  supportedMetrics: ['pace', 'hr', 'distance', 'time'],
+  supportedMetrics: ['pace', 'hr', 'distance', 'time', 'speed', 'grade', 'elevation', 'cadence', 'power'],
   requiredMetrics: [],
   supportsPosition: true,
   supportsBackgroundOpacity: true,
@@ -172,18 +177,42 @@ export const DEFAULT_STYLES: TemplateStyles = {
 };
 
 export function defineTemplate(input: TemplateDefinitionInput): TemplateDefinition {
+  const mergedCapabilities: TemplateCapabilities = {
+    ...DEFAULT_CAPABILITIES,
+    ...input.capabilities,
+  };
+  const mergedStyles: TemplateStyles = {
+    ...DEFAULT_STYLES,
+    ...input.styles,
+    typography: {
+      ...DEFAULT_STYLES.typography,
+      ...input.styles?.typography,
+    },
+    spacing: {
+      ...DEFAULT_STYLES.spacing,
+      ...input.styles?.spacing,
+    },
+    visual: {
+      ...DEFAULT_STYLES.visual,
+      ...input.styles?.visual,
+    },
+  };
+
   return {
     id: input.id,
     metadata: {
       ...input.metadata,
       id: input.id,
+      capabilities: mergedCapabilities,
+      styles: mergedStyles,
     },
     config: {
+      ...BASE_TEMPLATE_CONFIG,
       ...input.config,
       templateId: input.id,
-    },
-    capabilities: input.capabilities,
-    styles: input.styles,
+    } as ExtendedOverlayConfig,
+    capabilities: mergedCapabilities,
+    styles: mergedStyles,
   };
 }
 

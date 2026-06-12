@@ -26,6 +26,8 @@ import { raceTagTemplate } from './raceTag';
 import { glassPanelTemplate } from './glassPanel';
 import { minimalRingTemplate } from './minimalRing';
 import { focusTypeTemplate } from './focusType';
+import { trailRunTemplate } from './trailRun';
+import { cyclingProTemplate } from './cyclingPro';
 import { customTemplate } from './custom';
 
 export interface BuiltTemplateRegistry {
@@ -84,6 +86,8 @@ const REGISTERED_TEMPLATES = [
     glassPanelTemplate,
     minimalRingTemplate,
     focusTypeTemplate,
+    trailRunTemplate,
+    cyclingProTemplate,
     customTemplate,
 ] satisfies readonly TemplateDefinition[];
 

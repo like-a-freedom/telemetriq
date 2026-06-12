@@ -476,6 +476,21 @@ export class WebGPUAdapter {
     if (config.showTime) {
       lines.push(`TIME  ${frame.elapsedTime}`);
     }
+    if (config.showSpeed && frame.speedKmh !== undefined) {
+      lines.push(`SPEED ${frame.speedKmh.toFixed(1)} km/h`);
+    }
+    if (config.showGrade && frame.gradePercent !== undefined) {
+      lines.push(`GRADE ${frame.gradePercent.toFixed(1)} %`);
+    }
+    if (config.showElevation && frame.elevationM !== undefined) {
+      lines.push(`ELEV  ${Math.round(frame.elevationM)} m`);
+    }
+    if (config.showCadence && frame.cadenceRpm !== undefined) {
+      lines.push(`CAD   ${Math.round(frame.cadenceRpm)} rpm`);
+    }
+    if (config.showPower && frame.powerWatts !== undefined) {
+      lines.push(`POWER ${Math.round(frame.powerWatts)} W`);
+    }
 
     if (lines.length === 0) return overlayCanvas;
 

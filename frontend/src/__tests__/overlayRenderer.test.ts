@@ -201,6 +201,62 @@ describe('Overlay Renderer', () => {
         expect((ctx2 as unknown as StubContext).drawImage).toHaveBeenCalledTimes(1);
         expect(offscreenCreateCount).toBe(createdAfterFirstRender);
     });
+
+    it('should invalidate cache when trail-run hr history changes', async () => {
+        const frame: TelemetryFrame = {
+            timeOffset: 60,
+            hr: 159,
+            gradePercent: 27,
+            elevationM: 2921,
+            distanceKm: 10,
+            elapsedTime: '00:01:00',
+            movingTimeSeconds: 60,
+        };
+
+        const config = {
+            ...DEFAULT_OVERLAY_CONFIG,
+            templateId: 'trail-run',
+            layoutMode: 'trail-run',
+            showPace: false,
+            showDistance: false,
+            showTime: false,
+            showGrade: true,
+            showElevation: true,
+        };
+
+        const ctx1 = createStubContext({ id: 'trail-a' }) as unknown as CanvasRenderingContext2D;
+        const ctx2 = createStubContext({ id: 'trail-b' }) as unknown as CanvasRenderingContext2D;
+
+        await renderOverlay(ctx1, frame, 1280, 720, config, { hrHistory: [148, 150, 152, 155, 159] });
+        const createdAfterFirstRender = offscreenCreateCount;
+
+        await renderOverlay(ctx2, frame, 1280, 720, config, { hrHistory: [120, 123, 126, 129, 159] });
+
+        expect(offscreenCreateCount).toBeGreaterThan(createdAfterFirstRender);
+    });
+
+    it('should still render fixed trail-run layout placeholders when metrics are unavailable', async () => {
+        const ctx = createStubContext({ id: 'trail-placeholder' }) as unknown as CanvasRenderingContext2D;
+        const frame: TelemetryFrame = {
+            timeOffset: 5,
+            distanceKm: 0,
+            elapsedTime: '00:00:05',
+            movingTimeSeconds: 5,
+        };
+
+        await renderOverlay(ctx, frame, 1280, 720, {
+            ...DEFAULT_OVERLAY_CONFIG,
+            templateId: 'trail-run',
+            layoutMode: 'trail-run',
+            showPace: false,
+            showDistance: false,
+            showTime: false,
+            showGrade: true,
+            showElevation: true,
+        });
+
+        expect((ctx as unknown as StubContext).drawImage).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe('buildMetrics', () => {
@@ -211,6 +267,11 @@ describe('buildMetrics', () => {
             elapsedTime: '30:00',
             paceSecondsPerKm: 300,
             hr: 145,
+            speedKmh: 12.4,
+            gradePercent: 4.2,
+            elevationM: 312,
+            cadenceRpm: 88,
+            powerWatts: 265,
             movingTimeSeconds: 1800,
         };
 
@@ -220,6 +281,11 @@ describe('buildMetrics', () => {
             showHr: true,
             showDistance: true,
             showTime: true,
+            showSpeed: true,
+            showGrade: true,
+            showElevation: true,
+            showCadence: true,
+            showPower: true,
         };
 
         const metrics = buildMetrics(frame, config);
@@ -228,6 +294,11 @@ describe('buildMetrics', () => {
         expect(metrics.some(m => m.label === 'Heart Rate')).toBe(true);
         expect(metrics.some(m => m.label === 'Distance')).toBe(true);
         expect(metrics.some(m => m.label === 'Time')).toBe(true);
+        expect(metrics.some(m => m.label === 'Speed')).toBe(true);
+        expect(metrics.some(m => m.label === 'Grade')).toBe(true);
+        expect(metrics.some(m => m.label === 'Elevation')).toBe(true);
+        expect(metrics.some(m => m.label === 'Cadence')).toBe(true);
+        expect(metrics.some(m => m.label === 'Power')).toBe(true);
     });
 
     it('should exclude pace when disabled', () => {
@@ -343,5 +414,34 @@ describe('buildMetrics', () => {
         const metrics = buildMetrics(frame, config);
 
         expect(metrics).toHaveLength(0);
+    });
+
+    it('should skip extended metrics when the underlying telemetry values are unavailable', () => {
+        const frame: TelemetryFrame = {
+            timeOffset: 0,
+            distanceKm: 5.5,
+            elapsedTime: '30:00',
+            speedKmh: undefined,
+            gradePercent: undefined,
+            elevationM: undefined,
+            cadenceRpm: undefined,
+            powerWatts: undefined,
+            movingTimeSeconds: 1800,
+        };
+
+        const metrics = buildMetrics(frame, {
+            ...DEFAULT_OVERLAY_CONFIG,
+            showSpeed: true,
+            showGrade: true,
+            showElevation: true,
+            showCadence: true,
+            showPower: true,
+        });
+
+        expect(metrics.some(m => m.label === 'Speed')).toBe(false);
+        expect(metrics.some(m => m.label === 'Grade')).toBe(false);
+        expect(metrics.some(m => m.label === 'Elevation')).toBe(false);
+        expect(metrics.some(m => m.label === 'Cadence')).toBe(false);
+        expect(metrics.some(m => m.label === 'Power')).toBe(false);
     });
 });

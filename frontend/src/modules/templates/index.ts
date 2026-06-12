@@ -58,4 +58,6 @@ export { raceTagTemplate } from './raceTag';
 export { glassPanelTemplate } from './glassPanel';
 export { minimalRingTemplate, renderMinimalRing } from './minimalRing';
 export { focusTypeTemplate } from './focusType';
+export { trailRunTemplate } from './trailRun';
+export { cyclingProTemplate } from './cyclingPro';
 export { customTemplate } from './custom';

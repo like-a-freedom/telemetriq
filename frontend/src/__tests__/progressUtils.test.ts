@@ -1,7 +1,7 @@
 /**
  * Unit tests for progress-utils module.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
     createProcessingProgressReporter,
     createMuxProgressReporter,
@@ -99,45 +99,55 @@ describe('progress-utils', () => {
     });
 
     describe('createEtaCalculator', () => {
+        beforeEach(() => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2024-01-15T10:00:00Z'));
+        });
+
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
         it('should return undefined when startedAtMs is null', () => {
             const calculator = createEtaCalculator(null);
             expect(calculator.update(50)).toBeUndefined();
         });
 
         it('should return undefined at 0% progress', () => {
-            const startedAtMs = Date.now();
-            const calculator = createEtaCalculator(startedAtMs);
+            const calculator = createEtaCalculator(Date.now());
             expect(calculator.update(0)).toBeUndefined();
         });
 
         it('should return undefined at 100% progress', () => {
-            const startedAtMs = Date.now() - 1000;
-            const calculator = createEtaCalculator(startedAtMs);
+            const calculator = createEtaCalculator(Date.now() - 1000);
             expect(calculator.update(100)).toBeUndefined();
         });
 
         it('should calculate ETA based on elapsed time', () => {
-            const now = Date.now();
-            const startedAtMs = now - 10000; // Started 10 seconds ago
+            const startedAtMs = Date.now() - 10_000;
 
             const calculator = createEtaCalculator(startedAtMs);
             const eta = calculator.update(50);
 
-            expect(eta).toBeGreaterThan(0);
+            // At 50% after 10s, ETA = 10s * (50/50) = 10s
+            expect(eta).toBe(10);
             expect(typeof eta).toBe('number');
         });
 
         it('should smooth ETA over multiple updates', () => {
-            const now = Date.now();
-            const startedAtMs = now - 10000;
+            const startedAtMs = Date.now() - 10_000;
 
             const calculator = createEtaCalculator(startedAtMs);
 
             const eta1 = calculator.update(50);
+            // Advance 1 second, then update at 60%
+            vi.advanceTimersByTime(1000);
             const eta2 = calculator.update(60);
 
             expect(eta1).toBeDefined();
             expect(eta2).toBeDefined();
+            // Second ETA should reflect higher progress
+            expect(eta2).toBeLessThan(eta1!);
         });
     });
 

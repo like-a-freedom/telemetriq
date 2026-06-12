@@ -1,6 +1,6 @@
 import type { TelemetryFrame, ExtendedOverlayConfig, ProcessingProgress, VideoMeta, VideoProcessingProfile } from '../core/types';
 import { ProcessingError } from '../core/errors';
-import { getTelemetryAtTime } from './telemetryCore';
+import { getTelemetryAtTime, getTelemetryWindow } from './telemetryCore';
 import { renderOverlay, DEFAULT_OVERLAY_CONFIG } from './overlayRenderer';
 import { transcodeWithForcedKeyframes, remuxWithFfmpeg } from './ffmpegUtils';
 import { createKeyframeDetector, detectSourceGopSize } from './keyframeDetector';
@@ -564,9 +564,28 @@ export class VideoProcessor {
             videoMeta.duration,
         );
 
+        const hrHistory = getTelemetryWindow(
+            telemetryFrames,
+            videoTimeSec,
+            safeSyncOffsetSeconds,
+            60,
+        )
+            .map((sample) => sample.hr)
+            .filter((value): value is number => value !== undefined);
+
+        if (
+            telemetry?.hr !== undefined &&
+            (hrHistory.length === 0 || hrHistory[hrHistory.length - 1] !== telemetry.hr)
+        ) {
+            hrHistory.push(telemetry.hr);
+        }
+
         drawVideoFrameWithRotation(ctx, frame, videoMeta.width, videoMeta.height, videoRotation);
         if (telemetry) {
-            await renderOverlay(ctx, telemetry, videoMeta.width, videoMeta.height, config);
+            await renderOverlay(ctx, telemetry, videoMeta.width, videoMeta.height, config, {
+                hrHistory,
+                destinationHasBaseFrame: true,
+            });
         }
 
         const newFrame = new VideoFrame(canvas, {

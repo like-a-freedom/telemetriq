@@ -34,6 +34,8 @@ import {
     glassPanelTemplate,
     minimalRingTemplate,
     focusTypeTemplate,
+    trailRunTemplate,
+    cyclingProTemplate,
     customTemplate,
     isMetricAvailable,
     isMetricRequired,
@@ -52,6 +54,7 @@ describe('templates registry', () => {
         'terminal', 'night-runner', 'data-block', 'race-tag',
         'glass-panel', 'minimal-ring',
         'focus-type',
+        'trail-run', 'cycling-pro',
         'custom',
     ];
 
@@ -104,6 +107,8 @@ describe('templates registry', () => {
             expect(TEMPLATE_MAP['glass-panel']).toBe(glassPanelTemplate);
             expect(TEMPLATE_MAP['minimal-ring']).toBe(minimalRingTemplate);
             expect(TEMPLATE_MAP['focus-type']).toBe(focusTypeTemplate);
+            expect(TEMPLATE_MAP['trail-run']).toBe(trailRunTemplate);
+            expect(TEMPLATE_MAP['cycling-pro']).toBe(cyclingProTemplate);
             expect(TEMPLATE_MAP['custom']).toBe(customTemplate);
         });
 
@@ -139,6 +144,18 @@ describe('templates registry', () => {
             expect(customTemplate.metadata.name).toBe('Custom');
         });
 
+        it('trail-run template should expose the trail layout and alpine metrics', () => {
+            expect(trailRunTemplate.config.layoutMode).toBe('trail-run');
+            expect(trailRunTemplate.capabilities.supportedMetrics).toEqual(['hr', 'grade', 'elevation']);
+            expect(trailRunTemplate.metadata.name).toBe('Trail Run');
+        });
+
+        it('cycling-pro template should expose cycling-focused metrics', () => {
+            expect(cyclingProTemplate.config.layoutMode).toBe('cycling-pro');
+            expect(cyclingProTemplate.capabilities.supportedMetrics).toEqual(['hr', 'cadence', 'power', 'speed', 'distance']);
+            expect(cyclingProTemplate.metadata.name).toBe('Cycling Pro');
+        });
+
         it('new template layouts should map to expected modes', () => {
             expect(arcGaugeTemplate.config.layoutMode).toBe('arc-gauge');
             expect(heroNumberTemplate.config.layoutMode).toBe('hero-number');
@@ -161,6 +178,8 @@ describe('templates registry', () => {
             expect(glassPanelTemplate.config.layoutMode).toBe('glass-panel');
             expect(minimalRingTemplate.config.layoutMode).toBe('minimal-ring');
             expect(focusTypeTemplate.config.layoutMode).toBe('focus-type');
+            expect(trailRunTemplate.config.layoutMode).toBe('trail-run');
+            expect(cyclingProTemplate.config.layoutMode).toBe('cycling-pro');
         });
     });
 

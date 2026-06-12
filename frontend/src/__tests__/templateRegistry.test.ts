@@ -42,6 +42,11 @@ describe('template registry builder', () => {
                 showPace: true,
                 showDistance: true,
                 showTime: true,
+                showSpeed: false,
+                showGrade: false,
+                showElevation: false,
+                showCadence: false,
+                showPower: false,
                 fontFamily: 'Inter, sans-serif',
                 textColor: '#fff',
                 backgroundColor: 'transparent',
@@ -84,6 +89,11 @@ describe('template registry builder', () => {
                 showPace: true,
                 showDistance: true,
                 showTime: true,
+                showSpeed: false,
+                showGrade: false,
+                showElevation: false,
+                showCadence: false,
+                showPower: false,
                 fontFamily: 'Inter, sans-serif',
                 textColor: '#fff',
                 backgroundColor: 'transparent',
@@ -134,6 +144,11 @@ describe('template registry builder', () => {
                 showPace: true,
                 showDistance: true,
                 showTime: true,
+                showSpeed: false,
+                showGrade: false,
+                showElevation: false,
+                showCadence: false,
+                showPower: false,
                 fontFamily: 'Inter, sans-serif',
                 textColor: '#fff',
                 backgroundColor: 'transparent',
@@ -161,5 +176,14 @@ describe('template registry builder', () => {
         expect(template.id).toBe('mock-gamma');
         expect(template.metadata.id).toBe('mock-gamma');
         expect(template.config.templateId).toBe('mock-gamma');
+    });
+
+    it('includes trail-run and cycling-pro in canonical and legacy registry exports', () => {
+        expect(TEMPLATE_IDS).toContain('trail-run');
+        expect(TEMPLATE_IDS).toContain('cycling-pro');
+        expect(TEMPLATE_CONFIGS['trail-run']?.layoutMode).toBe('trail-run');
+        expect(TEMPLATE_CONFIGS['cycling-pro']?.layoutMode).toBe('cycling-pro');
+        expect(TEMPLATE_METADATA['trail-run']?.name).toBe('Trail Run');
+        expect(TEMPLATE_METADATA['cycling-pro']?.name).toBe('Cycling Pro');
     });
 });

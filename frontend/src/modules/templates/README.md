@@ -125,6 +125,8 @@ it('my template should have correct layout', () => {
 - `bottom-bar` - Full-width bar at the bottom
 - `side-margins` - Metrics on left and right edges
 - `corner-frame` - L-shaped frame in corner
+- `trail-run` - Top heart-rate trace with fixed `HR / GRADE / ELEVATION` columns
+- `cycling-pro` - Left metric stack with distance callout and lower-left speedometer
 - plus template-specific modes such as `arc-gauge`, `cockpit-hud`, `glass-panel`, `focus-type`, etc.
 
 ### Positions
@@ -148,6 +150,15 @@ it('my template should have correct layout', () => {
 - `showPace` - Show pace
 - `showDistance` - Show distance
 - `showTime` - Show elapsed time
+- `showSpeed` - Show current speed in km/h
+- `showGrade` - Show current slope percentage
+- `showElevation` - Show current elevation in meters
+- `showCadence` - Show cadence in RPM when present in the GPX file
+- `showPower` - Show power in watts when present in the GPX file
+
+### Canvas-first renderers
+
+Templates with bespoke artwork such as `trail-run` and `cycling-pro` are implemented directly in the canvas overlay renderer rather than Vue overlay components. This keeps the live preview and exported video visually identical.
 
 ## Using Templates
 

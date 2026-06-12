@@ -11,24 +11,25 @@ async function bootstrap(): Promise<void> {
     const app = createApp(App);
     const pinia = createPinia();
     const head = createHead();
+    const processingStore = useProcessingStore(pinia);
 
     app.use(pinia);
     app.use(router);
     app.use(head);
-
-    await useProcessingStore(pinia).restorePersistedResult();
-
-    app.mount('#app');
 
     // Expose stores for E2E testing when explicitly enabled
     if (import.meta.env.DEV && new URLSearchParams(window.location.search).has('e2e')) {
         (window as unknown as { __e2eStores?: unknown }).__e2eStores = {
             files: useFilesStore(pinia),
             sync: useSyncStore(pinia),
-            processing: useProcessingStore(pinia),
+            processing: processingStore,
             settings: useSettingsStore(pinia),
         };
     }
+
+    await processingStore.restorePersistedResult();
+
+    app.mount('#app');
 }
 
 void bootstrap();

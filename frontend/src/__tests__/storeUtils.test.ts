@@ -1,7 +1,7 @@
 /**
  * Unit tests for store-utils module.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
     createEtaCalculator,
     mapProgressPhase,
@@ -14,28 +14,38 @@ import {
 
 describe('store-utils', () => {
     describe('createEtaCalculator', () => {
+        beforeEach(() => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2024-01-15T10:00:00Z'));
+        });
+
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
         it('should return undefined when startedAtMs is null', () => {
             const calculator = createEtaCalculator(null);
             expect(calculator.update(50)).toBeUndefined();
         });
 
         it('should calculate ETA at 50% progress', () => {
-            const startedAtMs = Date.now() - 10000;
+            const startedAtMs = Date.now() - 10_000;
             const calculator = createEtaCalculator(startedAtMs);
             const eta = calculator.update(50);
 
-            expect(eta).toBeDefined();
-            expect(eta).toBeGreaterThanOrEqual(0);
+            expect(eta).toBe(10);
         });
 
         it('should smooth ETA over multiple updates', () => {
-            const startedAtMs = Date.now() - 10000;
+            const startedAtMs = Date.now() - 10_000;
             const calculator = createEtaCalculator(startedAtMs);
 
             calculator.update(25);
+            vi.advanceTimersByTime(1000);
             const eta2 = calculator.update(50);
 
             expect(eta2).toBeDefined();
+            expect(typeof eta2).toBe('number');
         });
     });
 

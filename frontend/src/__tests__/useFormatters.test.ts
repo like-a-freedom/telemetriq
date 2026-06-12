@@ -58,5 +58,32 @@ describe('useFormatters', () => {
             expect(formatFileSize(1023)).toBe('1023 B');
             expect(formatFileSize(1024 * 1024 - 1)).toBe('1024.0 KB');
         });
+
+        it('should handle negative values', () => {
+            expect(formatFileSize(-1)).toBe('-1 B');
+            // -1024 < 1024 is true, so negative values stay in B range
+            expect(formatFileSize(-1024)).toBe('-1024 B');
+        });
+
+        it('should handle NaN', () => {
+            // NaN < KB is false, NaN < MB is false, NaN < GB is false → falls to GB
+            expect(formatFileSize(NaN)).toBe('NaN GB');
+        });
+
+        it('should handle Infinity', () => {
+            expect(formatFileSize(Infinity)).toBe('Infinity GB');
+        });
+    });
+
+    describe('formatDuration edge cases', () => {
+        it('should handle fractional seconds', () => {
+            expect(formatDuration(0.1)).toBe('0:00');
+            expect(formatDuration(0.6)).toBe('0:01');
+        });
+
+        it('should handle large values', () => {
+            expect(formatDuration(3600)).toBe('60:00');
+            expect(formatDuration(7200)).toBe('120:00');
+        });
     });
 });

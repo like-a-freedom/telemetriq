@@ -78,6 +78,33 @@ test.describe('Upload Page', () => {
         await expect(page.getByText('Heart rate')).toBeVisible();
     });
 
+    test('should show elevation, cadence, and power availability when GPX extensions contain them', async ({ page }) => {
+        const gpxContent = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="TestApp" xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1">
+    <trk><name>Ride With Sensors</name><trkseg>
+        <trkpt lat="55.7558" lon="37.6173"><ele>150</ele><time>2024-01-15T10:00:00Z</time>
+            <extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>145</gpxtpx:hr><gpxtpx:cad>88</gpxtpx:cad><gpxtpx:watts>240</gpxtpx:watts></gpxtpx:TrackPointExtension></extensions>
+        </trkpt>
+        <trkpt lat="55.7562" lon="37.6179"><ele>152</ele><time>2024-01-15T10:00:10Z</time>
+            <extensions><gpxtpx:TrackPointExtension><gpxtpx:hr>148</gpxtpx:hr><gpxtpx:cad>90</gpxtpx:cad><gpxtpx:watts>255</gpxtpx:watts></gpxtpx:TrackPointExtension></extensions>
+        </trkpt>
+    </trkseg></trk>
+</gpx>`;
+
+        const fileInput = page.getByTestId('gpx-upload').locator('input[type="file"]');
+        await fileInput.setInputFiles({
+            name: 'ride.gpx',
+            mimeType: 'application/gpx+xml',
+            buffer: Buffer.from(gpxContent),
+        });
+
+        await expect(page.getByText('Ride With Sensors')).toBeVisible({ timeout: 5000 });
+        await expect(page.getByText('Elevation')).toBeVisible();
+        await expect(page.getByText('Cadence')).toBeVisible();
+        await expect(page.getByText('Power')).toBeVisible();
+        await expect(page.getByText('✅ Present')).toHaveCount(4);
+    });
+
     test('should remove file when remove button is clicked', async ({ page }) => {
         const gpxContent = `<?xml version="1.0"?>
 <gpx version="1.1" creator="Test">

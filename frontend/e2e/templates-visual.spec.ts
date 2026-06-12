@@ -4,13 +4,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const TEMPLATE_IDS = [
-    'floating-pills',
     'arc-gauge',
     'hero-number',
-    'dashboard-hud',
     'cinematic-bar',
-    'split-edges',
-    'stacked-serif',
     'editorial',
     'ticker-tape',
     'whisper',
@@ -19,6 +15,18 @@ const TEMPLATE_IDS = [
     'soft-rounded',
     'thin-line',
     'swiss-grid',
+    'garmin-style',
+    'sports-broadcast',
+    'cockpit-hud',
+    'terminal',
+    'night-runner',
+    'data-block',
+    'race-tag',
+    'glass-panel',
+    'minimal-ring',
+    'focus-type',
+    'trail-run',
+    'cycling-pro',
 ] as const;
 
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -70,27 +78,44 @@ async function seedPreviewStores(page: Page): Promise<void> {
         stores.files.gpxData = {
             name: 'Visual Baseline Run',
             points: [
-                { lat: 55.75, lon: 37.61, ele: 180, time: new Date('2026-02-11T09:00:00Z'), hr: 132 },
-                { lat: 55.7508, lon: 37.6111, ele: 182, time: new Date('2026-02-11T09:00:30Z'), hr: 136 },
-                { lat: 55.7516, lon: 37.6123, ele: 181, time: new Date('2026-02-11T09:01:00Z'), hr: 138 },
+                { lat: 46.5774, lon: 8.0057, ele: 2904, time: new Date('2026-02-11T09:00:00Z'), hr: 148, cadence: 84, power: 252 },
+                { lat: 46.5778, lon: 8.0062, ele: 2911, time: new Date('2026-02-11T09:00:12Z'), hr: 151, cadence: 86, power: 266 },
+                { lat: 46.5782, lon: 8.0068, ele: 2918, time: new Date('2026-02-11T09:00:24Z'), hr: 154, cadence: 89, power: 278 },
+                { lat: 46.5787, lon: 8.0074, ele: 2927, time: new Date('2026-02-11T09:00:36Z'), hr: 157, cadence: 92, power: 296 },
+                { lat: 46.5792, lon: 8.0081, ele: 2934, time: new Date('2026-02-11T09:00:48Z'), hr: 159, cadence: 94, power: 308 },
+                { lat: 46.5798, lon: 8.0089, ele: 2941, time: new Date('2026-02-11T09:01:00Z'), hr: 161, cadence: 96, power: 318 },
             ],
             metadata: {},
         };
 
-        stores.settings.selectTemplate('floating-pills');
+        stores.settings.selectTemplate('arc-gauge');
     });
 }
 
 async function forceOverlayDraw(page: Page): Promise<void> {
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
         const video = document.querySelector('.video-player__video') as HTMLVideoElement | null;
         if (video) {
             try {
-                video.currentTime = 1;
+                video.currentTime = 48;
             } catch {
                 // no-op for test environment
             }
             video.dispatchEvent(new Event('timeupdate'));
+        }
+
+        const instance = (video as (HTMLVideoElement & {
+            __vueParentComponent?: {
+                setupState?: {
+                    currentTime?: number;
+                    drawOverlay?: () => Promise<void>;
+                };
+            };
+        }) | null)?.__vueParentComponent;
+
+        if (instance?.setupState?.drawOverlay) {
+            instance.setupState.currentTime = 48;
+            await instance.setupState.drawOverlay();
         }
     });
 }

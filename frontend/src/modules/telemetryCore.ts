@@ -28,6 +28,11 @@ const MEDIAN_SPEED_WINDOW = 5;
 /** Max plausible running speed (m/s) — ~43 km/h, generous for any amateur athlete */
 const MAX_PLAUSIBLE_SPEED_MS = 12;
 
+const SPEED_WINDOW_SECONDS = 5;
+const GRADE_WINDOW_METERS = 30;
+const MIN_GRADE_DISTANCE_METERS = 10;
+const MAX_PLAUSIBLE_CYCLING_SPEED_MS = 35;
+
 /**
  * Calculate the distance between two GPS coordinates using the Haversine formula.
  * Returns distance in kilometers.
@@ -418,6 +423,10 @@ function buildRawFrames(
             movingTimeMs,
             timeOffset,
             isPaused,
+            points,
+            distances,
+            pausedPoints,
+            i,
         ));
     }
 
@@ -503,6 +512,100 @@ function updateMovingTime(
     return currentMovingTimeMs;
 }
 
+function computeCurrentSpeedKmh(
+    points: TrackPoint[],
+    distances: number[],
+    pausedPoints: boolean[],
+    index: number,
+): number | undefined {
+    let totalDistanceKm = 0;
+    let totalTimeSeconds = 0;
+
+    for (let i = index; i > 0; i -= 1) {
+        if (pausedPoints[i]) {
+            continue;
+        }
+
+        const segmentTimeSeconds = (points[i]!.time.getTime() - points[i - 1]!.time.getTime()) / 1000;
+        if (segmentTimeSeconds <= 0 || segmentTimeSeconds > MAX_CONSECUTIVE_GAP_SECONDS) {
+            break;
+        }
+
+        const segmentDistanceKm = distances[i]! - distances[i - 1]!;
+        if (segmentDistanceKm <= 0) {
+            continue;
+        }
+
+        const segmentSpeedMs = (segmentDistanceKm * 1000) / segmentTimeSeconds;
+        if (segmentSpeedMs > MAX_PLAUSIBLE_CYCLING_SPEED_MS) {
+            continue;
+        }
+
+        totalDistanceKm += segmentDistanceKm;
+        totalTimeSeconds += segmentTimeSeconds;
+
+        if (totalTimeSeconds >= SPEED_WINDOW_SECONDS) {
+            break;
+        }
+    }
+
+    if (totalTimeSeconds < 1 || totalDistanceKm <= 0) {
+        return undefined;
+    }
+
+    return (totalDistanceKm / totalTimeSeconds) * 3600;
+}
+
+function computeCurrentGradePercent(
+    points: TrackPoint[],
+    distances: number[],
+    pausedPoints: boolean[],
+    index: number,
+): number | undefined {
+    const endPoint = points[index]!;
+    if (endPoint.ele === undefined) {
+        return undefined;
+    }
+
+    let windowStartIndex = index;
+    let horizontalMeters = 0;
+
+    for (let i = index; i > 0; i -= 1) {
+        if (pausedPoints[i]) {
+            continue;
+        }
+
+        const segmentTimeSeconds = (points[i]!.time.getTime() - points[i - 1]!.time.getTime()) / 1000;
+        if (segmentTimeSeconds <= 0 || segmentTimeSeconds > MAX_CONSECUTIVE_GAP_SECONDS) {
+            break;
+        }
+
+        const segmentDistanceMeters = (distances[i]! - distances[i - 1]!) * 1000;
+        if (segmentDistanceMeters <= 0) {
+            continue;
+        }
+
+        horizontalMeters += segmentDistanceMeters;
+        windowStartIndex = i - 1;
+
+        if (horizontalMeters >= GRADE_WINDOW_METERS) {
+            break;
+        }
+    }
+
+    if (horizontalMeters < MIN_GRADE_DISTANCE_METERS) {
+        return undefined;
+    }
+
+    const startPoint = points[windowStartIndex]!;
+    if (startPoint.ele === undefined) {
+        return undefined;
+    }
+
+    const rawGradePercent = ((endPoint.ele - startPoint.ele) / horizontalMeters) * 100;
+    return Math.max(-60, Math.min(60, rawGradePercent));
+}
+
 function createTelemetryFrame(
     point: TrackPoint,
     timeOffset: number,
@@ -510,6 +613,10 @@ function createTelemetryFrame(
     movingTimeMs: number,
     totalElapsedSeconds: number,
     isPaused: boolean,
+    points: TrackPoint[],
+    distances: number[],
+    pausedPoints: boolean[],
+    index: number,
 ): TelemetryFrame {
     const movingTimeSeconds = movingTimeMs / 1000;
 
@@ -517,6 +624,10 @@ function createTelemetryFrame(
         timeOffset,
         hr: point.hr,
         paceSecondsPerKm: undefined,
+        speedKmh: computeCurrentSpeedKmh(points, distances, pausedPoints, index),
+        gradePercent: computeCurrentGradePercent(points, distances, pausedPoints, index),
+        cadenceRpm: point.cadence,
+        powerWatts: point.power,
         distanceKm,
         elevationM: point.ele,
         elapsedTime: formatElapsedTime(movingTimeSeconds),
@@ -559,6 +670,30 @@ export function getTelemetryAtTime(
     const { beforeFrame, afterFrame, interpolationFactor } = findSurroundingFrames(frames, gpxTime);
 
     return createInterpolatedFrame(beforeFrame, afterFrame, interpolationFactor, gpxTime, frames);
+}
+
+export function getTelemetryWindow(
+    frames: TelemetryFrame[],
+    videoTimeSeconds: number,
+    syncOffsetSeconds: number,
+    lookbackSeconds: number,
+): TelemetryFrame[] {
+    const gpxTime = calculateGpxTime(videoTimeSeconds, syncOffsetSeconds, frames);
+    if (gpxTime === null) {
+        return [];
+    }
+
+    const clampedLookbackSeconds = Math.max(0, lookbackSeconds);
+    const firstFrame = frames[0]!;
+    const windowStartTime = Math.max(firstFrame.timeOffset, gpxTime - clampedLookbackSeconds);
+    const startIndices = findBracketingIndices(frames, windowStartTime);
+    const endIndices = findBracketingIndices(frames, gpxTime);
+    const startIndex = Math.max(0, startIndices.before);
+    const endIndex = Math.min(frames.length - 1, endIndices.after);
+
+    return frames.slice(startIndex, endIndex + 1).filter((frame) => {
+        return frame.timeOffset >= windowStartTime && frame.timeOffset <= gpxTime;
+    });
 }
 
 function calculateGpxTime(
@@ -634,6 +769,10 @@ function createInterpolatedFrame(
         timeOffset: gpxTime,
         hr: interpolateHeartRate(beforeFrame, afterFrame, t),
         paceSecondsPerKm: interpolatePace(allFrames, gpxTime),
+        speedKmh: interpolateTelemetryMetric(beforeFrame.speedKmh, afterFrame.speedKmh, t, beforeFrame, afterFrame),
+        gradePercent: interpolateTelemetryMetric(beforeFrame.gradePercent, afterFrame.gradePercent, t, beforeFrame, afterFrame),
+        cadenceRpm: interpolateDiscreteTelemetryMetric(beforeFrame.cadenceRpm, afterFrame.cadenceRpm, t, beforeFrame, afterFrame),
+        powerWatts: interpolateDiscreteTelemetryMetric(beforeFrame.powerWatts, afterFrame.powerWatts, t, beforeFrame, afterFrame),
         distanceKm: lerp(beforeFrame.distanceKm, afterFrame.distanceKm, t),
         elevationM: interpolateElevation(beforeFrame, afterFrame, t),
         elapsedTime: formatElapsedTime(movingTimeSeconds),
@@ -648,6 +787,32 @@ function interpolateHeartRate(before: TelemetryFrame, after: TelemetryFrame, t: 
         return Math.round(lerp(before.hr, after.hr, t));
     }
     return before.hr ?? after.hr;
+}
+
+function interpolateTelemetryMetric(
+    before: number | undefined,
+    after: number | undefined,
+    t: number,
+    beforeFrame: TelemetryFrame,
+    afterFrame: TelemetryFrame,
+): number | undefined {
+    const frameGapSeconds = afterFrame.timeOffset - beforeFrame.timeOffset;
+    if (frameGapSeconds > MAX_CONSECUTIVE_GAP_SECONDS) {
+        return before ?? after;
+    }
+
+    return interpolateOptionalValue(before, after, t);
+}
+
+function interpolateDiscreteTelemetryMetric(
+    before: number | undefined,
+    after: number | undefined,
+    t: number,
+    beforeFrame: TelemetryFrame,
+    afterFrame: TelemetryFrame,
+): number | undefined {
+    const value = interpolateTelemetryMetric(before, after, t, beforeFrame, afterFrame);
+    return value === undefined ? undefined : Math.round(value);
 }
 
 /**

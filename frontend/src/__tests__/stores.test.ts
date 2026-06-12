@@ -102,30 +102,6 @@ describe('Pinia Stores', () => {
             expect(store.hasGpx).toBe(false);
         });
 
-        it('should set loading state during video file processing', async () => {
-            const store = useFilesStore();
-
-            // Set loading state manually to test the state management
-            store.isLoadingVideo = true;
-            expect(store.isLoadingVideo).toBe(true);
-
-            // Complete loading
-            store.isLoadingVideo = false;
-            expect(store.isLoadingVideo).toBe(false);
-        });
-
-        it('should set loading state during GPX file processing', async () => {
-            const store = useFilesStore();
-
-            // Set loading state manually to test the state management
-            store.isLoadingGpx = true;
-            expect(store.isLoadingGpx).toBe(true);
-
-            // Complete loading
-            store.isLoadingGpx = false;
-            expect(store.isLoadingGpx).toBe(false);
-        });
-
         it('should clear error on successful file load', async () => {
             const store = useFilesStore();
             store.error = 'previous error';
@@ -210,9 +186,8 @@ describe('Pinia Stores', () => {
         it('should add warning for long videos', async () => {
             const store = useFilesStore();
 
-            // Manually set a long video meta to trigger warning
             store.videoMeta = {
-                duration: 3600, // 1 hour - longer than 30 min warning threshold
+                duration: 3600,
                 width: 1920,
                 height: 1080,
                 fps: 30,
@@ -221,10 +196,7 @@ describe('Pinia Stores', () => {
                 fileSize: 1000000,
             };
 
-            // Re-import to test the enhanceVideoValidation function
-            // This would require exposing it or testing through setVideoFile
-            // For now, we test the concept
-            expect(store.videoMeta.duration).toBeGreaterThan(1800);
+            expect(store.videoMeta.duration).toBe(3600);
         });
     });
 
@@ -316,7 +288,7 @@ describe('Pinia Stores', () => {
 
             expect(store.offsetSeconds).toBe(0);
             expect(store.isAutoSynced).toBe(false);
-            expect(store.syncError).toBeTruthy();
+            expect(store.syncError).toBe('No track points for synchronization');
         });
 
         it('should auto-sync with GPS coordinates and set isAutoSynced', async () => {
@@ -415,7 +387,7 @@ describe('Pinia Stores', () => {
 
             // First sync fails
             await store.performAutoSync([], new Date('2024-01-15T10:00:00Z'));
-            expect(store.syncError).toBeTruthy();
+            expect(store.syncError).toBe('No track points for synchronization');
 
             // Second sync succeeds
             await store.performAutoSync(
@@ -468,7 +440,7 @@ describe('Pinia Stores', () => {
 
             expect(store.offsetSeconds).toBe(0);
             expect(store.isAutoSynced).toBe(false);
-            expect(store.syncError).toBeTruthy();
+            expect(store.syncError).toBe('No track points for synchronization');
             expect(store.isAutoSyncing).toBe(false);
         });
 
@@ -664,7 +636,7 @@ describe('Pinia Stores', () => {
             expect(store.hasResult).toBe(true);
             expect(store.isComplete).toBe(true);
             expect(store.isProcessing).toBe(false);
-            expect(store.resultUrl).toBeTruthy();
+            expect(store.resultUrl).toContain('blob:');
         });
 
         it('should set error', () => {
@@ -686,7 +658,7 @@ describe('Pinia Stores', () => {
             const store = useProcessingStore();
             store.startProcessing(100);
             store.setResult(new Blob(['test']));
-            expect(store.resultUrl).toBeTruthy();
+            expect(store.resultUrl).toContain('blob:');
             store.reset();
             expect(store.resultUrl).toBeNull();
             expect(store.resultBlob).toBeNull();
@@ -731,6 +703,11 @@ describe('Pinia Stores', () => {
             expect(store.overlayConfig.showHr).toBe(true);
             expect(store.overlayConfig.showPace).toBe(true);
             expect(store.overlayConfig.showDistance).toBe(true);
+            expect(store.overlayConfig.showSpeed).toBe(false);
+            expect(store.overlayConfig.showGrade).toBe(false);
+            expect(store.overlayConfig.showElevation).toBe(false);
+            expect(store.overlayConfig.showCadence).toBe(false);
+            expect(store.overlayConfig.showPower).toBe(false);
             expect(store.overlayConfig.templateId).toBe('horizon');
             expect(store.currentTemplateId).toBe('horizon');
         });
@@ -850,6 +827,11 @@ describe('Pinia Stores', () => {
                 showPace: false,
                 showDistance: false,
                 showTime: false,
+                showSpeed: true,
+                showGrade: true,
+                showElevation: true,
+                showCadence: true,
+                showPower: true,
             });
 
             store.selectTemplate('classic');
@@ -861,6 +843,11 @@ describe('Pinia Stores', () => {
             expect(store.overlayConfig.showPace).toBe(false);
             expect(store.overlayConfig.showDistance).toBe(false);
             expect(store.overlayConfig.showTime).toBe(false);
+            expect(store.overlayConfig.showSpeed).toBe(false);
+            expect(store.overlayConfig.showGrade).toBe(false);
+            expect(store.overlayConfig.showElevation).toBe(false);
+            expect(store.overlayConfig.showCadence).toBe(false);
+            expect(store.overlayConfig.showPower).toBe(false);
         });
 
         it('should preserve show flags when switching from custom to other templates', () => {
@@ -871,6 +858,11 @@ describe('Pinia Stores', () => {
                 showPace: false,
                 showDistance: false,
                 showTime: false,
+                showSpeed: true,
+                showGrade: true,
+                showElevation: true,
+                showCadence: true,
+                showPower: true,
             });
 
             store.selectTemplate('horizon');
@@ -879,6 +871,11 @@ describe('Pinia Stores', () => {
             expect(store.overlayConfig.showPace).toBe(false);
             expect(store.overlayConfig.showDistance).toBe(false);
             expect(store.overlayConfig.showTime).toBe(false);
+            expect(store.overlayConfig.showSpeed).toBe(false);
+            expect(store.overlayConfig.showGrade).toBe(false);
+            expect(store.overlayConfig.showElevation).toBe(false);
+            expect(store.overlayConfig.showCadence).toBe(false);
+            expect(store.overlayConfig.showPower).toBe(false);
         });
 
         it('should handle multiple config updates', () => {

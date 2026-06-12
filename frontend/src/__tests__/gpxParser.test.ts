@@ -108,6 +108,80 @@ describe('GPX Parser', () => {
             expect(result.points[0]!.hr).toBe(175);
         });
 
+        testOrSkip('should extract cadence and power from TrackPointExtension', () => {
+            const extension = `
+              <TrackPointExtension>
+                <cad>88</cad>
+                <power>308</power>
+              </TrackPointExtension>
+            `;
+            const xml = makeGpx(
+                makeTrkpt(55.0, 37.0, '2024-01-15T10:00:00Z', 220, extension),
+            );
+
+            const result = parseGpx(xml);
+
+            expect(result.points[0]!.cadence).toBe(88);
+            expect(result.points[0]!.power).toBe(308);
+        });
+
+        testOrSkip('should extract cadence from gpxtpx:cad and power from gpxtpx:watts', () => {
+            const xml = `<?xml version="1.0" encoding="UTF-8"?>
+      <gpx version="1.1"
+        xmlns="http://www.topografix.com/GPX/1/1"
+        xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1">
+        <trk><name>Ride</name><trkseg>
+        <trkpt lat="55.0" lon="37.0">
+          <ele>210</ele>
+          <time>2024-01-15T10:00:00Z</time>
+          <extensions>
+          <gpxtpx:TrackPointExtension>
+            <gpxtpx:cad>88</gpxtpx:cad>
+            <gpxtpx:watts>308</gpxtpx:watts>
+          </gpxtpx:TrackPointExtension>
+          </extensions>
+        </trkpt>
+        </trkseg></trk>
+      </gpx>`;
+
+            const result = parseGpx(xml);
+
+            expect(result.points[0]!.cadence).toBe(88);
+            expect(result.points[0]!.power).toBe(308);
+        });
+
+        testOrSkip('should extract power from PowerInWatts aliases', () => {
+            const extension = `
+              <TrackPointExtension>
+                <PowerInWatts>245</PowerInWatts>
+              </TrackPointExtension>
+            `;
+            const xml = makeGpx(
+                makeTrkpt(55.0, 37.0, '2024-01-15T10:00:00Z', 210, extension),
+            );
+
+            const result = parseGpx(xml);
+
+            expect(result.points[0]!.power).toBe(245);
+        });
+
+        testOrSkip('should ignore unreasonable cadence and power values', () => {
+            const extension = `
+              <TrackPointExtension>
+                <cad>-1</cad>
+                <power>9999</power>
+              </TrackPointExtension>
+            `;
+            const xml = makeGpx(
+                makeTrkpt(55.0, 37.0, '2024-01-15T10:00:00Z', 220, extension),
+            );
+
+            const result = parseGpx(xml);
+
+            expect(result.points[0]!.cadence).toBeUndefined();
+            expect(result.points[0]!.power).toBeUndefined();
+        });
+
         testOrSkip('should return undefined hr when no extensions', () => {
             const xml = makeGpx(makeTrkpt(55.0, 37.0, '2024-01-15T10:00:00Z'));
 

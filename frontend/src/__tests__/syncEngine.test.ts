@@ -39,7 +39,7 @@ describe('Sync Engine', () => {
             const result = autoSync(points);
             expect(result.offsetSeconds).toBe(0);
             expect(result.autoSynced).toBe(false);
-            expect(result.warning).toBeTruthy();
+            expect(result.warning).toContain('GPS');
         });
 
         it('should sync by GPS coordinates to nearest point', () => {

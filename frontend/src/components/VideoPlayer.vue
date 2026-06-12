@@ -23,7 +23,10 @@
 import { ref, watch, onMounted, onUnmounted } from "vue";
 import type { TelemetryFrame, ExtendedOverlayConfig } from "../core/types";
 import { renderOverlay } from "../modules/overlayRenderer";
-import { getTelemetryAtTime } from "../modules/telemetryCore";
+import {
+  getTelemetryAtTime,
+  getTelemetryWindow,
+} from "../modules/telemetryCore";
 
 const props = defineProps<{
   src: string;
@@ -40,12 +43,14 @@ const videoHeight = ref(360);
 const currentTime = ref(0);
 
 let videoFrameHandle: number | null = null;
+let usesVideoFrameCallback = false;
 
 function onLoaded(): void {
   const video = videoRef.value;
   if (video) {
     videoWidth.value = video.videoWidth;
     videoHeight.value = video.videoHeight;
+    void drawOverlay();
   }
 }
 
@@ -53,7 +58,9 @@ function onTimeUpdate(): void {
   const video = videoRef.value;
   if (video) {
     currentTime.value = video.currentTime;
-    drawOverlay();
+    if (!usesVideoFrameCallback) {
+      void drawOverlay();
+    }
   }
 }
 
@@ -73,7 +80,7 @@ function scheduleFrameCallback(): void {
 
   videoFrameHandle = requestVideoFrameCallback.call(video, (_, meta) => {
     currentTime.value = meta.mediaTime;
-    drawOverlay();
+    void drawOverlay();
     scheduleFrameCallback();
   });
 }
@@ -95,12 +102,29 @@ async function drawOverlay(): Promise<void> {
   );
 
   if (frame) {
+    const hrHistory = getTelemetryWindow(
+      props.telemetryFrames,
+      currentTime.value,
+      props.syncOffset,
+      60
+    )
+      .map((sample) => sample.hr)
+      .filter((value): value is number => value !== undefined);
+
+    if (
+      frame.hr !== undefined &&
+      (hrHistory.length === 0 || hrHistory[hrHistory.length - 1] !== frame.hr)
+    ) {
+      hrHistory.push(frame.hr);
+    }
+
     await renderOverlay(
       ctx,
       frame,
       videoWidth.value,
       videoHeight.value,
-      props.overlayConfig
+      props.overlayConfig,
+      { hrHistory }
     );
   }
 }
@@ -122,6 +146,7 @@ onMounted(() => {
   ).requestVideoFrameCallback;
 
   if (typeof requestVideoFrameCallback === "function") {
+    usesVideoFrameCallback = true;
     scheduleFrameCallback();
   }
 });

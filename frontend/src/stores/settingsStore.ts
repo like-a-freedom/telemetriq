@@ -3,12 +3,53 @@ import { ref, computed } from 'vue';
 import type { ExtendedOverlayConfig, AppScreen, TemplateId } from '../core/types';
 import { DEFAULT_OVERLAY_CONFIG } from '../modules/overlayRenderer';
 import { getTemplateConfig, getTemplateDefinition } from '../modules/templates';
+import type { MetricType } from '../modules/templates';
+
+type MetricFlagKey = 'showHr' | 'showPace' | 'showDistance' | 'showTime' | 'showSpeed' | 'showGrade' | 'showElevation' | 'showCadence' | 'showPower';
+
+const METRIC_FLAG_BY_TYPE: Record<MetricType, MetricFlagKey> = {
+    hr: 'showHr',
+    pace: 'showPace',
+    distance: 'showDistance',
+    time: 'showTime',
+    speed: 'showSpeed',
+    grade: 'showGrade',
+    elevation: 'showElevation',
+    cadence: 'showCadence',
+    power: 'showPower',
+};
+
+const METRIC_FLAG_KEYS = Object.values(METRIC_FLAG_BY_TYPE);
 
 function templateSupportsPosition(templateId: TemplateId): boolean {
     const template = getTemplateDefinition(templateId);
     return template?.metadata.capabilities?.supportsPosition
         ?? template?.capabilities?.supportsPosition
         ?? false;
+}
+
+function applyTemplateMetricConstraints(config: ExtendedOverlayConfig): ExtendedOverlayConfig {
+    const template = getTemplateDefinition(config.templateId);
+    const capabilities = template?.metadata.capabilities ?? template?.capabilities;
+
+    if (!capabilities) {
+        return config;
+    }
+
+    const next = { ...config };
+
+    for (const [metric, flagKey] of Object.entries(METRIC_FLAG_BY_TYPE) as Array<[MetricType, MetricFlagKey]>) {
+        if (!capabilities.supportedMetrics.includes(metric)) {
+            next[flagKey] = false;
+            continue;
+        }
+
+        if (capabilities.requiredMetrics.includes(metric)) {
+            next[flagKey] = true;
+        }
+    }
+
+    return next;
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -37,7 +78,7 @@ export const useSettingsStore = defineStore('settings', () => {
         ) {
             delete next.position;
         }
-        overlayConfig.value = { ...overlayConfig.value, ...next };
+        overlayConfig.value = applyTemplateMetricConstraints({ ...overlayConfig.value, ...next });
     }
 
     function resetOverlayConfig(): void {
@@ -54,19 +95,17 @@ export const useSettingsStore = defineStore('settings', () => {
             // Save any custom changes before applying new template
             // This preserves user modifications when switching templates
             userOverrides.position = overlayConfig.value.position;
-            userOverrides.showHr = overlayConfig.value.showHr;
-            userOverrides.showPace = overlayConfig.value.showPace;
-            userOverrides.showDistance = overlayConfig.value.showDistance;
-            userOverrides.showTime = overlayConfig.value.showTime;
+            for (const metricFlagKey of METRIC_FLAG_KEYS) {
+                userOverrides[metricFlagKey] = overlayConfig.value[metricFlagKey];
+            }
         } else if (overlayConfig.value.templateId === 'custom') {
-            userOverrides.showHr = overlayConfig.value.showHr;
-            userOverrides.showPace = overlayConfig.value.showPace;
-            userOverrides.showDistance = overlayConfig.value.showDistance;
-            userOverrides.showTime = overlayConfig.value.showTime;
+            for (const metricFlagKey of METRIC_FLAG_KEYS) {
+                userOverrides[metricFlagKey] = overlayConfig.value[metricFlagKey];
+            }
         }
 
         // Apply template with any preserved user settings
-        overlayConfig.value = { ...templateConfig, ...userOverrides };
+        overlayConfig.value = applyTemplateMetricConstraints({ ...templateConfig, ...userOverrides });
     }
 
     function saveAsCustomTemplate(): void {
