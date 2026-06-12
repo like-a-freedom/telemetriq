@@ -573,11 +573,12 @@ export class VideoProcessor {
             .map((sample) => sample.hr)
             .filter((value): value is number => value !== undefined);
 
-        if (
-            telemetry?.hr !== undefined &&
-            (hrHistory.length === 0 || hrHistory[hrHistory.length - 1] !== telemetry.hr)
-        ) {
+        if (telemetry?.hr !== undefined) {
             hrHistory.push(telemetry.hr);
+            // Cap at ~60 s of encoded-frame-rate data.
+            if (hrHistory.length > 1800) {
+                hrHistory.splice(0, hrHistory.length - 1800);
+            }
         }
 
         drawVideoFrameWithRotation(ctx, frame, videoMeta.width, videoMeta.height, videoRotation);

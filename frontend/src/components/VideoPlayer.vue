@@ -111,11 +111,13 @@ async function drawOverlay(): Promise<void> {
       .map((sample) => sample.hr)
       .filter((value): value is number => value !== undefined);
 
-    if (
-      frame.hr !== undefined &&
-      (hrHistory.length === 0 || hrHistory[hrHistory.length - 1] !== frame.hr)
-    ) {
+    if (frame.hr !== undefined) {
       hrHistory.push(frame.hr);
+      // Cap at ~60 s of video-frame-rate data so the trace never
+      // grows unbounded (~1800 entries for 30 fps * 60 s).
+      if (hrHistory.length > 1800) {
+        hrHistory.splice(0, hrHistory.length - 1800);
+      }
     }
 
     await renderOverlay(
