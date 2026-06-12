@@ -690,7 +690,11 @@ function applyManualTime(): void {
   padding: 0.6rem 3rem 0.6rem 0.75rem; /* increased right padding for timezone select */
   border: 1px solid var(--color-border, #404040);
   border-radius: 6px;
-  background: var(--color-bg-tertiary, #242424);
+  background-color: var(--color-bg-tertiary, #242424);
+  background-image: var(--ui-caret);
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  background-size: 10px 6px;
   color: var(--color-text, #fff);
   font-size: 0.9rem;
   transition: border-color 0.2s;
