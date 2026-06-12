@@ -96,7 +96,7 @@ function formatRemaining(seconds: number): string {
 }
 
 .progress-bar__track {
-  height: 8px;
+  height: 6px;
   background: var(--color-bg-tertiary, #2a2a2a);
   border-radius: 4px;
   overflow: hidden;
@@ -104,7 +104,7 @@ function formatRemaining(seconds: number): string {
 
 .progress-bar__fill {
   height: 100%;
-  background: var(--color-primary, #646cff);
+  background: linear-gradient(90deg, var(--color-primary), #7b82ff);
   border-radius: 4px;
   transition: width 0.3s ease;
 }

@@ -316,9 +316,9 @@ function goToPreview(): void {
   margin-top: 0.75rem;
   padding: 0.75rem;
   border-radius: 8px;
-  background: rgba(255, 152, 0, 0.08);
+  background: var(--color-warning-surface);
   border: 1px solid rgba(255, 152, 0, 0.25);
-  color: #ffb74d;
+  color: var(--color-warning-text);
   font-size: 0.85rem;
 }
 
@@ -350,8 +350,13 @@ function goToPreview(): void {
 }
 
 .upload-view__btn--primary:hover:not(:disabled) {
-  background: #535bf2;
+  background: var(--color-primary-hover);
   transform: translateY(-1px);
+}
+
+.upload-view__btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .upload-view__btn:disabled {
@@ -362,10 +367,10 @@ function goToPreview(): void {
 .upload-view__warning {
   margin-top: 2rem;
   padding: 1rem;
-  background: rgba(255, 152, 0, 0.1);
+  background: var(--color-warning-surface);
   border: 1px solid rgba(255, 152, 0, 0.3);
   border-radius: 8px;
-  color: #ff9800;
+  color: var(--color-warning-text);
   font-size: 0.9rem;
 }
 

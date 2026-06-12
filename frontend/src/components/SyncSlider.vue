@@ -219,13 +219,13 @@ function resetOffset(): void {
 }
 
 .sync-slider__dot--auto {
-  background: #36b37e;
-  box-shadow: 0 0 6px rgba(54, 179, 126, 0.5);
+  background: var(--color-status-auto);
+  box-shadow: 0 0 6px rgba(54,179,126,0.5);
 }
 
 .sync-slider__dot--manual {
-  background: #ff9f43;
-  box-shadow: 0 0 6px rgba(255, 159, 67, 0.5);
+  background: var(--color-status-manual);
+  box-shadow: 0 0 6px rgba(255,159,67,0.5);
 }
 
 .sync-slider__status-label {
@@ -300,12 +300,11 @@ function resetOffset(): void {
   cursor: pointer;
   margin-top: -5px;
   transition: transform 0.15s, box-shadow 0.15s;
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.08);
 }
 
 .sync-slider__range::-webkit-slider-thumb:hover {
   transform: scale(1.15);
-  box-shadow: 0 0 0 3px rgba(255,255,255,0.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-text) 12%, transparent);
 }
 
 .sync-slider__range::-moz-range-track {
@@ -401,14 +400,14 @@ function resetOffset(): void {
   margin: 0.75rem 0 0;
   font-size: 0.75rem;
   line-height: 1.4;
-  color: #ff9f43;
+  color: var(--color-warning);
 }
 
 .sync-slider__error {
   margin: 0.75rem 0 0;
   font-size: 0.75rem;
   line-height: 1.4;
-  color: #f44336;
+  color: var(--color-error);
 }
 
 /* ── Mobile ── */

@@ -86,7 +86,7 @@
         </ol>
       </div>
 
-      <button class="processing-view__btn" @click="goBack">← Back</button>
+      <button class="processing-view__btn" @click="goBack">Back</button>
     </div>
 
     <div v-if="processingStore.isProcessing" class="processing-view__actions">
@@ -110,7 +110,7 @@
         class="processing-view__btn processing-view__btn--primary"
         @click="goToResult"
       >
-        Go to result →
+        Go to result
       </button>
     </div>
   </div>
@@ -374,6 +374,11 @@ watch(
   background: var(--color-bg-hover, #333);
 }
 
+.processing-view__btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 .processing-view__btn--cancel {
   border-color: var(--color-error, #f44336);
   color: var(--color-error, #f44336);
@@ -386,7 +391,7 @@ watch(
 }
 
 .processing-view__btn--primary:hover {
-  background: #535bf2;
+  background: var(--color-primary-hover);
 }
 
 .processing-view__webgpu-status {
@@ -400,17 +405,17 @@ watch(
   align-items: center;
   gap: 0.5rem;
   padding: 0.4rem 0.8rem;
-  background: #2a2a2a;
-  border: 1px solid #404040;
+  background: var(--color-bg-hover);
+  border: 1px solid var(--color-border);
   border-radius: 20px;
   font-size: 0.85rem;
-  color: #aaa;
+  color: var(--color-text-secondary);
 }
 
 .webgpu-badge--active {
   background: rgba(100, 108, 255, 0.15);
-  border-color: #646cff;
-  color: #646cff;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .webgpu-badge__icon {
@@ -450,7 +455,7 @@ watch(
   background: rgba(255, 152, 0, 0.12);
   border: 1px solid rgba(255, 152, 0, 0.3);
   border-radius: 8px;
-  color: #ffb74d;
+  color: var(--color-warning-text);
   font-size: 0.85rem;
   animation: pulse-warning 2s ease-in-out infinite;
 }
