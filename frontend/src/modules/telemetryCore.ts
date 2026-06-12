@@ -28,10 +28,12 @@ const MEDIAN_SPEED_WINDOW = 5;
 /** Max plausible running speed (m/s) — ~43 km/h, generous for any amateur athlete */
 const MAX_PLAUSIBLE_SPEED_MS = 12;
 
-const SPEED_WINDOW_SECONDS = 5;
 const GRADE_WINDOW_METERS = 30;
 const MIN_GRADE_DISTANCE_METERS = 10;
 const MAX_PLAUSIBLE_CYCLING_SPEED_MS = 35;
+const SEGMENT_SPIKE_NEIGHBOR_RADIUS = 2;
+const SEGMENT_SPIKE_MIN_DELTA_MS = 1.5;
+const MAX_INTERPOLATED_PACE_GAP_SECONDS = 2;
 
 /**
  * Calculate the distance between two GPS coordinates using the Haversine formula.
@@ -368,6 +370,164 @@ export function computeMedianPace(
     return pace;
 }
 
+function median(values: number[]): number | undefined {
+    if (values.length === 0) {
+        return undefined;
+    }
+
+    const sorted = [...values].sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+
+    return sorted.length % 2 === 0
+        ? (sorted[middle - 1]! + sorted[middle]!) / 2
+        : sorted[middle];
+}
+
+function computeSegmentSpeedMs(
+    points: TrackPoint[],
+    distances: number[],
+    pausedPoints: boolean[],
+    index: number,
+): number | undefined {
+    if (index === 0 || pausedPoints[index]) {
+        return undefined;
+    }
+
+    const segmentTimeSeconds = (points[index]!.time.getTime() - points[index - 1]!.time.getTime()) / 1000;
+    if (segmentTimeSeconds <= 0 || segmentTimeSeconds > MAX_CONSECUTIVE_GAP_SECONDS) {
+        return undefined;
+    }
+
+    const segmentDistanceKm = distances[index]! - distances[index - 1]!;
+    if (segmentDistanceKm <= 0) {
+        return undefined;
+    }
+
+    const speedMs = (segmentDistanceKm * 1000) / segmentTimeSeconds;
+    if (!Number.isFinite(speedMs) || speedMs <= 0 || speedMs > MAX_PLAUSIBLE_CYCLING_SPEED_MS) {
+        return undefined;
+    }
+
+    return speedMs;
+}
+
+function stabilizeSegmentSpeeds(
+    segmentSpeeds: Array<number | undefined>,
+): Array<number | undefined> {
+    const result = [...segmentSpeeds];
+
+    for (let i = 0; i < segmentSpeeds.length; i++) {
+        const currentSpeed = segmentSpeeds[i];
+        if (currentSpeed === undefined) {
+            continue;
+        }
+
+        const neighborhood: number[] = [];
+        for (
+            let j = Math.max(0, i - SEGMENT_SPIKE_NEIGHBOR_RADIUS);
+            j <= Math.min(segmentSpeeds.length - 1, i + SEGMENT_SPIKE_NEIGHBOR_RADIUS);
+            j += 1
+        ) {
+            if (j === i) {
+                continue;
+            }
+
+            const value = segmentSpeeds[j];
+            if (value !== undefined) {
+                neighborhood.push(value);
+            }
+        }
+
+        if (neighborhood.length < 3) {
+            continue;
+        }
+
+        const neighborhoodMedian = median(neighborhood);
+        if (neighborhoodMedian === undefined) {
+            continue;
+        }
+
+        const threshold = Math.max(
+            SEGMENT_SPIKE_MIN_DELTA_MS,
+            neighborhoodMedian * 0.35,
+        );
+
+        if (Math.abs(currentSpeed - neighborhoodMedian) <= threshold) {
+            continue;
+        }
+
+        const previousSpeed = i > 0 ? segmentSpeeds[i - 1] : undefined;
+        const nextSpeed = i < segmentSpeeds.length - 1 ? segmentSpeeds[i + 1] : undefined;
+        const sustainedChange =
+            (previousSpeed !== undefined && Math.abs(currentSpeed - previousSpeed) <= threshold)
+            || (nextSpeed !== undefined && Math.abs(currentSpeed - nextSpeed) <= threshold);
+
+        if (!sustainedChange) {
+            result[i] = neighborhoodMedian;
+        }
+    }
+
+    return result;
+}
+
+function speedMsToPaceSecondsPerKm(speedMs: number | undefined): number | undefined {
+    if (speedMs === undefined || speedMs <= 0) {
+        return undefined;
+    }
+
+    const paceSecondsPerKm = 1000 / speedMs;
+    if (paceSecondsPerKm < 120 || paceSecondsPerKm > 1800) {
+        return undefined;
+    }
+
+    return paceSecondsPerKm;
+}
+
+function fillMissingMetricValues(
+    values: Array<number | undefined>,
+    pausedPoints: boolean[],
+): Array<number | undefined> {
+    if (values.length === 0) {
+        return values;
+    }
+
+    const result = [...values];
+    const validIndices = findValidIndices(result);
+
+    if (validIndices.length === 0) {
+        return result;
+    }
+
+    extrapolateLeadingValues(result, validIndices);
+    interpolateGapValues(result, validIndices, pausedPoints);
+    extrapolateTrailingValues(result, validIndices);
+
+    return result;
+}
+
+function buildResponsiveMetricProfiles(
+    points: TrackPoint[],
+    distances: number[],
+    pausedPoints: boolean[],
+): {
+    paceValues: Array<number | undefined>;
+    speedKmhValues: Array<number | undefined>;
+} {
+    const rawSegmentSpeeds = points.map((_, index) => computeSegmentSpeedMs(points, distances, pausedPoints, index));
+    const stabilizedSegmentSpeeds = stabilizeSegmentSpeeds(rawSegmentSpeeds);
+
+    return {
+        paceValues: fillMissingMetricValues(
+            stabilizedSegmentSpeeds.map((speedMs) => speedMsToPaceSecondsPerKm(speedMs)),
+            pausedPoints,
+        ),
+        speedKmhValues: fillMissingMetricValues(
+            stabilizedSegmentSpeeds.map((speedMs) => speedMs !== undefined ? speedMs * 3.6 : undefined),
+            pausedPoints,
+        ),
+    };
+}
+
 // ── Timeline construction ───────────────────────────────────────────────
 
 /**
@@ -383,12 +543,20 @@ export function buildTelemetryTimeline(points: TrackPoint[]): TelemetryFrame[] {
     const pausedPoints = detectPausedPoints(points);
     const distances = calculateCumulativeDistances(points, (index) => pausedPoints[index]!);
     const startTime = points[0]!.time.getTime();
+    const { paceValues, speedKmhValues } = buildResponsiveMetricProfiles(
+        points,
+        distances,
+        pausedPoints,
+    );
 
-    const frames = buildRawFrames(points, distances, pausedPoints, startTime);
-    const rawPaceValues = points.map((_, index) => computeMedianPace(points, distances, pausedPoints, index));
-    const smoothedPaceValues = fillMissingPaceValues(rawPaceValues, pausedPoints);
-
-    return applySmoothedPaceValues(frames, smoothedPaceValues);
+    return buildRawFrames(
+        points,
+        distances,
+        pausedPoints,
+        startTime,
+        paceValues,
+        speedKmhValues,
+    );
 }
 
 function buildRawFrames(
@@ -396,6 +564,8 @@ function buildRawFrames(
     distances: number[],
     pausedPoints: boolean[],
     startTime: number,
+    paceValues: Array<number | undefined>,
+    speedKmhValues: Array<number | undefined>,
 ): TelemetryFrame[] {
     const frames: TelemetryFrame[] = [];
     let movingTimeMs = 0;
@@ -423,6 +593,8 @@ function buildRawFrames(
             movingTimeMs,
             timeOffset,
             isPaused,
+            paceValues[i],
+            speedKmhValues[i],
             points,
             distances,
             pausedPoints,
@@ -512,50 +684,6 @@ function updateMovingTime(
     return currentMovingTimeMs;
 }
 
-function computeCurrentSpeedKmh(
-    points: TrackPoint[],
-    distances: number[],
-    pausedPoints: boolean[],
-    index: number,
-): number | undefined {
-    let totalDistanceKm = 0;
-    let totalTimeSeconds = 0;
-
-    for (let i = index; i > 0; i -= 1) {
-        if (pausedPoints[i]) {
-            continue;
-        }
-
-        const segmentTimeSeconds = (points[i]!.time.getTime() - points[i - 1]!.time.getTime()) / 1000;
-        if (segmentTimeSeconds <= 0 || segmentTimeSeconds > MAX_CONSECUTIVE_GAP_SECONDS) {
-            break;
-        }
-
-        const segmentDistanceKm = distances[i]! - distances[i - 1]!;
-        if (segmentDistanceKm <= 0) {
-            continue;
-        }
-
-        const segmentSpeedMs = (segmentDistanceKm * 1000) / segmentTimeSeconds;
-        if (segmentSpeedMs > MAX_PLAUSIBLE_CYCLING_SPEED_MS) {
-            continue;
-        }
-
-        totalDistanceKm += segmentDistanceKm;
-        totalTimeSeconds += segmentTimeSeconds;
-
-        if (totalTimeSeconds >= SPEED_WINDOW_SECONDS) {
-            break;
-        }
-    }
-
-    if (totalTimeSeconds < 1 || totalDistanceKm <= 0) {
-        return undefined;
-    }
-
-    return (totalDistanceKm / totalTimeSeconds) * 3600;
-}
-
 function computeCurrentGradePercent(
     points: TrackPoint[],
     distances: number[],
@@ -613,6 +741,8 @@ function createTelemetryFrame(
     movingTimeMs: number,
     totalElapsedSeconds: number,
     isPaused: boolean,
+    paceSecondsPerKm: number | undefined,
+    speedKmh: number | undefined,
     points: TrackPoint[],
     distances: number[],
     pausedPoints: boolean[],
@@ -623,8 +753,8 @@ function createTelemetryFrame(
     return {
         timeOffset,
         hr: point.hr,
-        paceSecondsPerKm: undefined,
-        speedKmh: computeCurrentSpeedKmh(points, distances, pausedPoints, index),
+        paceSecondsPerKm,
+        speedKmh,
         gradePercent: computeCurrentGradePercent(points, distances, pausedPoints, index),
         cadenceRpm: point.cadence,
         powerWatts: point.power,
@@ -637,24 +767,11 @@ function createTelemetryFrame(
     };
 }
 
-function applySmoothedPaceValues(
-    frames: TelemetryFrame[],
-    smoothedPaceValues: Array<number | undefined>,
-): TelemetryFrame[] {
-    return frames.map((frame, index) => ({
-        ...frame,
-        paceSecondsPerKm: smoothedPaceValues[index],
-    }));
-}
-
 // ── Display-time interpolation ──────────────────────────────────────────
 
 /**
  * Get a telemetry frame at a specific video time offset.
  * Uses binary search and linear interpolation between precomputed frame values.
- *
- * Pace is snapped to whole-second boundaries (1 Hz update rate) to avoid
- * sub-second jitter while still reflecting speed changes across seconds.
  *
  * @param _videoDurationSeconds — kept for backward compatibility, not used for pace
  */
@@ -756,7 +873,12 @@ function createInterpolatedFrame(
     gpxTime: number,
     allFrames: TelemetryFrame[],
 ): TelemetryFrame {
-    if (t === 0) return beforeFrame;
+    if (t === 0) {
+        return {
+            ...beforeFrame,
+            paceSecondsPerKm: interpolatePace(allFrames, gpxTime) ?? beforeFrame.paceSecondsPerKm,
+        };
+    }
 
     const movingTimeSeconds = lerp(beforeFrame.movingTimeSeconds, afterFrame.movingTimeSeconds, t);
     const totalElapsedSeconds =
@@ -816,52 +938,56 @@ function interpolateDiscreteTelemetryMetric(
 }
 
 /**
- * Interpolate pace at a given GPX time by snapping to the nearest whole second.
+ * Interpolate pace at a given GPX time.
  *
- * Snapping provides 1 Hz update rate: pace stays constant within the same
- * second and changes only on second boundaries — just like a running watch.
- * The pace values themselves come directly from the precomputed per-frame
- * rolling window, so GPX is the single source of truth.
+ * For dense 1-2 second sampling we interpolate between neighbouring pace values
+ * to keep overlays visually in sync with the athlete. For sparser 3-5 second
+ * gaps we hold the last known pace to avoid inventing ramps across missing data.
  */
 function interpolatePace(
     frames: TelemetryFrame[],
     gpxTime: number,
 ): number | undefined {
-    // Snap to the nearest whole second (1 Hz update rate) to mimic a running
-    // watch and avoid systematic bias from always flooring the time.
-    const sampledSecond = Math.round(gpxTime);
-
-    // If multiple frames exist within ±1s of the sampled second, use the median of
-    // their precomputed pace values. This gives a stable, watch-like 1 Hz value
-    // for short windows and reduces spurious per-second jitter for real GPX data.
-    const nearbyPaces: number[] = [];
-    for (const f of frames) {
-        if (Math.abs(f.timeOffset - sampledSecond) <= 1 && f.paceSecondsPerKm !== undefined) {
-            nearbyPaces.push(f.paceSecondsPerKm);
-        }
-    }
-    if (nearbyPaces.length >= 2) {
-        nearbyPaces.sort((a, b) => a - b);
-        return nearbyPaces[Math.floor(nearbyPaces.length / 2)];
-    }
-
-    const { beforeFrame, afterFrame, interpolationFactor } = findSurroundingFrames(frames, sampledSecond);
+    const { beforeFrame, afterFrame, interpolationFactor } = findSurroundingFrames(frames, gpxTime);
 
     const frameGapSeconds = afterFrame.timeOffset - beforeFrame.timeOffset;
 
-    // If the gap between bracketing frames is small (<= MAX_CONSECUTIVE_GAP_SECONDS)
-    // but larger than 1s, prefer holding the previous pace instead of
-    // interpolating across sparse updates. This avoids synthetic ramps when
-    // GPX points are emitted at irregular multi-second intervals (common for
-    // phone/wearable recordings) while preserving interpolation for high-rate
-    // data.
-    if (frameGapSeconds > 1 && frameGapSeconds <= MAX_CONSECUTIVE_GAP_SECONDS) {
+    if (frameGapSeconds <= MAX_INTERPOLATED_PACE_GAP_SECONDS) {
+        const sampledSecond = Math.round(gpxTime);
+        const nearbySpeedMs = frames
+            .filter((frame) => Math.abs(frame.timeOffset - sampledSecond) <= 4 && frame.speedKmh !== undefined)
+            .map((frame) => frame.speedKmh! / 3.6);
+        const nearbySpeedMedian = median(nearbySpeedMs);
+        const medianPaceFromSpeed = speedMsToPaceSecondsPerKm(nearbySpeedMedian);
+        if (medianPaceFromSpeed !== undefined) {
+            return medianPaceFromSpeed;
+        }
+
+        const nearbyPaces = frames
+            .filter((frame) => Math.abs(frame.timeOffset - sampledSecond) <= 4 && frame.paceSecondsPerKm !== undefined)
+            .map((frame) => frame.paceSecondsPerKm as number);
+
+        if (nearbyPaces.length >= 3) {
+            const nearbyMedian = median(nearbyPaces);
+            if (nearbyMedian !== undefined) {
+                return nearbyMedian;
+            }
+        }
+
+        if (nearbyPaces.length === 2) {
+            const nearbyMedian = median(nearbyPaces);
+            if (nearbyMedian !== undefined) {
+                return nearbyMedian;
+            }
+        }
+    }
+
+    if (frameGapSeconds > MAX_INTERPOLATED_PACE_GAP_SECONDS
+        && frameGapSeconds <= MAX_CONSECUTIVE_GAP_SECONDS) {
         return beforeFrame.paceSecondsPerKm ?? afterFrame.paceSecondsPerKm;
     }
 
     if (frameGapSeconds > MAX_CONSECUTIVE_GAP_SECONDS) {
-        // Avoid synthetic pace ramps across large missing-data gaps.
-        // During large GPX gaps we hold last known pace until the next real sample.
         return beforeFrame.paceSecondsPerKm ?? afterFrame.paceSecondsPerKm;
     }
 

@@ -147,10 +147,10 @@ it('my template should have correct layout', () => {
 ### Metric Display
 
 - `showHr` - Show heart rate
-- `showPace` - Show pace
+- `showPace` - Show pace from synchronized GPX segments with sparse-gap hold and spike filtering
 - `showDistance` - Show distance
 - `showTime` - Show elapsed time
-- `showSpeed` - Show current speed in km/h
+- `showSpeed` - Show current speed in km/h from synchronized GPX segments with spike filtering
 - `showGrade` - Show current slope percentage
 - `showElevation` - Show current elevation in meters
 - `showCadence` - Show cadence in RPM when present in the GPX file
@@ -201,4 +201,4 @@ will continue to work without changes.
 3. **Register once** - Add new system templates only in `registry.ts`
 4. **Use descriptive names** - Template names should clearly indicate the layout
 5. **Test thoroughly** - Add focused registry/layout tests for new templates
-6. **Document behavior changes** - Update this README and top-level docs when template workflow changes
+6. **Document behavior changes** - Update this README and top-level docs when template workflow or telemetry semantics change

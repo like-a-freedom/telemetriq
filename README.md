@@ -45,6 +45,7 @@ Import a GPX file + video via the UI → choose an overlay template → Export.
 - GPX and other telemetry formats support
 - Video export via browser `@ffmpeg/ffmpeg` and/or native FFmpeg
 - Template-driven, customizable overlay layouts
+- Responsive telemetry metrics with sparse-gap handling and isolated spike filtering
 - Unit + E2E tests (Vitest + Playwright)
 
 ## Value proposition & use cases
@@ -84,6 +85,14 @@ All JS/TS commands use `bun` (see `frontend/package.json`).
 - Watch: `bun run test:watch`
 - Coverage: `bun run test:coverage`
 - E2E: `bun run test:e2e` (Playwright)
+
+Telemetry regressions should cover:
+
+- exact-second and in-between-frame lookups
+- pauses and auto-pause windows
+- isolated spikes vs. sustained pace/speed changes
+- sparse GPX gaps and missing samples
+- preview/export parity for rendered overlays
 
 E2E requires Playwright browsers installed — run `npx playwright install` if needed.
 
@@ -169,6 +178,17 @@ export const myTemplate = defineTemplate({
 ```
 
 Then add one registration entry in `frontend/src/modules/templates/registry.ts` and cover it with focused tests.
+
+### Telemetry timing & smoothing
+
+Telemetriq intentionally optimizes overlay metrics for **on-video alignment** rather than long trailing inertia:
+
+- pace and speed come from synchronized GPX segments, not heavy rolling windows
+- isolated GPS spikes are filtered out before rendering
+- dense local samples get a light pace smoother to suppress wobble
+- sparse GPX gaps keep the last known pace instead of inventing ramps through missing data
+
+When updating telemetry math, validate both preview-time and export-time behavior so the live canvas overlay and processed video stay in sync.
 
 ---
 
