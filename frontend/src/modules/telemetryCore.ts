@@ -25,6 +25,13 @@ const MAX_CONSECUTIVE_GAP_SECONDS = 5;
 /** Number of recent segments to sample for median-speed pace calculation */
 const MEDIAN_SPEED_WINDOW = 5;
 
+/**
+ * Rolling window (in moving-seconds) for segment speed computation.
+ * Averages over the last N seconds of non-paused movement to cancel
+ * GPS jitter while staying responsive to genuine speed changes.
+ */
+const SEGMENT_SPEED_WINDOW_SECONDS = 7;
+
 /** Max plausible running speed (m/s) — ~43 km/h, generous for any amateur athlete */
 const MAX_PLAUSIBLE_SPEED_MS = 12;
 
@@ -34,6 +41,14 @@ const MAX_PLAUSIBLE_CYCLING_SPEED_MS = 35;
 const SEGMENT_SPIKE_NEIGHBOR_RADIUS = 2;
 const SEGMENT_SPIKE_MIN_DELTA_MS = 1.5;
 const MAX_INTERPOLATED_PACE_GAP_SECONDS = 2;
+
+/**
+ * Backward-looking window (in seconds) for display-time pace smoothing.
+ * Only samples frames at or before the query time so the median never
+ * incorporates future data — eliminating forward-looking lag while still
+ * rejecting single-frame GPS noise.
+ */
+const PACE_DISPLAY_LOOKBACK_SECONDS = 2;
 
 /**
  * Calculate the distance between two GPS coordinates using the Haversine formula.
@@ -393,17 +408,54 @@ function computeSegmentSpeedMs(
         return undefined;
     }
 
-    const segmentTimeSeconds = (points[index]!.time.getTime() - points[index - 1]!.time.getTime()) / 1000;
-    if (segmentTimeSeconds <= 0 || segmentTimeSeconds > MAX_CONSECUTIVE_GAP_SECONDS) {
-        return undefined;
+    // Walk backward from index, accumulating non-paused moving time.
+    // Stop once we have at least SEGMENT_SPEED_WINDOW_SECONDS of moving
+    // time or hit a large gap.
+    let windowStart = index - 1;
+    let movingTimeSeconds = 0;
+
+    for (let j = index - 1; j >= 1; j -= 1) {
+        const segmentDt = (points[j + 1]!.time.getTime() - points[j]!.time.getTime()) / 1000;
+
+        // Don't span large gaps.
+        if (segmentDt > MAX_CONSECUTIVE_GAP_SECONDS) {
+            break;
+        }
+
+        if (!pausedPoints[j]) {
+            movingTimeSeconds += segmentDt;
+            windowStart = j;
+        }
+
+        if (movingTimeSeconds >= SEGMENT_SPEED_WINDOW_SECONDS) {
+            break;
+        }
     }
 
-    const segmentDistanceKm = distances[index]! - distances[index - 1]!;
+    // If we couldn't accumulate enough moving time (e.g. very short track),
+    // fall back to the single previous segment.
+    if (windowStart >= index || movingTimeSeconds <= 0) {
+        const singleDt = (points[index]!.time.getTime() - points[index - 1]!.time.getTime()) / 1000;
+        if (singleDt <= 0 || singleDt > MAX_CONSECUTIVE_GAP_SECONDS) {
+            return undefined;
+        }
+        const singleDistKm = distances[index]! - distances[index - 1]!;
+        if (singleDistKm <= 0) {
+            return undefined;
+        }
+        const singleSpeedMs = (singleDistKm * 1000) / singleDt;
+        if (!Number.isFinite(singleSpeedMs) || singleSpeedMs <= 0 || singleSpeedMs > MAX_PLAUSIBLE_CYCLING_SPEED_MS) {
+            return undefined;
+        }
+        return singleSpeedMs;
+    }
+
+    const segmentDistanceKm = distances[index]! - distances[windowStart]!;
     if (segmentDistanceKm <= 0) {
         return undefined;
     }
 
-    const speedMs = (segmentDistanceKm * 1000) / segmentTimeSeconds;
+    const speedMs = (segmentDistanceKm * 1000) / movingTimeSeconds;
     if (!Number.isFinite(speedMs) || speedMs <= 0 || speedMs > MAX_PLAUSIBLE_CYCLING_SPEED_MS) {
         return undefined;
     }
@@ -485,7 +537,6 @@ function speedMsToPaceSecondsPerKm(speedMs: number | undefined): number | undefi
 
 function fillMissingMetricValues(
     values: Array<number | undefined>,
-    pausedPoints: boolean[],
 ): Array<number | undefined> {
     if (values.length === 0) {
         return values;
@@ -499,10 +550,24 @@ function fillMissingMetricValues(
     }
 
     extrapolateLeadingValues(result, validIndices);
-    interpolateGapValues(result, validIndices, pausedPoints);
+    holdAcrossGaps(result, validIndices);
     extrapolateTrailingValues(result, validIndices);
 
     return result;
+}
+
+function holdAcrossGaps(
+    result: Array<number | undefined>,
+    validIndices: number[],
+): void {
+    for (let k = 0; k < validIndices.length - 1; k++) {
+        const left = validIndices[k]!;
+        const right = validIndices[k + 1]!;
+        const leftValue = result[left]!;
+        for (let i = left + 1; i < right; i++) {
+            result[i] = leftValue;
+        }
+    }
 }
 
 function buildResponsiveMetricProfiles(
@@ -519,11 +584,9 @@ function buildResponsiveMetricProfiles(
     return {
         paceValues: fillMissingMetricValues(
             stabilizedSegmentSpeeds.map((speedMs) => speedMsToPaceSecondsPerKm(speedMs)),
-            pausedPoints,
         ),
         speedKmhValues: fillMissingMetricValues(
             stabilizedSegmentSpeeds.map((speedMs) => speedMs !== undefined ? speedMs * 3.6 : undefined),
-            pausedPoints,
         ),
     };
 }
@@ -940,57 +1003,72 @@ function interpolateDiscreteTelemetryMetric(
 /**
  * Interpolate pace at a given GPX time.
  *
- * For dense 1-2 second sampling we interpolate between neighbouring pace values
- * to keep overlays visually in sync with the athlete. For sparser 3-5 second
- * gaps we hold the last known pace to avoid inventing ramps across missing data.
+ * For dense 1-2 second sampling, takes the median of a backward-only window
+ * (current frame and up to 2 s of prior frames). This rejects single-frame
+ * GPS noise while never incorporating future data, so speed transitions are
+ * reflected within 1-2 seconds. For sparser 3-5 second gaps the last known
+ * pace is held to avoid inventing ramps across missing data.
  */
 function interpolatePace(
     frames: TelemetryFrame[],
     gpxTime: number,
 ): number | undefined {
     const { beforeFrame, afterFrame, interpolationFactor } = findSurroundingFrames(frames, gpxTime);
-
     const frameGapSeconds = afterFrame.timeOffset - beforeFrame.timeOffset;
 
+    // Dense sampling (≤2 s): backward-only median for noise rejection without lag.
     if (frameGapSeconds <= MAX_INTERPOLATED_PACE_GAP_SECONDS) {
-        const sampledSecond = Math.round(gpxTime);
-        const nearbySpeedMs = frames
-            .filter((frame) => Math.abs(frame.timeOffset - sampledSecond) <= 4 && frame.speedKmh !== undefined)
-            .map((frame) => frame.speedKmh! / 3.6);
-        const nearbySpeedMedian = median(nearbySpeedMs);
-        const medianPaceFromSpeed = speedMsToPaceSecondsPerKm(nearbySpeedMedian);
-        if (medianPaceFromSpeed !== undefined) {
-            return medianPaceFromSpeed;
-        }
-
-        const nearbyPaces = frames
-            .filter((frame) => Math.abs(frame.timeOffset - sampledSecond) <= 4 && frame.paceSecondsPerKm !== undefined)
+        const backwardPaces = frames
+            .filter((frame) =>
+                frame.timeOffset <= gpxTime
+                && frame.timeOffset >= gpxTime - PACE_DISPLAY_LOOKBACK_SECONDS
+                && frame.paceSecondsPerKm !== undefined,
+            )
             .map((frame) => frame.paceSecondsPerKm as number);
 
-        if (nearbyPaces.length >= 3) {
-            const nearbyMedian = median(nearbyPaces);
-            if (nearbyMedian !== undefined) {
-                return nearbyMedian;
-            }
+        if (backwardPaces.length >= 2) {
+            return median(backwardPaces);
         }
 
-        if (nearbyPaces.length === 2) {
-            const nearbyMedian = median(nearbyPaces);
-            if (nearbyMedian !== undefined) {
-                return nearbyMedian;
-            }
+        if (backwardPaces.length === 1) {
+            // Single backward frame: prefer the backward value over interpolation
+            // to avoid forward-looking artefacts.
+            return backwardPaces[0];
         }
+
+        // No pace data in backward window: try speed-based median.
+        const backwardSpeeds = frames
+            .filter((frame) =>
+                frame.timeOffset <= gpxTime
+                && frame.timeOffset >= gpxTime - PACE_DISPLAY_LOOKBACK_SECONDS
+                && frame.speedKmh !== undefined,
+            )
+            .map((frame) => frame.speedKmh! / 3.6);
+        const speedMedian = median(backwardSpeeds);
+        if (speedMedian !== undefined) {
+            return speedMsToPaceSecondsPerKm(speedMedian);
+        }
+
+        // Final fallback: interpolate between surrounding frames.
+        return interpolateOptionalValue(
+            beforeFrame.paceSecondsPerKm,
+            afterFrame.paceSecondsPerKm,
+            interpolationFactor,
+        );
     }
 
+    // Sparse gaps (2-5 s): hold last known pace to avoid inventing ramps.
     if (frameGapSeconds > MAX_INTERPOLATED_PACE_GAP_SECONDS
         && frameGapSeconds <= MAX_CONSECUTIVE_GAP_SECONDS) {
         return beforeFrame.paceSecondsPerKm ?? afterFrame.paceSecondsPerKm;
     }
 
+    // Very sparse gaps (>5 s): hold last known pace.
     if (frameGapSeconds > MAX_CONSECUTIVE_GAP_SECONDS) {
         return beforeFrame.paceSecondsPerKm ?? afterFrame.paceSecondsPerKm;
     }
 
+    // Fallback: interpolate.
     return interpolateOptionalValue(
         beforeFrame.paceSecondsPerKm,
         afterFrame.paceSecondsPerKm,

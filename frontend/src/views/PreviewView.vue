@@ -50,8 +50,10 @@
           <div id="sync-section" v-show="!syncCollapsed">
             <SyncSlider
               :offset-seconds="syncStore.offsetSeconds"
+              :auto-sync-offset-seconds="syncStore.autoSyncOffsetSeconds"
               :is-auto-synced="syncStore.isAutoSynced"
               :video-duration-seconds="filesStore.videoMeta?.duration"
+              :gpx-track-duration-seconds="gpxTrackDurationSeconds"
               :error="syncStore.syncError"
               :warning="syncStore.syncWarning"
               @update:offset-seconds="onManualOffsetChange"
@@ -199,6 +201,7 @@ import { useRouter } from "vue-router";
 import { useFilesStore, useSyncStore, useSettingsStore } from "../stores";
 import { useTemplateCapabilities } from "../composables/useTemplateCapabilities";
 import { buildTelemetryTimeline } from "../modules/telemetryCore";
+import { getGpxTimeRange } from "../modules/syncEngine";
 import type { ExtendedOverlayConfig, TelemetryFrame } from "../core/types";
 import type { MetricType } from "../modules/templates";
 import { useSeo } from "../composables/useSeo";
@@ -335,17 +338,22 @@ const metricControls = computed(() =>
       required,
       disabled: !available || required,
       reason,
-      stateLabel: required ? "Locked" : !available ? "Unavailable" : undefined,
+      stateLabel: required ? "Locked" : undefined,
       helperText: required
         ? "Always visible in this template."
-        : !available
-        ? reason ?? "Not available for this template."
         : control.hint,
     };
-  })
+  }).filter((control) => control.available)
 );
 
 const gpxPoints = computed(() => filesStore.gpxData?.points ?? []);
+
+const gpxTrackDurationSeconds = computed(() => {
+  const points = gpxPoints.value;
+  if (points.length < 2) return undefined;
+  const range = getGpxTimeRange(points);
+  return range ? range.durationMs / 1000 : undefined;
+});
 
 const telemetryDataAvailability = computed(() => ({
   elevation: gpxPoints.value.some((point) => point.ele !== undefined),
@@ -359,7 +367,7 @@ const selectedTemplateWarnings = computed(() => {
     !telemetryDataAvailability.value.elevation
   ) {
     return [
-      "Trail Run needs elevation samples in the GPX file. Grade and elevation will render as N/A with the current file.",
+      "Trail Run needs elevation samples in the GPX file. Grade and elevation will not be displayed with the current file.",
     ];
   }
 
@@ -367,12 +375,12 @@ const selectedTemplateWarnings = computed(() => {
     const warnings: string[] = [];
     if (!telemetryDataAvailability.value.cadence) {
       warnings.push(
-        "Cycling Pro has no cadence samples in the current GPX file. Cadence will render as N/A."
+        "Cycling Pro has no cadence samples in the current GPX file. Cadence will not be displayed."
       );
     }
     if (!telemetryDataAvailability.value.power) {
       warnings.push(
-        "Cycling Pro has no power samples in the current GPX file. Power will render as N/A."
+        "Cycling Pro has no power samples in the current GPX file. Power will not be displayed."
       );
     }
     return warnings;

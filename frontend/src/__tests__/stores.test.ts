@@ -204,6 +204,7 @@ describe('Pinia Stores', () => {
         it('should have correct initial state', () => {
             const store = useSyncStore();
             expect(store.offsetSeconds).toBe(0);
+            expect(store.autoSyncOffsetSeconds).toBe(0);
             expect(store.isAutoSynced).toBe(false);
             expect(store.syncError).toBeNull();
             expect(store.syncWarning).toBeNull();
@@ -556,6 +557,63 @@ describe('Pinia Stores', () => {
             expect(store.offsetSeconds).toBe(600);
             expect(store.isAutoSynced).toBe(true);
             expect(store.syncWarning).toContain('Video time is outside GPX range');
+        });
+
+        it('should set autoSyncOffsetSeconds on successful auto-sync', async () => {
+            const store = useSyncStore();
+
+            await store.performAutoSync(
+                [
+                    { lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:00:00Z') },
+                    { lat: 55.76, lon: 37.62, time: new Date('2024-01-15T10:10:00Z') },
+                ],
+                new Date('2024-01-15T10:02:00Z'),
+            );
+
+            expect(store.autoSyncOffsetSeconds).toBe(120);
+            expect(store.offsetSeconds).toBe(120);
+        });
+
+        it('should not change autoSyncOffsetSeconds on manual offset', () => {
+            const store = useSyncStore();
+            store.setManualOffset(15.5);
+            expect(store.autoSyncOffsetSeconds).toBe(0);
+            expect(store.offsetSeconds).toBe(15.5);
+        });
+
+        it('should reset autoSyncOffsetSeconds on reset', async () => {
+            const store = useSyncStore();
+
+            await store.performAutoSync(
+                [
+                    { lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:00:00Z') },
+                    { lat: 55.76, lon: 37.62, time: new Date('2024-01-15T10:10:00Z') },
+                ],
+                new Date('2024-01-15T10:02:00Z'),
+            );
+            expect(store.autoSyncOffsetSeconds).toBe(120);
+
+            store.reset();
+            expect(store.autoSyncOffsetSeconds).toBe(0);
+            expect(store.offsetSeconds).toBe(0);
+        });
+
+        it('should reset autoSyncOffsetSeconds on auto-sync error', async () => {
+            const store = useSyncStore();
+
+            await store.performAutoSync(
+                [
+                    { lat: 55.75, lon: 37.61, time: new Date('2024-01-15T10:00:00Z') },
+                    { lat: 55.76, lon: 37.62, time: new Date('2024-01-15T10:10:00Z') },
+                ],
+                new Date('2024-01-15T10:02:00Z'),
+            );
+            expect(store.autoSyncOffsetSeconds).toBe(120);
+
+            // Empty points will throw SyncError
+            await store.performAutoSync([], new Date('2024-01-15T10:00:00Z'), undefined, undefined, true);
+            expect(store.autoSyncOffsetSeconds).toBe(0);
+            expect(store.offsetSeconds).toBe(0);
         });
     });
 

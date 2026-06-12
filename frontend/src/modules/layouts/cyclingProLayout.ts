@@ -56,24 +56,23 @@ export function renderCyclingProLayout(
 
     drawSidebarBackdrop(ctx, backdropX, backdropY, backdropWidth, Math.max(0, backdropBottom - backdropY), portrait);
 
-    SIDEBAR_METRICS.forEach((metric, index) => {
-        const rawValue = frame[metric.key];
-        const unavailable = rawValue === undefined;
+    const availableMetrics = SIDEBAR_METRICS.filter((metric) => frame[metric.key] !== undefined);
+    availableMetrics.forEach((metric, index) => {
+        const rawValue = frame[metric.key]!;
         drawSidebarMetric(ctx, {
             x: left,
             y: top + index * metricBlockHeight,
             label: metric.label,
-            unit: unavailable ? '' : metric.unit,
+            unit: metric.unit,
             unitColor,
-            value: unavailable ? 'N/A' : Math.round(rawValue).toString(),
-            progress: unavailable ? 0 : Math.max(0, Math.min(1, rawValue / metric.max)),
+            value: Math.round(rawValue).toString(),
+            progress: Math.max(0, Math.min(1, rawValue / metric.max)),
             width: sidebarWidth,
             fontFamily: config.fontFamily,
             textScale: tuning.textScale,
             compact: shortSide < 480 || portrait,
             accentColor,
-            placeholder: unavailable,
-            statusText: unavailable ? 'NO SENSOR' : undefined,
+            placeholder: false,
         });
     });
 

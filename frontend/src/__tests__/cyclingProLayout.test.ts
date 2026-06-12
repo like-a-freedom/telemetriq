@@ -90,7 +90,7 @@ describe('cyclingPro layout', () => {
         expect(ctx.fillText).toHaveBeenCalledWith('KM/h', expect.any(Number), expect.any(Number));
     });
 
-    it('renders intentional no-sensor states for missing cadence and power data', () => {
+    it('does not render unavailable metrics for missing cadence and power data', () => {
         const ctx = createMockContext();
         const frame: TelemetryFrame = {
             timeOffset: 60,
@@ -140,7 +140,12 @@ describe('cyclingPro layout', () => {
 
         renderCyclingProLayout(ctx as any, frame, 1080, 1920, config);
 
-        expect(ctx.fillText).toHaveBeenCalledWith('N/A', expect.any(Number), expect.any(Number));
-        expect(ctx.fillText).toHaveBeenCalledWith('NO SENSOR', expect.any(Number), expect.any(Number));
+        // Only HR should be rendered as a sidebar metric (cadence and power are unavailable)
+        expect(ctx.fillText).toHaveBeenCalledWith('Heart rate', expect.any(Number), expect.any(Number));
+        // Cadence and Power should not be rendered
+        expect(ctx.fillText).not.toHaveBeenCalledWith('Cadence', expect.any(Number), expect.any(Number));
+        expect(ctx.fillText).not.toHaveBeenCalledWith('Power', expect.any(Number), expect.any(Number));
+        expect(ctx.fillText).not.toHaveBeenCalledWith('N/A', expect.any(Number), expect.any(Number));
+        expect(ctx.fillText).not.toHaveBeenCalledWith('NO SENSOR', expect.any(Number), expect.any(Number));
     });
 });

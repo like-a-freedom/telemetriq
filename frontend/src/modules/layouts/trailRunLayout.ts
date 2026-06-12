@@ -39,7 +39,7 @@ export function renderTrailRunLayout(
         drawHeartRateTrace(ctx, history, graphLeft, topInset, graphWidth, graphHeight, config.accentColor || '#FF3B30');
     }
 
-    const columns: readonly TrailMetric[] = [
+    const allColumns: readonly TrailMetric[] = [
         {
             label: 'HR',
             value: frame.hr !== undefined ? Math.round(frame.hr).toString() : '--',
@@ -56,6 +56,8 @@ export function renderTrailRunLayout(
             unit: 'm',
         },
     ];
+
+    const columns = allColumns.filter((metric) => metric.value !== '--');
 
     const columnWidth = w / columns.length;
     columns.forEach((metric, index) => {
