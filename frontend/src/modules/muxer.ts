@@ -7,6 +7,7 @@ import {
     EncodedVideoPacketSource,
     Mp4OutputFormat,
     Output,
+    StreamTarget,
 } from 'mediabunny';
 import { toMediabunnyVideoCodec, toMediabunnyAudioCodec } from './codecUtils';
 import type { VideoMeta } from '../core/types';
@@ -24,7 +25,70 @@ export interface Muxer {
         demuxed: DemuxedMedia,
         meta: VideoMeta,
         abortSignal: AbortSignal,
-    ): StreamingMuxSession;
+    ): Promise<StreamingMuxSession>;
+}
+
+interface OpfsResources {
+    fileHandle: FileSystemFileHandle;
+    writable: FileSystemWritableFileStream;
+    root: FileSystemDirectoryHandle;
+}
+
+const OPFS_FILE_PREFIX = 'tmq-mux-';
+
+let deferredOpfsCleanup: Array<{ root: FileSystemDirectoryHandle; name: string }> = [];
+
+async function scheduleOpfsCleanup(opfs: OpfsResources): Promise<void> {
+    deferredOpfsCleanup.push({ root: opfs.root, name: opfs.fileHandle.name });
+}
+
+async function runScheduledOpfsCleanup(): Promise<void> {
+    const pending = deferredOpfsCleanup;
+    deferredOpfsCleanup = [];
+
+    for (const { root, name } of pending) {
+        try {
+            await root.removeEntry(name);
+        } catch {
+            // best-effort cleanup
+        }
+    }
+}
+
+async function tryCreateOpfsTarget(): Promise<{
+    target: StreamTarget;
+    opfs: OpfsResources;
+} | null> {
+    try {
+        if (!globalThis.navigator?.storage?.getDirectory) return null;
+
+        await runScheduledOpfsCleanup();
+
+        const root = await navigator.storage.getDirectory();
+        const fileName = `${OPFS_FILE_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp4`;
+        const fileHandle = await root.getFileHandle(fileName, { create: true });
+        const writable = await fileHandle.createWritable({ keepExistingData: false });
+
+        return {
+            target: new StreamTarget(writable),
+            opfs: { fileHandle, writable, root },
+        };
+    } catch {
+        return null;
+    }
+}
+
+async function finalizeOpfsBlob(opfs: OpfsResources): Promise<Blob> {
+    try {
+        await opfs.writable.close();
+    } catch {
+        // writable may already be closed by StreamTarget finalize
+    }
+
+    const file = await opfs.fileHandle.getFile();
+    await scheduleOpfsCleanup(opfs);
+
+    return file;
 }
 
 export function createMuxer(): Muxer {
@@ -136,14 +200,18 @@ export function createMuxer(): Muxer {
             }
         },
 
-        startStreamingMuxSession(
+        async startStreamingMuxSession(
             demuxed: DemuxedMedia,
             meta: VideoMeta,
             abortSignal: AbortSignal,
-        ): StreamingMuxSession {
+        ): Promise<StreamingMuxSession> {
+            const opfsResult = await tryCreateOpfsTarget();
+            const useOpfs = opfsResult !== null;
+            const opfs = opfsResult?.opfs;
+
             const output = new Output({
                 format: new Mp4OutputFormat(),
-                target: new BufferTarget(),
+                target: opfsResult?.target ?? new BufferTarget(),
             });
 
             const videoSource = new EncodedVideoPacketSource(
@@ -172,43 +240,72 @@ export function createMuxer(): Muxer {
                 return startPromise;
             };
 
+            const VIDEO_BATCH_SIZE = 250;
+
+            interface PendingChunk {
+                chunk: EncodedVideoChunk;
+                decoderConfig?: VideoDecoderConfig;
+            }
+
+            let pendingChunks: PendingChunk[] = [];
+            let batchFlush: Promise<void> = Promise.resolve();
+            let flushError: unknown;
             let isFirstVideoPacket = true;
-            let queue: Promise<void> = Promise.resolve();
-            let queueError: unknown;
 
-            const enqueueVideoChunk = (chunk: EncodedVideoChunk, decoderConfig?: VideoDecoderConfig): void => {
-                if (queueError) return;
+            const processBatch = async (batch: PendingChunk[]): Promise<void> => {
+                if (flushError) return;
 
-                queue = queue
-                    .then(async () => {
-                        await ensureStarted();
-                        const packet = EncodedPacket.fromEncodedChunk(chunk);
+                try {
+                    await ensureStarted();
+
+                    for (const item of batch) {
+                        if (flushError) break;
+
+                        const packet = EncodedPacket.fromEncodedChunk(item.chunk);
 
                         if (isFirstVideoPacket) {
-                            if (decoderConfig) {
-                                await videoSource.add(packet, { decoderConfig });
+                            if (item.decoderConfig) {
+                                await videoSource.add(packet, { decoderConfig: item.decoderConfig });
                             } else {
                                 await videoSource.add(packet);
                             }
                             isFirstVideoPacket = false;
-                            return;
+                        } else {
+                            await videoSource.add(packet);
                         }
+                    }
+                } catch (error) {
+                    flushError = error;
+                    if (!abortSignal.aborted) {
+                        throw error;
+                    }
+                }
+            };
 
-                        await videoSource.add(packet);
-                    })
-                    .catch((error) => {
-                        queueError = error;
-                        if (!abortSignal.aborted) {
-                            throw error;
-                        }
-                    });
+            const enqueueVideoChunk = (chunk: EncodedVideoChunk, decoderConfig?: VideoDecoderConfig): void => {
+                if (flushError) return;
+
+                pendingChunks.push({ chunk, decoderConfig });
+
+                if (pendingChunks.length >= VIDEO_BATCH_SIZE) {
+                    const batch = pendingChunks;
+                    pendingChunks = [];
+                    batchFlush = batchFlush.then(() => processBatch(batch));
+                }
             };
 
             const flushVideoQueue = async (): Promise<void> => {
-                await queue;
-                if (queueError) {
+                const remaining = pendingChunks;
+                pendingChunks = [];
+                if (remaining.length > 0) {
+                    batchFlush = batchFlush.then(() => processBatch(remaining));
+                }
+
+                await batchFlush;
+
+                if (flushError) {
                     throw new ProcessingError(
-                        `Streaming mux failed while writing video packets: ${queueError instanceof Error ? queueError.message : String(queueError)}`,
+                        `Streaming mux failed while writing video packets: ${flushError instanceof Error ? flushError.message : String(flushError)}`,
                     );
                 }
             };
@@ -255,7 +352,11 @@ export function createMuxer(): Muxer {
                 await output.finalize();
                 onProgress?.(100);
 
-                const buffer = output.target.buffer;
+                if (useOpfs && opfs) {
+                    return await finalizeOpfsBlob(opfs);
+                }
+
+                const buffer = (output.target as BufferTarget).buffer;
                 if (!buffer || buffer.byteLength === 0) {
                     throw new ProcessingError('Mediabunny mux produced empty output');
                 }
