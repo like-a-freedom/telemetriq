@@ -192,6 +192,7 @@ import { useFilesStore, useSyncStore, useSettingsStore } from "../stores";
 import { useTemplateCapabilities } from "../composables/useTemplateCapabilities";
 import { buildTelemetryTimeline } from "../modules/telemetryCore";
 import { getGpxTimeRange } from "../modules/syncEngine";
+import { preparePointsWithPower } from "../modules/powerEstimator";
 import type { ExtendedOverlayConfig, TelemetryFrame } from "../core/types";
 import type { MetricType } from "../modules/templates";
 import { useSeo } from "../composables/useSeo";
@@ -419,7 +420,8 @@ onMounted(() => {
 
   // Build telemetry timeline
   if (filesStore.gpxData) {
-    telemetryFrames.value = buildTelemetryTimeline(filesStore.gpxData.points);
+    const points = preparePointsWithPower(filesStore.gpxData.points, settingsStore.runnerWeightKg);
+    telemetryFrames.value = buildTelemetryTimeline(points);
   }
 
   // Attempt auto-sync

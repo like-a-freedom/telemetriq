@@ -45,7 +45,7 @@ export const trailRunTemplate = defineTemplate({
     },
     capabilities: {
         ...DEFAULT_CAPABILITIES,
-        supportedMetrics: ['pace', 'hr', 'distance', 'time', 'grade', 'elevation'],
+        supportedMetrics: ['pace', 'hr', 'distance', 'time', 'grade', 'elevation', 'power'],
         requiredMetrics: [],
         supportsPosition: false,
         supportsBackgroundOpacity: false,

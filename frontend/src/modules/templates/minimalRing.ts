@@ -44,7 +44,7 @@ export const minimalRingTemplate = defineTemplate({
     },
     capabilities: {
         ...DEFAULT_CAPABILITIES,
-        supportedMetrics: ['pace', 'hr', 'distance'],
+        supportedMetrics: ['pace', 'hr', 'distance', 'power'],
         requiredMetrics: ['pace'],
         supportsPosition: false,
         supportsBackgroundOpacity: false,
@@ -55,7 +55,7 @@ export const minimalRingTemplate = defineTemplate({
         supportsLayoutDirection: false,
         getMetricUnavailableReason: (metric) => {
             if (metric === 'time') {
-                return 'Minimal Ring only supports Pace, Heart Rate, and Distance';
+                return 'Minimal Ring only supports Pace, Heart Rate, Distance, and Power';
             }
             return undefined;
         },

@@ -39,6 +39,7 @@ export interface MetricItem {
 
 export interface OverlayRenderContext {
     hrHistory?: number[];
+    elevationHistory?: number[];
     destinationHasBaseFrame?: boolean;
 }
 

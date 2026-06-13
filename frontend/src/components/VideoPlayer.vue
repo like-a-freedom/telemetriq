@@ -26,6 +26,7 @@ import { renderOverlay } from "../modules/overlayRenderer";
 import {
   getTelemetryAtTime,
   getInterpolatedHeartRateHistory,
+  getInterpolatedElevationHistory,
   TRAIL_RUN_GRAPH_LOOKBACK_SECONDS,
   TRAIL_RUN_GRAPH_SAMPLE_COUNT,
 } from "../modules/telemetryCore";
@@ -112,13 +113,21 @@ async function drawOverlay(): Promise<void> {
       TRAIL_RUN_GRAPH_SAMPLE_COUNT
     );
 
+    const elevationHistory = getInterpolatedElevationHistory(
+      props.telemetryFrames,
+      currentTime.value,
+      props.syncOffset,
+      TRAIL_RUN_GRAPH_LOOKBACK_SECONDS,
+      TRAIL_RUN_GRAPH_SAMPLE_COUNT
+    );
+
     await renderOverlay(
       ctx,
       frame,
       videoWidth.value,
       videoHeight.value,
       props.overlayConfig,
-      { hrHistory }
+      { hrHistory, elevationHistory }
     );
   }
 }

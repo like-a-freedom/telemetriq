@@ -26,7 +26,7 @@ function buildTrailColumns(
         columns.push({
             label: 'PACE',
             value: formatPace(frame.paceSecondsPerKm),
-            unit: '/km',
+            unit: 'min/km',
         });
     }
     if (config.showHr) {
@@ -64,6 +64,13 @@ function buildTrailColumns(
             unit: 'm',
         });
     }
+    if (config.showPower) {
+        columns.push({
+            label: 'POWER',
+            value: frame.powerWatts !== undefined ? Math.round(frame.powerWatts).toString() : 'N/A',
+            unit: 'W',
+        });
+    }
 
     return columns;
 }
@@ -79,7 +86,7 @@ export function renderTrailRunLayout(
     const tuning = getResolutionTuning(w, h);
     const shortSide = Math.min(w, h);
     const compact = shortSide < 480;
-    const history = smoothHrHistory(renderContext.hrHistory ?? []);
+    const history = renderContext.elevationHistory ?? [];
     const topInset = Math.round(h * 0.038);
     const graphLeft = Math.round(w * 0.04);
     const graphWidth = Math.round(w * 0.82);
@@ -100,8 +107,10 @@ export function renderTrailRunLayout(
     drawMetricSupport(ctx, 0, topInset - Math.round(h * 0.012), w, metricBandBottom - topInset + Math.round(h * 0.03));
 
     if (history.length >= 2) {
-        drawHeartRateTrace(ctx, history, graphLeft, topInset, graphWidth, graphHeight, config.accentColor || '#FF3B30');
+        drawElevationTrace(ctx, history, graphLeft, topInset, graphWidth, graphHeight, config.accentColor || '#36b37e');
     }
+
+    drawGraphLabel(ctx, 'Elevation', graphLeft, topInset + Math.round(h * 0.004), config);
 
     // Measure widest value + widest unit at base size to compute a single
     // consistent font size for all columns.  Units are always inline.
@@ -158,33 +167,6 @@ export function renderTrailRunLayout(
  * continuity.  The tension parameter controls how tight the curve hugs
  * the control points (0 = linear, 0.5 = standard Catmull‑Rom).
  */
-function smoothHrHistory(history: readonly number[]): number[] {
-    if (history.length < 3) {
-        return [...history];
-    }
-
-    const alpha = 0.28;
-    const forward: number[] = new Array(history.length);
-    let prev = history[0]!;
-
-    forward[0] = prev;
-    for (let i = 1; i < history.length; i++) {
-        prev = prev + alpha * (history[i]! - prev);
-        forward[i] = prev;
-    }
-
-    const backward: number[] = new Array(history.length);
-    prev = forward[history.length - 1]!
-    backward[history.length - 1] = prev;
-
-    for (let i = history.length - 2; i >= 0; i--) {
-        prev = prev + alpha * (forward[i]! - prev);
-        backward[i] = prev;
-    }
-
-    return backward;
-}
-
 function catmullRomChain(
     points: readonly { x: number; y: number }[],
     samples: number,
@@ -268,7 +250,7 @@ function buildSmoothBezierSegments(
     return segments;
 }
 
-function drawHeartRateTrace(
+function drawElevationTrace(
     ctx: OverlayContext2D,
     history: number[],
     left: number,
@@ -299,7 +281,7 @@ function drawHeartRateTrace(
     const bezierSegments = buildSmoothBezierSegments(rawPoints, samples);
 
     ctx.strokeStyle = accentColor;
-    ctx.lineWidth = Math.max(1.8, width * 0.0022);
+    ctx.lineWidth = Math.max(3.6, width * 0.0044);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.shadowColor = 'rgba(0,0,0,0.58)';
@@ -339,6 +321,21 @@ function drawHeartRateTrace(
     ctx.beginPath();
     ctx.arc(dotX, lastY, dotRadius, 0, Math.PI * 2);
     ctx.fill();
+}
+
+function drawGraphLabel(
+    ctx: OverlayContext2D,
+    label: string,
+    left: number,
+    top: number,
+    config: ExtendedOverlayConfig,
+): void {
+    const fontSize = Math.max(9, Math.round(top * 0.35));
+    ctx.fillStyle = 'rgba(255,255,255,0.58)';
+    ctx.font = `500 ${fontSize}px ${config.fontFamily}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(label, left, top);
 }
 
 function drawTopFade(ctx: OverlayContext2D, width: number, fadeBottom: number): void {

@@ -129,17 +129,17 @@ describe('PreviewView (synchronization panel)', () => {
             global: { stubs: ['VideoPlayer', 'SyncSlider', 'TemplateSelector', 'DateTimePicker'] },
         });
 
-        // Default horizon template supports: pace, hr, distance, time
+        // Default horizon template supports: pace, hr, distance, time, power
         expect(wrapper.text()).toContain('Heart rate');
         expect(wrapper.text()).toContain('Pace');
         expect(wrapper.text()).toContain('Distance');
         expect(wrapper.text()).toContain('Time');
+        expect(wrapper.text()).toContain('Power');
         // These are not supported by horizon template, so are hidden
         expect(wrapper.text()).not.toContain('Speed');
         expect(wrapper.text()).not.toContain('Grade');
         expect(wrapper.text()).not.toContain('Elevation');
         expect(wrapper.text()).not.toContain('Cadence');
-        expect(wrapper.text()).not.toContain('Power');
     });
 
     it('does not render the noisy metric tag badges in the preview panel', () => {

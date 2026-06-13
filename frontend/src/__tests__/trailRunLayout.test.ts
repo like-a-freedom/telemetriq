@@ -29,7 +29,7 @@ function createMockContext() {
 }
 
 describe('trailRun layout', () => {
-    it('draws the HR trace and the fixed HR / GRADE / ELEVATION trio', () => {
+    it('draws the elevation trace and the fixed HR / GRADE / ELEVATION trio', () => {
         const ctx = createMockContext();
         const frame: TelemetryFrame = {
             timeOffset: 60,
@@ -80,10 +80,12 @@ describe('trailRun layout', () => {
 
         renderTrailRunLayout(ctx as any, frame, 1080, 1920, config, {
             hrHistory: [148, 150, 152, 155, 159],
+            elevationHistory: [2900, 2905, 2910, 2915, 2921],
         });
 
         expect(ctx.bezierCurveTo).toHaveBeenCalled();
         expect(ctx.arc).toHaveBeenCalled();
+        expect(ctx.fillText).toHaveBeenCalledWith('Elevation', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).toHaveBeenCalledWith('HR', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).toHaveBeenCalledWith('GRADE', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).toHaveBeenCalledWith('ELEVATION', expect.any(Number), expect.any(Number));

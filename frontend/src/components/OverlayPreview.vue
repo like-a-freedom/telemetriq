@@ -60,6 +60,13 @@ async function draw(): Promise<void> {
         )
       : undefined;
 
+  const elevationHistory =
+    props.frame.elevationM !== undefined
+      ? Array.from({ length: 12 }, (_, index) =>
+          props.frame.elevationM! - 5 + index * 2
+        )
+      : undefined;
+
   await renderOverlay(
     ctx,
     props.frame,
@@ -68,6 +75,7 @@ async function draw(): Promise<void> {
     props.config,
     {
       hrHistory,
+      elevationHistory,
       destinationHasBaseFrame: true,
     }
   );

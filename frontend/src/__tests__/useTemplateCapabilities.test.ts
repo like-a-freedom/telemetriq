@@ -129,7 +129,7 @@ describe('useTemplateCapabilities', () => {
         settingsStore.selectTemplate('trail-run');
         await nextTick();
 
-        expect(capabilities.availableMetrics.value).toEqual(['hr', 'grade', 'elevation']);
+        expect(capabilities.availableMetrics.value).toEqual(['pace', 'hr', 'distance', 'time', 'grade', 'elevation', 'power']);
     });
 
     it('should expose cycling-pro metrics when cycling-pro is selected', async () => {

@@ -56,6 +56,7 @@ export const useSettingsStore = defineStore('settings', () => {
     // State
     const currentScreen = ref<AppScreen>('upload');
     const overlayConfig = ref<ExtendedOverlayConfig>({ ...DEFAULT_OVERLAY_CONFIG });
+    const runnerWeightKg = ref<number | null>(null);
 
     // Computed
     const isUploadScreen = computed(() => currentScreen.value === 'upload');
@@ -124,11 +125,17 @@ export const useSettingsStore = defineStore('settings', () => {
     function reset(): void {
         currentScreen.value = 'upload';
         overlayConfig.value = { ...DEFAULT_OVERLAY_CONFIG };
+        runnerWeightKg.value = null;
+    }
+
+    function setRunnerWeight(weightKg: number | null): void {
+        runnerWeightKg.value = weightKg;
     }
 
     return {
         currentScreen,
         overlayConfig,
+        runnerWeightKg,
         currentTemplateId,
         isUploadScreen,
         isPreviewScreen,
@@ -140,6 +147,7 @@ export const useSettingsStore = defineStore('settings', () => {
         selectTemplate,
         saveAsCustomTemplate,
         resetToTemplateDefaults,
+        setRunnerWeight,
         reset,
     };
 });
