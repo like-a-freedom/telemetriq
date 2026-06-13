@@ -134,7 +134,7 @@ describe('PreviewView (synchronization panel)', () => {
         expect(wrapper.text()).toContain('Pace');
         expect(wrapper.text()).toContain('Distance');
         expect(wrapper.text()).toContain('Time');
-        // These are not supported by horizon template, so should not be shown
+        // These are not supported by horizon template, so are hidden
         expect(wrapper.text()).not.toContain('Speed');
         expect(wrapper.text()).not.toContain('Grade');
         expect(wrapper.text()).not.toContain('Elevation');

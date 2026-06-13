@@ -416,10 +416,10 @@ The most distinctively styled component — a **chronograph instrument readout**
 
 ### Metric Toggles
 
-Three states must remain visually distinct:
-1. **Optional + available** — interactive checkbox
-2. **Required / locked** — checked, visually active, not disabled-looking
-3. **Unavailable** — muted and non-interactive
+Three states must remain visually and structurally distinct:
+1. **Optional + available** — interactive checkbox, shown in the settings panel
+2. **Required / locked** — checked, visually active, not disabled-looking, shown in the settings panel
+3. **Unavailable** — NOT shown in the settings panel at all. Unavailable metrics add no value and create noise; their absence is communicated through the overlay canvas (missing data placeholders) and warning blocks for template-required metrics.
 
 Required ≠ disabled. Locked is a supported state — do not borrow the same treatment as unavailable.
 
