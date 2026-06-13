@@ -105,49 +105,20 @@
             Configure what appears on the video. Changes apply in real-time.
           </p>
 
-          <div
-            v-if="selectedTemplateWarnings.length"
-            class="preview-view__warning-block"
-            data-testid="template-data-warning"
-          >
-            <p class="preview-view__warning-title">Template data check</p>
-            <ul class="preview-view__warning-list">
-              <li v-for="warning in selectedTemplateWarnings" :key="warning">
-                {{ warning }}
-              </li>
-            </ul>
-          </div>
-
           <div class="preview-view__settings">
             <label
               v-for="control in metricControls"
               :key="control.key"
               class="preview-view__checkbox"
-              :class="{
-                'preview-view__checkbox--disabled': !control.available,
-                'preview-view__checkbox--locked': control.required,
-              }"
             >
               <input
                 type="checkbox"
                 :checked="control.checked"
-                :disabled="control.disabled"
-                :title="control.reason"
                 @change="onMetricToggle(control.key, $event)"
               />
               <span class="preview-view__metric-meta">
                 <span class="preview-view__metric-title">
                   <span>{{ control.label }}</span>
-                  <span
-                    v-if="control.stateLabel"
-                    class="preview-view__metric-state"
-                    :class="
-                      control.required
-                        ? 'preview-view__metric-state--locked'
-                        : 'preview-view__metric-state--disabled'
-                    "
-                    >{{ control.stateLabel }}</span
-                  >
                 </span>
                 <span class="preview-view__metric-hint">
                   {{ control.helperText }}
@@ -317,20 +288,12 @@ const manualTimezone = ref(180); // Default: UTC+3 (Moscow)
 const metricControls = computed(() =>
   METRIC_CONTROLS.map((control) => {
     const available = templateCapabilities.isMetricAvailable(control.metric);
-    const required = templateCapabilities.isMetricRequired(control.metric);
-    const reason = required
-      ? "Required by the selected template"
-      : templateCapabilities.getMetricDisableReason(control.metric);
 
     return {
       ...control,
       checked: settingsStore.overlayConfig[control.key],
       available,
-      required,
-      disabled: !available || required,
-      reason,
-      stateLabel: required ? "Locked" : undefined,
-      helperText: required ? "Always visible in this template." : control.hint,
+      helperText: control.hint,
     };
   }).filter((control) => control.available)
 );
@@ -342,40 +305,6 @@ const gpxTrackDurationSeconds = computed(() => {
   if (points.length < 2) return undefined;
   const range = getGpxTimeRange(points);
   return range ? range.durationMs / 1000 : undefined;
-});
-
-const telemetryDataAvailability = computed(() => ({
-  elevation: gpxPoints.value.some((point) => point.ele !== undefined),
-  cadence: gpxPoints.value.some((point) => point.cadence !== undefined),
-  power: gpxPoints.value.some((point) => point.power !== undefined),
-}));
-
-const selectedTemplateWarnings = computed(() => {
-  if (
-    settingsStore.currentTemplateId === "trail-run" &&
-    !telemetryDataAvailability.value.elevation
-  ) {
-    return [
-      "Trail Run needs elevation samples in the GPX file. Grade and elevation will not be displayed with the current file.",
-    ];
-  }
-
-  if (settingsStore.currentTemplateId === "cycling-pro") {
-    const warnings: string[] = [];
-    if (!telemetryDataAvailability.value.cadence) {
-      warnings.push(
-        "Cycling Pro has no cadence samples in the current GPX file. Cadence will not be displayed."
-      );
-    }
-    if (!telemetryDataAvailability.value.power) {
-      warnings.push(
-        "Cycling Pro has no power samples in the current GPX file. Power will not be displayed."
-      );
-    }
-    return warnings;
-  }
-
-  return [];
 });
 
 const timezones = [
@@ -754,48 +683,11 @@ function applyManualTime(): void {
   transform: translateY(-1px);
 }
 
-.preview-view__checkbox--disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  border-style: solid;
-  transform: none;
-}
-
-.preview-view__checkbox--disabled:hover {
-  background: rgba(255, 255, 255, 0.015);
-  border-color: rgba(255, 255, 255, 0.06);
-  transform: none;
-}
-
-.preview-view__checkbox--locked {
-  cursor: default;
-  background: linear-gradient(
-    135deg,
-    rgba(100, 108, 255, 0.14),
-    rgba(100, 108, 255, 0.05)
-  );
-  border-color: rgba(100, 108, 255, 0.3);
-}
-
-.preview-view__checkbox--locked:hover {
-  background: linear-gradient(
-    135deg,
-    rgba(100, 108, 255, 0.16),
-    rgba(100, 108, 255, 0.06)
-  );
-  border-color: rgba(100, 108, 255, 0.36);
-  transform: none;
-}
-
 .preview-view__checkbox input[type="checkbox"] {
   width: 18px;
   height: 18px;
   cursor: pointer;
   accent-color: var(--color-primary, #646cff);
-}
-
-.preview-view__checkbox input[type="checkbox"]:disabled {
-  cursor: default;
 }
 
 .preview-view__checkbox span {
@@ -816,61 +708,10 @@ function applyManualTime(): void {
   font-weight: 600;
 }
 
-.preview-view__metric-state {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.16rem 0.42rem;
-  border-radius: 999px;
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.preview-view__metric-state--locked {
-  background: rgba(100, 108, 255, 0.2);
-  color: var(--color-text);
-}
-
-.preview-view__metric-state--disabled {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--color-text-secondary);
-}
-
 .preview-view__metric-hint {
   color: var(--color-text-secondary, #999);
   font-size: 0.75rem;
   line-height: 1.35;
-}
-
-.preview-view__warning-block {
-  margin: 0 0 1rem;
-  padding: 0.95rem 1rem;
-  border-radius: 12px;
-  background: var(--color-warning-surface);
-  border: 1px solid rgba(255, 196, 107, 0.34);
-  color: var(--color-warning-text);
-  font-size: 0.82rem;
-  line-height: 1.5;
-}
-
-.preview-view__warning-title {
-  margin: 0;
-  color: var(--color-warning-text);
-  font-size: 0.73rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.preview-view__warning-list {
-  margin: 0.55rem 0 0;
-  padding-left: 1.1rem;
-}
-
-.preview-view__warning-list li + li {
-  margin-top: 0.35rem;
 }
 
 .preview-view__divider {

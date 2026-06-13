@@ -152,7 +152,7 @@ describe('PreviewView (synchronization panel)', () => {
         expect(wrapper.findAll('.preview-view__metric-chip')).toHaveLength(0);
     });
 
-    it('warns when trail-run is selected without elevation data', () => {
+    it('does not show template data check warnings when trail-run is selected without elevation data', () => {
         const { settings } = makeStores({ autoSynced: false });
         settings.updateOverlayConfig({ templateId: 'trail-run' as never });
 
@@ -160,12 +160,11 @@ describe('PreviewView (synchronization panel)', () => {
             global: { stubs: ['VideoPlayer', 'SyncSlider', 'TemplateSelector', 'DateTimePicker'] },
         });
 
-        expect(wrapper.text()).toContain('Template data check');
-        expect(wrapper.text()).toContain('Trail Run needs elevation samples');
-        expect(wrapper.text()).toContain('will not be displayed');
+        expect(wrapper.text()).not.toContain('Template data check');
+        expect(wrapper.text()).not.toContain('will not be displayed');
     });
 
-    it('warns when cycling-pro is selected without cadence and power data', () => {
+    it('does not show template data check warnings when cycling-pro is selected without cadence and power data', () => {
         const { settings } = makeStores({ autoSynced: false });
         settings.updateOverlayConfig({ templateId: 'cycling-pro' as never });
 
@@ -173,13 +172,11 @@ describe('PreviewView (synchronization panel)', () => {
             global: { stubs: ['VideoPlayer', 'SyncSlider', 'TemplateSelector', 'DateTimePicker'] },
         });
 
-        expect(wrapper.text()).toContain('Template data check');
-        expect(wrapper.text()).toContain('Cycling Pro has no cadence samples');
-        expect(wrapper.text()).toContain('Cycling Pro has no power samples');
-        expect(wrapper.text()).toContain('will not be displayed');
+        expect(wrapper.text()).not.toContain('Template data check');
+        expect(wrapper.text()).not.toContain('will not be displayed');
     });
 
-    it('shows locked badges for template-required metrics', () => {
+    it('allows toggling all metrics for cycling-pro without locked state', () => {
         const { settings } = makeStores({ autoSynced: false });
         settings.updateOverlayConfig({ templateId: 'cycling-pro' as never });
 
@@ -187,8 +184,7 @@ describe('PreviewView (synchronization panel)', () => {
             global: { stubs: ['VideoPlayer', 'SyncSlider', 'TemplateSelector', 'DateTimePicker'] },
         });
 
-        const lockedControls = wrapper.findAll('.preview-view__checkbox--locked');
-        expect(lockedControls.length).toBeGreaterThan(0);
-        expect(wrapper.text()).toContain('Locked');
+        expect(wrapper.findAll('.preview-view__checkbox--locked')).toHaveLength(0);
+        expect(wrapper.text()).not.toContain('Locked');
     });
 });

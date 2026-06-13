@@ -139,6 +139,6 @@ describe('useTemplateCapabilities', () => {
         settingsStore.selectTemplate('cycling-pro');
         await nextTick();
 
-        expect(capabilities.availableMetrics.value).toEqual(['hr', 'cadence', 'power', 'speed', 'distance']);
+        expect(capabilities.availableMetrics.value).toEqual(['hr', 'power', 'speed', 'distance']);
     });
 });

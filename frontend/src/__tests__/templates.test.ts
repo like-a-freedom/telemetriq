@@ -152,7 +152,7 @@ describe('templates registry', () => {
 
         it('cycling-pro template should expose cycling-focused metrics', () => {
             expect(cyclingProTemplate.config.layoutMode).toBe('cycling-pro');
-            expect(cyclingProTemplate.capabilities.supportedMetrics).toEqual(['hr', 'cadence', 'power', 'speed', 'distance']);
+            expect(cyclingProTemplate.capabilities.supportedMetrics).toEqual(['hr', 'power', 'speed', 'distance']);
             expect(cyclingProTemplate.metadata.name).toBe('Cycling Pro');
         });
 
