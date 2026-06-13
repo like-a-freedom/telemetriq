@@ -119,9 +119,20 @@ export function extractVideoMeta(file: File): Promise<VideoMeta> {
             }
 
             // Fast path for large videos: keep upload responsive and skip
-            // expensive container parsing on the critical UI path.
+            // expensive container parsing, but still read mvhd creation time
+            // (lightweight binary scan — only reads first/last 16 MB).
             if (file.size >= FAST_METADATA_THRESHOLD_BYTES) {
-                resolve(meta);
+                extractMp4CreationTimeFromMvhd(file)
+                    .then((created) => {
+                        if (created) {
+                            meta.startTime = created;
+                            meta.timezoneOffsetMinutes = 0;
+                        }
+                        resolve(meta);
+                    })
+                    .catch(() => {
+                        resolve(meta);
+                    });
                 return;
             }
 
