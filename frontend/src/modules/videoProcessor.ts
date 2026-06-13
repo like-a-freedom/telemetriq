@@ -370,7 +370,8 @@ export class VideoProcessor {
         try {
             const { WebGPUAdapter } = await import('./webgpu/webgpuAdapter');
             if (WebGPUAdapter.isSupported()) {
-                WebGPUAdapter.getInstance().isEnabled();
+                const adapter = WebGPUAdapter.getInstance();
+                await adapter.ensureInitialized();
             }
         } catch (error) {
             console.warn('[VideoProcessor] Failed to load WebGPU adapter:', error);

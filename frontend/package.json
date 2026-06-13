@@ -14,9 +14,7 @@
     "test:e2e": "playwright test",
     "lint": "eslint --max-warnings=0 \"src/**/*.{js,ts,vue}\"",
     "lint:fix": "eslint --max-warnings=0 \"src/**/*.{js,ts,vue}\" --fix",
-    "fetch-ffmpeg-core": "mkdir -p public/vendor/ffmpeg && curl -fL https://cdn.jsdelivr.net/npm/@ffmpeg/core@latest/dist/esm/ffmpeg-core.js -o public/vendor/ffmpeg/ffmpeg-core.js && curl -fL https://cdn.jsdelivr.net/npm/@ffmpeg/core@latest/dist/esm/ffmpeg-core.wasm -o public/vendor/ffmpeg/ffmpeg-core.wasm",
-    "benchmark:webgpu": "vitest run src/__tests__/webgpu-benchmark.test.ts",
-    "benchmark:performance": "node scripts/benchmark.js"
+    "fetch-ffmpeg-core": "mkdir -p public/vendor/ffmpeg && curl -fL https://cdn.jsdelivr.net/npm/@ffmpeg/core@latest/dist/esm/ffmpeg-core.js -o public/vendor/ffmpeg/ffmpeg-core.js && curl -fL https://cdn.jsdelivr.net/npm/@ffmpeg/core@latest/dist/esm/ffmpeg-core.wasm -o public/vendor/ffmpeg/ffmpeg-core.wasm"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
