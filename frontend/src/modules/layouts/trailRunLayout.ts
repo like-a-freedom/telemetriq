@@ -9,6 +9,65 @@ interface TrailMetric {
     unit: string;
 }
 
+function formatPace(secondsPerKm: number | undefined): string {
+    if (secondsPerKm === undefined || !Number.isFinite(secondsPerKm)) return 'N/A';
+    const min = Math.floor(secondsPerKm / 60);
+    const sec = Math.round(secondsPerKm % 60);
+    return `${min}:${sec.toString().padStart(2, '0')}`;
+}
+
+function buildTrailColumns(
+    frame: TelemetryFrame,
+    config: ExtendedOverlayConfig,
+): TrailMetric[] {
+    const columns: TrailMetric[] = [];
+
+    if (config.showPace) {
+        columns.push({
+            label: 'PACE',
+            value: formatPace(frame.paceSecondsPerKm),
+            unit: '/km',
+        });
+    }
+    if (config.showHr) {
+        columns.push({
+            label: 'HR',
+            value: frame.hr !== undefined ? Math.round(frame.hr).toString() : 'N/A',
+            unit: 'bpm',
+        });
+    }
+    if (config.showDistance) {
+        columns.push({
+            label: 'DISTANCE',
+            value: Number.isFinite(frame.distanceKm) ? frame.distanceKm.toFixed(2) : 'N/A',
+            unit: 'km',
+        });
+    }
+    if (config.showTime) {
+        columns.push({
+            label: 'TIME',
+            value: frame.elapsedTime || 'N/A',
+            unit: '',
+        });
+    }
+    if (config.showGrade) {
+        columns.push({
+            label: 'GRADE',
+            value: frame.gradePercent !== undefined ? Math.round(frame.gradePercent).toString() : 'N/A',
+            unit: '%',
+        });
+    }
+    if (config.showElevation) {
+        columns.push({
+            label: 'ELEVATION',
+            value: frame.elevationM !== undefined ? Math.round(frame.elevationM).toString() : 'N/A',
+            unit: 'm',
+        });
+    }
+
+    return columns;
+}
+
 export function renderTrailRunLayout(
     ctx: OverlayContext2D,
     frame: TelemetryFrame,
@@ -40,32 +99,15 @@ export function renderTrailRunLayout(
         drawHeartRateTrace(ctx, history, graphLeft, topInset, graphWidth, graphHeight, config.accentColor || '#FF3B30');
     }
 
-    const allColumns: readonly TrailMetric[] = [
-        {
-            label: 'HR',
-            value: frame.hr !== undefined ? Math.round(frame.hr).toString() : 'N/A',
-            unit: 'bpm',
-        },
-        {
-            label: 'GRADE',
-            value: frame.gradePercent !== undefined ? Math.round(frame.gradePercent).toString() : 'N/A',
-            unit: '%',
-        },
-        {
-            label: 'ELEVATION',
-            value: frame.elevationM !== undefined ? Math.round(frame.elevationM).toString() : 'N/A',
-            unit: 'm',
-        },
-    ];
+    const allColumns = buildTrailColumns(frame, config);
 
     const columns = allColumns;
 
     if (horizontal) {
-        // Horizontal mode: keep metrics as a tight group to avoid
-        // visual disconnection across the wide frame.  Use a narrower
-        // centered band (55% of width) and let the trace breathe
-        // across the full top.
-        const bandWidth = Math.round(w * 0.55);
+        // Horizontal mode: scale the band width with the number of columns.
+        // Fewer columns → tighter centered group. More columns → wider band
+        // so each metric has enough breathing room.
+        const bandWidth = Math.round(w * (0.42 + columns.length * 0.07));
         const bandLeft = Math.round((w - bandWidth) / 2);
         const colWidth = bandWidth / columns.length;
 
