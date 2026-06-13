@@ -97,8 +97,6 @@
           </p>
 
           <TemplateSelector />
-
-          <div class="preview-view__divider"></div>
         </div>
 
         <div class="preview-view__card">
@@ -157,8 +155,6 @@
               </span>
             </label>
           </div>
-
-          <div class="preview-view__divider"></div>
 
           <div
             class="preview-view__field"
