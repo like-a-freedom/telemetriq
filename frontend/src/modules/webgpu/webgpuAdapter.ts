@@ -13,7 +13,6 @@ export const WEBGPU_FEATURE_FLAG = {
 
     const persisted = localStorage.getItem(WEBGPU_STORAGE_KEY);
     if (persisted === null) {
-      // Default is enabled for all users unless explicitly overridden in v2 flag.
       return true;
     }
 
@@ -50,11 +49,10 @@ interface GPUCompositeResources {
 type Canvas2DContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
 /**
- * WebGPU adapter for GPU-accelerated overlay rendering
- * 
- * CURRENTLY DISABLED - Using optimized Canvas 2D instead
- * WebGPU implementation is kept for future use when browser support
- * for canvas readback improves.
+ * WebGPU adapter for GPU-accelerated overlay compositing.
+ *
+ * Composites an overlay texture onto a base video frame using a GPU shader.
+ * Falls back to Canvas 2D when WebGPU is unavailable or disabled.
  */
 export class WebGPUAdapter {
   private static instance: WebGPUAdapter | null = null;
@@ -83,6 +81,14 @@ export class WebGPUAdapter {
 
   isEnabled(): boolean {
     return this.enabled && WebGPUAdapter.isSupported();
+  }
+
+  /**
+   * Pre-initialize GPU resources. Call this early to avoid latency on first composite.
+   */
+  async ensureInitialized(): Promise<boolean> {
+    if (!this.isEnabled()) return false;
+    return this.initialize();
   }
 
   setEnabled(enabled: boolean): void {
@@ -134,6 +140,14 @@ export class WebGPUAdapter {
     return true;
   }
 
+  private resetState(): void {
+    this.disposeCompositeResources();
+    this.gpu?.device.destroy();
+    this.gpu = null;
+    this.isInitialized = false;
+    this.initPromise = null;
+  }
+
   private async doInitialize(): Promise<boolean> {
     try {
       if (!WebGPUAdapter.isSupported()) {
@@ -152,12 +166,15 @@ export class WebGPUAdapter {
       const device = await adapter.requestDevice();
       const format = navigator.gpu.getPreferredCanvasFormat();
 
-      // Create shader module
-      const shaderModule = device.createShaderModule({
-        code: this.getOverlayShaderCode(),
+      device.lost.then((info) => {
+        console.warn('[WebGPUAdapter] GPU device lost:', info.message);
+        this.resetState();
       });
 
-      // Create pipeline
+      const shaderModule = device.createShaderModule({
+        code: OVERLAY_SHADER_CODE,
+      });
+
       const pipeline = device.createRenderPipeline({
         layout: 'auto',
         vertex: {
@@ -171,7 +188,7 @@ export class WebGPUAdapter {
             format,
             blend: {
               color: {
-                srcFactor: 'src-alpha',
+                srcFactor: 'one',
                 dstFactor: 'one-minus-src-alpha',
                 operation: 'add',
               },
@@ -188,7 +205,6 @@ export class WebGPUAdapter {
         },
       });
 
-      // Create sampler
       const sampler = device.createSampler({
         magFilter: 'linear',
         minFilter: 'linear',
@@ -202,6 +218,7 @@ export class WebGPUAdapter {
       return true;
     } catch (error) {
       console.error('[WebGPUAdapter] Failed to initialize WebGPU:', error);
+      this.resetState();
       return false;
     }
   }
@@ -253,6 +270,8 @@ export class WebGPUAdapter {
       passEncoder.end();
 
       this.gpu.device.queue.submit([commandEncoder.finish()]);
+      await this.gpu.device.queue.onSubmittedWorkDone();
+
       ctx.drawImage(resources.canvas as CanvasImageSource, 0, 0, videoWidth, videoHeight);
 
       return true;
@@ -311,6 +330,7 @@ export class WebGPUAdapter {
       passEncoder.end();
 
       this.gpu.device.queue.submit([commandEncoder.finish()]);
+      await this.gpu.device.queue.onSubmittedWorkDone();
 
       return new VideoFrame(resources.canvas, {
         timestamp: videoFrame.timestamp,
@@ -449,6 +469,13 @@ export class WebGPUAdapter {
     this.compositeResources.baseTexture.destroy();
     this.compositeResources.overlayTexture.destroy();
     this.compositeResources.uniformBuffer.destroy();
+
+    try {
+      this.compositeResources.context.unconfigure();
+    } catch {
+      // unconfigure may not be available in all implementations
+    }
+
     this.compositeResources = null;
   }
 
@@ -530,59 +557,7 @@ export class WebGPUAdapter {
   }
 
   /**
-   * Get WGSL shader code for overlay rendering
-   */
-  private getOverlayShaderCode(): string {
-    return `
-      struct VertexOutput {
-        @builtin(position) position: vec4f,
-        @location(0) uv: vec2f,
-      };
-
-      struct Uniforms {
-        overlayOpacity: f32,
-        padding0: f32,
-        padding1: f32,
-        padding2: f32,
-      };
-      
-      @vertex
-      fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
-        const pos = array(
-          vec2f(-1.0, -1.0), vec2f(-1.0, 1.0), vec2f(1.0, -1.0),
-          vec2f(1.0, -1.0), vec2f(-1.0, 1.0), vec2f(1.0, 1.0)
-        );
-        const uv = array(
-          vec2f(0.0, 1.0), vec2f(0.0, 0.0), vec2f(1.0, 1.0),
-          vec2f(1.0, 1.0), vec2f(0.0, 0.0), vec2f(1.0, 0.0)
-        );
-        
-        var output: VertexOutput;
-        output.position = vec4f(pos[vertexIndex], 0.0, 1.0);
-        output.uv = uv[vertexIndex];
-        return output;
-      }
-      
-      @group(0) @binding(0) var textureSampler: sampler;
-      @group(0) @binding(1) var baseTexture: texture_2d<f32>;
-      @group(0) @binding(2) var overlayTexture: texture_2d<f32>;
-      @group(0) @binding(3) var<uniform> uniforms: Uniforms;
-      
-      @fragment
-      fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
-        let base = textureSample(baseTexture, textureSampler, input.uv);
-        let overlay = textureSample(overlayTexture, textureSampler, input.uv);
-        let overlayAlpha = overlay.a * uniforms.overlayOpacity;
-
-        let rgb = mix(base.rgb, overlay.rgb, overlayAlpha);
-        let outAlpha = max(base.a, overlayAlpha);
-        return vec4f(rgb, outAlpha);
-      }
-    `;
-  }
-
-  /**
-   * Clean up resources
+   * Clean up all GPU resources
    */
   dispose(): void {
     this.disposeCompositeResources();
@@ -592,6 +567,58 @@ export class WebGPUAdapter {
     this.initPromise = null;
   }
 }
+
+/**
+ * WGSL shader for compositing an overlay texture onto a base texture.
+ * The shader performs full alpha compositing in straight-alpha space.
+ * Hardware blend is set to premultiplied to match WebGPU canvas expectations.
+ */
+const OVERLAY_SHADER_CODE = `
+  struct VertexOutput {
+    @builtin(position) position: vec4f,
+    @location(0) uv: vec2f,
+  };
+
+  struct Uniforms {
+    overlayOpacity: f32,
+    padding0: f32,
+    padding1: f32,
+    padding2: f32,
+  };
+
+  @vertex
+  fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
+    const pos = array(
+      vec2f(-1.0, -1.0), vec2f(-1.0, 1.0), vec2f(1.0, -1.0),
+      vec2f(1.0, -1.0), vec2f(-1.0, 1.0), vec2f(1.0, 1.0)
+    );
+    const uv = array(
+      vec2f(0.0, 1.0), vec2f(0.0, 0.0), vec2f(1.0, 1.0),
+      vec2f(1.0, 1.0), vec2f(0.0, 0.0), vec2f(1.0, 0.0)
+    );
+
+    var output: VertexOutput;
+    output.position = vec4f(pos[vertexIndex], 0.0, 1.0);
+    output.uv = uv[vertexIndex];
+    return output;
+  }
+
+  @group(0) @binding(0) var textureSampler: sampler;
+  @group(0) @binding(1) var baseTexture: texture_2d<f32>;
+  @group(0) @binding(2) var overlayTexture: texture_2d<f32>;
+  @group(0) @binding(3) var<uniform> uniforms: Uniforms;
+
+  @fragment
+  fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+    let base = textureSample(baseTexture, textureSampler, input.uv);
+    let overlay = textureSample(overlayTexture, textureSampler, input.uv);
+    let overlayAlpha = overlay.a * uniforms.overlayOpacity;
+
+    let rgb = mix(base.rgb, overlay.rgb, overlayAlpha);
+    let outAlpha = max(base.a, overlayAlpha);
+    return vec4f(rgb, outAlpha);
+  }
+`;
 
 /**
  * Get WebGPU status
