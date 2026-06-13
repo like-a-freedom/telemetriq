@@ -30,7 +30,7 @@ const ALLOWED_VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v'];
  * The time is interpreted as local time, not UTC.
  */
 function parseDjiFilename(filename: string): { date: Date; isLocalTime: boolean } | undefined {
-    const djiMatch = filename.match(/^DJI_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/i);
+    const djiMatch = filename.match(/^DJI_(\d{4})(\d{2})(\d{2})_?(\d{2})(\d{2})(\d{2})/i);
     if (!djiMatch) return undefined;
 
     const [, year, month, day, hour, minute, second] = djiMatch;
