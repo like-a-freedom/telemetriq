@@ -110,7 +110,7 @@ export function renderTrailRunLayout(
         drawElevationTrace(ctx, history, graphLeft, topInset, graphWidth, graphHeight, config.accentColor || '#36b37e');
     }
 
-    drawGraphLabel(ctx, 'Elevation', graphLeft, topInset + Math.round(h * 0.004), config);
+    drawGraphLabel(ctx, 'Elevation', graphLeft, topInset + Math.round(h * 0.014), config);
 
     // Measure widest value + widest unit at base size to compute a single
     // consistent font size for all columns.  Units are always inline.
