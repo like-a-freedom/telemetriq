@@ -85,9 +85,17 @@ export function renderTrailRunLayout(
     const graphWidth = Math.round(w * 0.82);
     const graphHeight = Math.round(h * 0.062);
     const metricTop = topInset + graphHeight + Math.round(h * 0.028 * tuning.spacingScale);
-    const metricBandBottom = metricTop + Math.round(h * (compact ? 0.082 : 0.07));
     const leftPad = Math.max(Math.round(w * 0.014), compact ? Math.round(w * 0.05) : 0);
     const horizontal = w > h;
+
+    const allColumns = buildTrailColumns(frame, config);
+
+    const columns = allColumns;
+
+    // Pre-compute metric band height — stacked layout needs extra vertical room
+    const metricBandBottom = metricTop
+        + Math.round(h * (compact ? 0.082 : 0.07))
+        + (columns.length >= 4 ? Math.round(h * 0.025) : 0);
 
     ctx.save();
     applyTextShadow(ctx, config);
@@ -99,37 +107,55 @@ export function renderTrailRunLayout(
         drawHeartRateTrace(ctx, history, graphLeft, topInset, graphWidth, graphHeight, config.accentColor || '#FF3B30');
     }
 
-    const allColumns = buildTrailColumns(frame, config);
+    // Measure widest value at base size to compute a single consistent font size for all columns.
+    const baseValueSize = compact
+        ? Math.max(25, Math.round(h * 0.036 * tuning.textScale))
+        : Math.max(38, Math.round(h * 0.05 * tuning.textScale));
+    const minValueSize = Math.max(12, Math.round(h * 0.016 * tuning.textScale));
+    ctx.font = `300 ${baseValueSize}px ${config.fontFamily}`;
+    let maxTextWidth = 0;
+    for (const metric of columns) {
+        const tw = ctx.measureText(metric.value).width;
+        if (tw > maxTextWidth) maxTextWidth = tw;
+    }
 
-    const columns = allColumns;
+    // Determine layout mode — stacked unit when there are many columns
+    const stackUnit = horizontal ? columns.length >= 5 : columns.length >= 4;
+
+    // Reserve space for inline unit label only when not stacked
+    const unitPadding = stackUnit ? 0 : baseValueSize * 0.3;
+    const neededWidth = maxTextWidth + unitPadding;
+
+    // Scale valueSize proportionally so the widest value fits in colWidth
+    // Formula: baseValueSize * scale, clamped to minValueSize
+    let valueSize: number;
 
     if (horizontal) {
-        // Horizontal mode: scale the band width with the number of columns.
-        // Fewer columns → tighter centered group. More columns → wider band
-        // so each metric has enough breathing room.
         const bandWidth = Math.round(w * (0.42 + columns.length * 0.07));
-        const bandLeft = Math.round((w - bandWidth) / 2);
         const colWidth = bandWidth / columns.length;
+        const bandLeft = Math.round((w - bandWidth) / 2);
+        const scale = Math.min(1, (colWidth * 0.92) / Math.max(1, neededWidth));
+        valueSize = Math.max(minValueSize, Math.round(baseValueSize * scale));
 
         columns.forEach((metric, index) => {
-            const columnLeft = bandLeft + index * colWidth;
-            drawTrailMetric(ctx, columnLeft, metricTop, h, tuning.textScale, compact, config, metric);
-
-            if (index < columns.length - 1) {
-                const sepX = columnLeft + colWidth - Math.round(w * 0.016);
-                const sepY = metricTop - Math.round(h * 0.004);
-                drawColumnSeparator(ctx, sepX, sepY, h);
+            const left = bandLeft + index * colWidth;
+            drawTrailMetric(ctx, left, metricTop, valueSize, config, metric, stackUnit);
+            if (index < columns.length - 1 && columns.length <= 3) {
+                const sepX = left + colWidth - Math.round(w * 0.016);
+                drawColumnSeparator(ctx, sepX, metricTop - Math.round(h * 0.004), h);
             }
         });
     } else {
-        // Vertical mode: spread columns across the full width as before.
-        const columnWidth = w / columns.length;
-        columns.forEach((metric, index) => {
-            const columnLeft = index * columnWidth + (index === 0 ? leftPad : 0);
-            drawTrailMetric(ctx, columnLeft, metricTop, h, tuning.textScale, compact, config, metric);
+        const colWidth = w / columns.length;
+        const colLeftPad = columns.length > 3 ? Math.round(leftPad * 0.5) : leftPad;
+        const scale = Math.min(1, (colWidth * 0.92) / Math.max(1, neededWidth));
+        valueSize = Math.max(minValueSize, Math.round(baseValueSize * scale));
 
-            if (index < columns.length - 1) {
-                drawColumnSeparator(ctx, columnLeft + columnWidth - Math.round(w * 0.028), metricTop - Math.round(h * 0.004), h);
+        columns.forEach((metric, index) => {
+            const left = index * colWidth + (index === 0 ? colLeftPad : 0);
+            drawTrailMetric(ctx, left, metricTop, valueSize, config, metric, stackUnit);
+            if (index < columns.length - 1 && columns.length <= 3) {
+                drawColumnSeparator(ctx, left + colWidth - Math.round(w * 0.028), metricTop - Math.round(h * 0.004), h);
             }
         });
     }
@@ -375,46 +401,42 @@ function drawTrailMetric(
     ctx: OverlayContext2D,
     left: number,
     top: number,
-    h: number,
-    textScale: number,
-    compact: boolean,
+    valueSize: number,
     config: ExtendedOverlayConfig,
     metric: TrailMetric,
+    stackUnit: boolean,
 ): void {
-    const labelSize = compact
-        ? Math.max(9, Math.round(h * 0.013 * textScale))
-        : Math.max(13, Math.round(h * 0.014 * textScale));
-    const valueSize = compact
-        ? Math.max(25, Math.round(h * 0.036 * textScale))
-        : Math.max(38, Math.round(h * 0.05 * textScale));
-    const unitSize = compact
-        ? Math.max(10, Math.round(valueSize * 0.22))
-        : Math.max(13, Math.round(valueSize * 0.25));
+    const labelSize = Math.max(8, Math.round(valueSize * 0.28));
+    const unitSize = Math.max(9, Math.round(valueSize * 0.22));
     const valueBaseline = top + valueSize + Math.round(labelSize * 1.15);
 
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
 
+    // Label
     ctx.fillStyle = 'rgba(255,255,255,0.74)';
     ctx.font = `500 ${labelSize}px ${config.fontFamily}`;
     ctx.fillText(metric.label, left, top);
 
+    // Value
     ctx.fillStyle = config.textColor || '#FFFFFF';
     ctx.font = `300 ${valueSize}px ${config.fontFamily}`;
     ctx.fillText(metric.value, left, valueBaseline);
 
-    // Position the unit right after the value with a gap that scales
-    // with the value font size.  This keeps the spacing visually
-    // consistent regardless of whether the value is a single digit
-    // (e.g. grade "8") or four digits (e.g. elevation "2921").
-    const valueWidth = ctx.measureText(metric.value).width;
-    const unitGap = Math.round(valueSize * 0.08);
-    ctx.fillStyle = metric.value === 'N/A' ? 'rgba(255,255,255,0.58)' : 'rgba(255,255,255,0.8)';
-    ctx.font = `500 ${unitSize}px ${config.fontFamily}`;
-    // Vertically align the unit slightly above the value baseline so it
-    // reads as a superscript annotation rather than overlapping the number.
-    const unitVerticalOffset = Math.round(unitSize * 0.35);
-    ctx.fillText(metric.unit, left + valueWidth + unitGap, valueBaseline - unitVerticalOffset);
+    if (metric.unit) {
+        ctx.fillStyle = metric.value === 'N/A' ? 'rgba(255,255,255,0.58)' : 'rgba(255,255,255,0.8)';
+        ctx.font = `500 ${unitSize}px ${config.fontFamily}`;
+
+        if (stackUnit) {
+            const unitBaseline = valueBaseline + unitSize + Math.round(unitSize * 0.4);
+            ctx.fillText(metric.unit, left, unitBaseline);
+        } else {
+            const valueWidth = ctx.measureText(metric.value).width;
+            const unitGap = Math.round(valueSize * 0.08);
+            const unitVerticalOffset = Math.round(unitSize * 0.35);
+            ctx.fillText(metric.unit, left + valueWidth + unitGap, valueBaseline - unitVerticalOffset);
+        }
+    }
 }
 
 function drawColumnSeparator(
