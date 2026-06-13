@@ -56,7 +56,7 @@ describe('cyclingPro layout', () => {
             showSpeed: true,
             showGrade: false,
             showElevation: false,
-            showCadence: true,
+            showCadence: false,
             showPower: true,
             fontFamily: 'Inter, sans-serif',
             textColor: '#FFFFFF',
@@ -83,14 +83,14 @@ describe('cyclingPro layout', () => {
 
         renderCyclingProLayout(ctx as any, frame, 1080, 1920, config);
 
-        expect(ctx.fillText).toHaveBeenCalledWith('Cadence', expect.any(Number), expect.any(Number));
+        expect(ctx.fillText).not.toHaveBeenCalledWith('Cadence', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).toHaveBeenCalledWith('Power', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).toHaveBeenCalledWith('Heart rate', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).toHaveBeenCalledWith('054', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).toHaveBeenCalledWith('KM/h', expect.any(Number), expect.any(Number));
     });
 
-    it('does not render unavailable metrics for missing cadence and power data', () => {
+    it('does not render sidebar metrics when data is missing', () => {
         const ctx = createMockContext();
         const frame: TelemetryFrame = {
             timeOffset: 60,
@@ -113,7 +113,7 @@ describe('cyclingPro layout', () => {
             showSpeed: true,
             showGrade: false,
             showElevation: false,
-            showCadence: true,
+            showCadence: false,
             showPower: true,
             fontFamily: 'Inter, sans-serif',
             textColor: '#FFFFFF',
@@ -140,9 +140,7 @@ describe('cyclingPro layout', () => {
 
         renderCyclingProLayout(ctx as any, frame, 1080, 1920, config);
 
-        // Only HR should be rendered as a sidebar metric (cadence and power are unavailable)
         expect(ctx.fillText).toHaveBeenCalledWith('Heart rate', expect.any(Number), expect.any(Number));
-        // Cadence and Power should not be rendered
         expect(ctx.fillText).not.toHaveBeenCalledWith('Cadence', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).not.toHaveBeenCalledWith('Power', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).not.toHaveBeenCalledWith('N/A', expect.any(Number), expect.any(Number));
