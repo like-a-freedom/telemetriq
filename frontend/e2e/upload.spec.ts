@@ -102,7 +102,7 @@ test.describe('Upload Page', () => {
         await expect(page.getByText('Elevation')).toBeVisible();
         await expect(page.getByText('Cadence')).toBeVisible();
         await expect(page.getByText('Power')).toBeVisible();
-        await expect(page.getByText('✅ Present')).toHaveCount(4);
+        await expect(page.locator('.upload-view__status-icon--ok')).toHaveCount(4);
     });
 
     test('should remove file when remove button is clicked', async ({ page }) => {
