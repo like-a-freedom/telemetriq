@@ -146,7 +146,7 @@ describe('templates registry', () => {
 
         it('trail-run template should expose the trail layout and alpine metrics', () => {
             expect(trailRunTemplate.config.layoutMode).toBe('trail-run');
-            expect(trailRunTemplate.capabilities.supportedMetrics).toEqual(['hr', 'grade', 'elevation']);
+            expect(trailRunTemplate.capabilities.supportedMetrics).toEqual(['pace', 'hr', 'distance', 'time', 'grade', 'elevation', 'power']);
             expect(trailRunTemplate.metadata.name).toBe('Trail Run');
         });
 
@@ -234,8 +234,8 @@ describe('templates registry', () => {
 
     describe('template capabilities', () => {
         describe('minimal-ring template', () => {
-            it('should only support pace, hr, and distance metrics', () => {
-                expect(minimalRingTemplate.capabilities.supportedMetrics).toEqual(['pace', 'hr', 'distance']);
+            it('should only support pace, hr, distance, and power metrics', () => {
+                expect(minimalRingTemplate.capabilities.supportedMetrics).toEqual(['pace', 'hr', 'distance', 'power']);
             });
 
             it('should require pace metric', () => {
@@ -256,7 +256,7 @@ describe('templates registry', () => {
 
             it('should provide custom reason for unavailable time metric', () => {
                 const reason = minimalRingTemplate.capabilities.getMetricUnavailableReason?.('time');
-                expect(reason).toBe('Minimal Ring only supports Pace, Heart Rate, and Distance');
+                expect(reason).toBe('Minimal Ring only supports Pace, Heart Rate, Distance, and Power');
             });
 
             it('should return undefined for available metrics', () => {
@@ -267,7 +267,7 @@ describe('templates registry', () => {
 
         describe('classic template', () => {
             it('should support all metrics', () => {
-                expect(classicTemplate.capabilities.supportedMetrics).toEqual(['pace', 'hr', 'distance', 'time']);
+                expect(classicTemplate.capabilities.supportedMetrics).toEqual(['pace', 'hr', 'distance', 'time', 'power']);
             });
 
             it('should have no required metrics', () => {
@@ -291,7 +291,7 @@ describe('templates registry', () => {
 
         describe('horizon template', () => {
             it('should support all metrics', () => {
-                expect(horizonTemplate.capabilities.supportedMetrics).toEqual(['pace', 'hr', 'distance', 'time']);
+                expect(horizonTemplate.capabilities.supportedMetrics).toEqual(['pace', 'hr', 'distance', 'time', 'power']);
             });
 
             it('should not support position changes (fixed bottom bar)', () => {
@@ -324,7 +324,7 @@ describe('templates registry', () => {
 
             it('getMetricUnavailableReason should return custom reason', () => {
                 const reason = getMetricUnavailableReason(minimalRingTemplate.capabilities, 'time');
-                expect(reason).toBe('Minimal Ring only supports Pace, Heart Rate, and Distance');
+                expect(reason).toBe('Minimal Ring only supports Pace, Heart Rate, Distance, and Power');
             });
 
             it('getMetricUnavailableReason should return default reason for unsupported metrics', () => {

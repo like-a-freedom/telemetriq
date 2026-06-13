@@ -21,7 +21,7 @@ describe('minimal-ring template module', () => {
         });
 
         it('should have correct supported metrics', () => {
-            expect(minimalRingTemplate.capabilities.supportedMetrics).toEqual(['pace', 'hr', 'distance']);
+            expect(minimalRingTemplate.capabilities.supportedMetrics).toEqual(['pace', 'hr', 'distance', 'power']);
         });
 
         it('should provide custom reason for unavailable time metric', () => {

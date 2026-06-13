@@ -922,6 +922,49 @@ export function getInterpolatedHeartRateHistory(
     return result;
 }
 
+export function getInterpolatedElevationHistory(
+    frames: TelemetryFrame[],
+    videoTimeSeconds: number,
+    syncOffsetSeconds: number,
+    lookbackSeconds = TRAIL_RUN_GRAPH_LOOKBACK_SECONDS,
+    sampleCount = TRAIL_RUN_GRAPH_SAMPLE_COUNT,
+): number[] {
+    const gpxTime = calculateGpxTime(videoTimeSeconds, syncOffsetSeconds, frames);
+    if (gpxTime === null) {
+        return [];
+    }
+
+    const clampedSampleCount = Math.max(0, Math.floor(sampleCount));
+    if (clampedSampleCount === 0) {
+        return [];
+    }
+
+    const clampedLookbackSeconds = Math.max(0, lookbackSeconds);
+    const firstFrame = frames[0]!;
+    const windowStartTime = Math.max(firstFrame.timeOffset, gpxTime - clampedLookbackSeconds);
+    const duration = Math.max(0, gpxTime - windowStartTime);
+    const result: number[] = [];
+
+    let { before, after } = findBracketingIndices(frames, windowStartTime);
+
+    for (let index = 0; index < clampedSampleCount; index++) {
+        const progress = clampedSampleCount === 1 ? 1 : index / (clampedSampleCount - 1);
+        const sampleTime = windowStartTime + duration * progress;
+
+        while (after < frames.length - 1 && frames[after]!.timeOffset < sampleTime) {
+            before = after;
+            after += 1;
+        }
+
+        const ele = interpolateElevationForGraph(frames[before]!, frames[after]!, sampleTime);
+        if (ele !== undefined) {
+            result.push(ele);
+        }
+    }
+
+    return result;
+}
+
 function calculateGpxTime(
     videoTimeSeconds: number,
     syncOffsetSeconds: number,
@@ -1035,6 +1078,23 @@ function interpolateHeartRateForGraph(
     }
 
     return before.hr ?? after.hr;
+}
+
+function interpolateElevationForGraph(
+    before: TelemetryFrame,
+    after: TelemetryFrame,
+    sampleTime: number,
+): number | undefined {
+    if (before.elevationM !== undefined && after.elevationM !== undefined) {
+        if (after.timeOffset === before.timeOffset) {
+            return before.elevationM;
+        }
+
+        const t = (sampleTime - before.timeOffset) / (after.timeOffset - before.timeOffset);
+        return lerp(before.elevationM, after.elevationM, Math.max(0, Math.min(1, t)));
+    }
+
+    return before.elevationM ?? after.elevationM;
 }
 
 function interpolateTelemetryMetric(

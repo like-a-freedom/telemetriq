@@ -40,7 +40,7 @@ export const garminStyleTemplate = defineTemplate({
   },
   capabilities: {
     ...DEFAULT_CAPABILITIES,
-    supportedMetrics: ['pace', 'hr', 'distance', 'time'],
+    supportedMetrics: ['pace', 'hr', 'distance', 'time', 'power'],
     requiredMetrics: [],
     supportsPosition: false,
     supportsBackgroundOpacity: true,

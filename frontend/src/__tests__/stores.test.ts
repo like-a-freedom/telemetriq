@@ -924,7 +924,7 @@ describe('Pinia Stores', () => {
             expect(store.overlayConfig.showGrade).toBe(false);
             expect(store.overlayConfig.showElevation).toBe(false);
             expect(store.overlayConfig.showCadence).toBe(false);
-            expect(store.overlayConfig.showPower).toBe(false);
+            expect(store.overlayConfig.showPower).toBe(true);
         });
 
         it('should preserve show flags when switching from custom to other templates', () => {
@@ -952,7 +952,7 @@ describe('Pinia Stores', () => {
             expect(store.overlayConfig.showGrade).toBe(false);
             expect(store.overlayConfig.showElevation).toBe(false);
             expect(store.overlayConfig.showCadence).toBe(false);
-            expect(store.overlayConfig.showPower).toBe(false);
+            expect(store.overlayConfig.showPower).toBe(true);
         });
 
         it('should handle multiple config updates', () => {

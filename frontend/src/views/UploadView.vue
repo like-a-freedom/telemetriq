@@ -82,6 +82,21 @@
             <td class="upload-view__table-label">Points</td>
             <td class="upload-view__table-value upload-view__table-value--mono">{{ filesStore.gpxData.points.length.toLocaleString() }}</td>
           </tr>
+          <tr v-if="!hasNativePower && hasElevationData">
+            <td class="upload-view__table-label">Athlete weight</td>
+            <td class="upload-view__table-value">
+              <input
+                type="number"
+                class="upload-view__weight-input"
+                :value="settingsStore.runnerWeightKg ?? ''"
+                placeholder="kg"
+                min="20"
+                max="300"
+                step="0.5"
+                @input="onWeightInput"
+              />
+            </td>
+          </tr>
         </tbody>
       </table>
       <div class="upload-view__status-grid">
@@ -133,17 +148,17 @@
         <div class="upload-view__status-item">
           <svg
             class="upload-view__status-icon"
-            :class="hasPowerData ? 'upload-view__status-icon--ok' : 'upload-view__status-icon--none'"
+            :class="powerStatusClass"
             width="14" height="14" viewBox="0 0 14 14" fill="none"
           >
-            <template v-if="hasPowerData">
+            <template v-if="hasNativePower || canEstimatePower">
               <path d="M3 7l3 3 5-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </template>
             <template v-else>
               <path d="M4 4l6 6M10 4l-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             </template>
           </svg>
-          <span>Power</span>
+          <span>Power{{ canEstimatePower && !hasNativePower ? ' (est.)' : '' }}</span>
         </div>
       </div>
     </div>
@@ -180,6 +195,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useFilesStore, useProcessingStore, useSettingsStore } from "../stores";
 import { checkBrowserCapabilities } from "../modules/fileValidation";
+import { hasNativePowerData } from "../modules/powerEstimator";
 import { useSeo } from "../composables/useSeo";
 import { useFormatters } from "../composables/useFormatters";
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
@@ -239,9 +255,23 @@ const hasCadenceData = computed(() => {
   );
 });
 
-const hasPowerData = computed(() => {
-  return filesStore.gpxData?.points.some((p) => p.power !== undefined) ?? false;
+const hasNativePower = computed(() => {
+  return filesStore.gpxData ? hasNativePowerData(filesStore.gpxData.points) : false;
 });
+
+const canEstimatePower = computed(() => {
+  return !hasNativePower.value && hasElevationData.value && !!settingsStore.runnerWeightKg && settingsStore.runnerWeightKg > 0;
+});
+
+const powerStatusClass = computed(() => {
+  if (hasNativePower.value || canEstimatePower.value) return 'upload-view__status-icon--ok';
+  return 'upload-view__status-icon--none';
+});
+
+function onWeightInput(event: Event): void {
+  const val = parseFloat((event.target as HTMLInputElement).value);
+  settingsStore.setRunnerWeight(Number.isFinite(val) && val > 0 ? val : null);
+}
 
 onMounted(() => {
   browserCapabilities.value = checkBrowserCapabilities();
@@ -393,6 +423,23 @@ function goToPreview(): void {
 
 .upload-view__table-value--mono {
   font-variant-numeric: tabular-nums;
+}
+
+.upload-view__weight-input {
+  width: 5rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--color-border, #333);
+  border-radius: 6px;
+  background: var(--color-bg, #1a1a1a);
+  color: var(--color-text, #ffffffde);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.upload-view__weight-input:focus {
+  outline: 2px solid var(--color-primary, #646cff);
+  outline-offset: 1px;
 }
 
 .upload-view__status-grid {

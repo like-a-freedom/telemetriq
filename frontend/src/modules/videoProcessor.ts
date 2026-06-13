@@ -2,6 +2,7 @@ import type { TelemetryFrame, ExtendedOverlayConfig, ProcessingProgress, VideoMe
 import { ProcessingError } from '../core/errors';
 import {
     getInterpolatedHeartRateHistory,
+    getInterpolatedElevationHistory,
     getTelemetryAtTime,
     TRAIL_RUN_GRAPH_LOOKBACK_SECONDS,
     TRAIL_RUN_GRAPH_SAMPLE_COUNT,
@@ -583,10 +584,19 @@ export class VideoProcessor {
             TRAIL_RUN_GRAPH_SAMPLE_COUNT,
         );
 
+        const elevationHistory = getInterpolatedElevationHistory(
+            telemetryFrames,
+            videoTimeSec,
+            safeSyncOffsetSeconds,
+            TRAIL_RUN_GRAPH_LOOKBACK_SECONDS,
+            TRAIL_RUN_GRAPH_SAMPLE_COUNT,
+        );
+
         drawVideoFrameWithRotation(ctx, frame, videoMeta.width, videoMeta.height, videoRotation);
         if (telemetry) {
             await renderOverlay(ctx, telemetry, videoMeta.width, videoMeta.height, config, {
                 hrHistory,
+                elevationHistory,
                 destinationHasBaseFrame: true,
             });
         }

@@ -128,6 +128,7 @@ import {
 import { normalizeProcessingError } from "../stores/storeUtils";
 import { buildTelemetryTimeline } from "../modules/telemetryCore";
 import { VideoProcessor } from "../modules/videoProcessor";
+import { preparePointsWithPower } from "../modules/powerEstimator";
 import { getWebGPUStatus, toggleWebGPU } from "../modules/webgpu";
 import { useSeo } from "../composables/useSeo";
 import { useWakeLock } from "../composables/useWakeLock";
@@ -190,7 +191,8 @@ async function startProcessingFlow(): Promise<void> {
       return;
     }
 
-    const telemetryFrames = buildTelemetryTimeline(filesStore.gpxData!.points);
+    const points = preparePointsWithPower(filesStore.gpxData!.points, settingsStore.runnerWeightKg);
+    const telemetryFrames = buildTelemetryTimeline(points);
     const safeSyncOffset = Number.isFinite(syncStore.offsetSeconds)
       ? syncStore.offsetSeconds
       : 0;
