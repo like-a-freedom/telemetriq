@@ -25,8 +25,6 @@
 
         <div class="preview-view__sync-controls">
           <div class="preview-view__sync-header">
-            <h3>Synchronization</h3>
-
             <button
               class="preview-view__collapse-btn"
               @click="toggleSyncCollapsed"
@@ -42,10 +40,6 @@
               ></span>
             </button>
           </div>
-
-          <p class="preview-view__desc">
-            Align telemetry data with video timeline.
-          </p>
 
           <div id="sync-section" v-show="!syncCollapsed">
             <SyncSlider
@@ -542,13 +536,13 @@ function applyManualTime(): void {
 .preview-view__header h2 {
   margin: 0;
   font-size: 1.3rem;
-  color: var(--color-text, #fff);
+  color: var(--color-text, #ffffffde);
 }
 
 .preview-view__back {
   background: transparent;
-  border: 1px solid var(--color-border, #404040);
-  color: var(--color-text, #fff);
+  border: 1px solid var(--color-border, #333);
+  color: var(--color-text, #ffffffde);
   padding: 0.4rem 0.8rem;
   border-radius: 6px;
   cursor: pointer;
@@ -557,7 +551,7 @@ function applyManualTime(): void {
 }
 
 .preview-view__back:hover {
-  background: var(--color-bg-hover, #333);
+  background: var(--color-bg-hover, #2a2a2a);
 }
 
 .preview-view__workspace {
@@ -579,32 +573,22 @@ function applyManualTime(): void {
 }
 
 .preview-view__sync-controls {
-  background: var(--color-bg-secondary, #1a1a1a);
-  border: 1px solid var(--color-border, #303030);
-  border-radius: 12px;
-  padding: 1.25rem;
+  /* SyncSlider provides its own container — no double frame */
 }
 
 .preview-view__sync-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.preview-view__sync-controls h3 {
-  margin: 0 0 0.5rem;
-  font-size: 1rem;
-  color: var(--color-text, #fff);
-  font-weight: 600;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
 }
 
 .preview-view__collapse-btn {
   /* square, icon-only button with balanced proportions */
   padding: 0.5rem;
-  border: 1px solid var(--color-border, #404040);
-  background: var(--color-bg-tertiary, #242424);
-  color: var(--color-text, #fff);
+  border: 1px solid var(--color-border, #333);
+  background: var(--color-bg-tertiary, #1e1e1e);
+  color: var(--color-text, #ffffffde);
   font-size: 0.9rem;
   height: 36px;
   width: 36px;
@@ -686,14 +670,14 @@ function applyManualTime(): void {
 .preview-view__timezone-row .preview-view__select {
   width: 100%;
   padding: 0.6rem 3rem 0.6rem 0.75rem; /* increased right padding for timezone select */
-  border: 1px solid var(--color-border, #404040);
+  border: 1px solid var(--color-border, #333);
   border-radius: 6px;
   background-color: var(--color-bg-tertiary, #242424);
   background-image: var(--ui-caret);
   background-repeat: no-repeat;
   background-position: right 0.9rem center;
   background-size: 10px 6px;
-  color: var(--color-text, #fff);
+  color: var(--color-text, #ffffffde);
   font-size: 0.9rem;
   transition: border-color 0.2s;
 }
@@ -706,7 +690,7 @@ function applyManualTime(): void {
 }
 .preview-view__label--small {
   font-size: 0.85rem;
-  color: var(--color-text-secondary, #888);
+  color: var(--color-text-secondary, #999);
   margin-bottom: 0.25rem;
 }
 
@@ -719,8 +703,8 @@ function applyManualTime(): void {
 }
 
 .preview-view__card {
-  background: var(--color-bg-secondary, #1a1a1a);
-  border: 1px solid var(--color-border, #303030);
+  background: var(--color-bg-secondary, #141414);
+  border: 1px solid var(--color-border, #333);
   border-radius: 12px;
   padding: 1.25rem;
 }
@@ -728,21 +712,21 @@ function applyManualTime(): void {
 .preview-view__card h3 {
   margin: 0 0 0.5rem;
   font-size: 1rem;
-  color: var(--color-text, #fff);
+  color: var(--color-text, #ffffffde);
   font-weight: 600;
 }
 
 .preview-view__desc {
   margin: 0 0 1rem;
   font-size: 0.85rem;
-  color: var(--color-text-secondary, #aaa);
+  color: var(--color-text-secondary, #999);
   line-height: 1.4;
 }
 
 .preview-view__hint {
   margin: 0 0 0.5rem;
   font-size: 0.8rem;
-  color: var(--color-text-secondary, #aaa);
+  color: var(--color-text-secondary, #999);
   line-height: 1.3;
 }
 
@@ -757,7 +741,7 @@ function applyManualTime(): void {
   align-items: center;
   gap: 0.75rem;
   font-size: 0.9rem;
-  color: var(--color-text, #fff);
+  color: var(--color-text, #ffffffde);
   cursor: pointer;
   padding: 0.65rem 0.7rem;
   border-radius: 10px;
@@ -905,16 +889,16 @@ function applyManualTime(): void {
 
 .preview-view__label {
   font-size: 0.85rem;
-  color: var(--color-text-secondary, #aaa);
+  color: var(--color-text-secondary, #999);
   font-weight: 500;
 }
 
 .preview-view__select {
   width: 100%;
   padding: 0.6rem 3rem 0.6rem 0.75rem; /* increased right padding so native arrow has breathing room */
-  border: 1px solid var(--color-border, #404040);
-  background: var(--color-bg-tertiary, #242424);
-  color: var(--color-text, #fff);
+  border: 1px solid var(--color-border, #333);
+  background: var(--color-bg-tertiary, #1e1e1e);
+  color: var(--color-text, #ffffffde);
   border-radius: 6px;
   font-size: 0.9rem;
   cursor: pointer;
@@ -949,9 +933,9 @@ function applyManualTime(): void {
   width: 100%;
   padding: 0.6rem 0.75rem;
   border-radius: 6px;
-  border: 1px solid var(--color-border, #404040);
-  background: var(--color-bg-tertiary, #242424);
-  color: var(--color-text, #fff);
+  border: 1px solid var(--color-border, #333);
+  background: var(--color-bg-tertiary, #1e1e1e);
+  color: var(--color-text, #ffffffde);
   font-size: 0.9rem;
   transition: border-color 0.2s;
 }
@@ -977,13 +961,13 @@ function applyManualTime(): void {
 }
 
 .preview-view__btn--primary {
-  background: linear-gradient(135deg, var(--color-primary), #7b82ff);
-  color: white;
+  background: var(--color-primary);
+  color: var(--color-bg);
   margin-top: 0.5rem;
 }
 
 .preview-view__btn--primary:hover {
-  background: linear-gradient(135deg, var(--color-primary-hover), #7078ff);
+  background: var(--color-primary-hover);
   transform: translateY(-1px);
 }
 
@@ -993,14 +977,14 @@ function applyManualTime(): void {
 }
 
 .preview-view__btn--secondary {
-  background: var(--color-bg-tertiary, #242424);
-  color: var(--color-text, #fff);
-  border: 1px solid var(--color-border, #404040);
+  background: var(--color-bg-tertiary, #1e1e1e);
+  color: var(--color-text, #ffffffde);
+  border: 1px solid var(--color-border, #333);
   margin-top: 0.25rem;
 }
 
 .preview-view__btn--secondary:hover {
-  background: var(--color-bg-hover, #333);
+  background: var(--color-bg-hover, #2a2a2a);
   border-color: var(--color-primary, #646cff);
 }
 

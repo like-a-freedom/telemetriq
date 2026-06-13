@@ -52,6 +52,14 @@
 - The template registry is the single source of truth: add templates with `defineTemplate(...)` and register them once in [`frontend/src/modules/templates/registry.ts`](../frontend/src/modules/templates/registry.ts).
 - If a template uses an existing layout mode, avoid adding new renderer wiring. Only touch layout renderers when the template introduces a genuinely new drawing algorithm.
 
+## UI/UX guardrails
+
+- **Metric toggles in the preview panel**: show only metrics that the selected template supports (`available === true`). Unavailable metrics must not be displayed — they add noise and provide no actionable value. The overlay canvas and warning blocks handle missing-data communication.
+- **Sync panel**: no redundant headings. The SyncSlider component already carries its own status indicator (Auto/Manual dot). Don't duplicate "Synchronization" as a separate header.
+- **CSS fallbacks**: all `var(--color-*, …)` fallback values must match the hex values declared in `DESIGN.md` color tokens.
+- **Primary buttons**: flat `var(--color-primary)` background, not a gradient. Gradient is reserved for hover state.
+- **No decorative shadows** on cards, panels, or buttons. Depth comes from surface contrast and subtle borders.
+
 ## Testing and environment gotchas
 
 - E2E helpers (`window.__e2eStores`) are exposed only in dev mode when the URL includes `?e2e`; see [`frontend/src/main.ts`](../frontend/src/main.ts).
