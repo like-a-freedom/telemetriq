@@ -46,20 +46,22 @@
       class="upload-view__summary"
     >
       <h3>Video</h3>
-      <div class="upload-view__info-grid">
-        <FileInfo
-          label="Resolution"
-          :value="`${filesStore.videoMeta.width}×${filesStore.videoMeta.height}`"
-        />
-        <FileInfo
-          label="Duration"
-          :value="formatDuration(filesStore.videoMeta.duration)"
-        />
-        <FileInfo
-          label="Size"
-          :value="formatFileSize(filesStore.videoMeta.fileSize)"
-        />
-      </div>
+      <table class="upload-view__table">
+        <tbody>
+          <tr>
+            <td class="upload-view__table-label">Resolution</td>
+            <td class="upload-view__table-value upload-view__table-value--mono">{{ filesStore.videoMeta.width }}×{{ filesStore.videoMeta.height }}</td>
+          </tr>
+          <tr>
+            <td class="upload-view__table-label">Duration</td>
+            <td class="upload-view__table-value upload-view__table-value--mono">{{ formatDuration(filesStore.videoMeta.duration) }}</td>
+          </tr>
+          <tr>
+            <td class="upload-view__table-label">Size</td>
+            <td class="upload-view__table-value upload-view__table-value--mono">{{ formatFileSize(filesStore.videoMeta.fileSize) }}</td>
+          </tr>
+        </tbody>
+      </table>
       <div v-if="videoWarnings.length" class="upload-view__warning-block">
         <p v-for="warning in videoWarnings" :key="warning">⚠️ {{ warning }}</p>
       </div>
@@ -70,28 +72,79 @@
       class="upload-view__summary"
     >
       <h3>GPX track</h3>
-      <div class="upload-view__info-grid">
-        <FileInfo label="Name" :value="filesStore.gpxData.name" />
-        <FileInfo
-          label="Points"
-          :value="filesStore.gpxData.points.length.toString()"
-        />
-        <FileInfo
-          :label="'Heart rate'"
-          :value="hasHrData ? '✅ Present' : '❌ Absent'"
-        />
-        <FileInfo
-          :label="'Elevation'"
-          :value="hasElevationData ? '✅ Present' : '❌ Absent'"
-        />
-        <FileInfo
-          :label="'Cadence'"
-          :value="hasCadenceData ? '✅ Present' : '❌ Absent'"
-        />
-        <FileInfo
-          :label="'Power'"
-          :value="hasPowerData ? '✅ Present' : '❌ Absent'"
-        />
+      <table class="upload-view__table">
+        <tbody>
+          <tr>
+            <td class="upload-view__table-label">Name</td>
+            <td class="upload-view__table-value">{{ filesStore.gpxData.name }}</td>
+          </tr>
+          <tr>
+            <td class="upload-view__table-label">Points</td>
+            <td class="upload-view__table-value upload-view__table-value--mono">{{ filesStore.gpxData.points.length.toLocaleString() }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="upload-view__status-grid">
+        <div class="upload-view__status-item">
+          <svg
+            class="upload-view__status-icon"
+            :class="hasHrData ? 'upload-view__status-icon--ok' : 'upload-view__status-icon--none'"
+            width="14" height="14" viewBox="0 0 14 14" fill="none"
+          >
+            <template v-if="hasHrData">
+              <path d="M3 7l3 3 5-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </template>
+            <template v-else>
+              <path d="M4 4l6 6M10 4l-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </template>
+          </svg>
+          <span>Heart rate</span>
+        </div>
+        <div class="upload-view__status-item">
+          <svg
+            class="upload-view__status-icon"
+            :class="hasElevationData ? 'upload-view__status-icon--ok' : 'upload-view__status-icon--none'"
+            width="14" height="14" viewBox="0 0 14 14" fill="none"
+          >
+            <template v-if="hasElevationData">
+              <path d="M3 7l3 3 5-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </template>
+            <template v-else>
+              <path d="M4 4l6 6M10 4l-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </template>
+          </svg>
+          <span>Elevation</span>
+        </div>
+        <div class="upload-view__status-item">
+          <svg
+            class="upload-view__status-icon"
+            :class="hasCadenceData ? 'upload-view__status-icon--ok' : 'upload-view__status-icon--none'"
+            width="14" height="14" viewBox="0 0 14 14" fill="none"
+          >
+            <template v-if="hasCadenceData">
+              <path d="M3 7l3 3 5-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </template>
+            <template v-else>
+              <path d="M4 4l6 6M10 4l-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </template>
+          </svg>
+          <span>Cadence</span>
+        </div>
+        <div class="upload-view__status-item">
+          <svg
+            class="upload-view__status-icon"
+            :class="hasPowerData ? 'upload-view__status-icon--ok' : 'upload-view__status-icon--none'"
+            width="14" height="14" viewBox="0 0 14 14" fill="none"
+          >
+            <template v-if="hasPowerData">
+              <path d="M3 7l3 3 5-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </template>
+            <template v-else>
+              <path d="M4 4l6 6M10 4l-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </template>
+          </svg>
+          <span>Power</span>
+        </div>
       </div>
     </div>
 
@@ -131,8 +184,6 @@ import { useSeo } from "../composables/useSeo";
 import { useFormatters } from "../composables/useFormatters";
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
 import UploadZone from "../components/UploadZone.vue";
-// @ts-ignore Vue SFC default export typing handled by current tooling setup
-import FileInfo from "../components/FileInfo.vue";
 
 useSeo({
   title: "Upload Files",
@@ -282,8 +333,8 @@ function goToPreview(): void {
     padding: 1rem;
   }
 
-  .upload-view__info-grid {
-    grid-template-columns: 1fr;
+  .upload-view__status-grid {
+    gap: 0.25rem 0.75rem;
   }
 
   .upload-view__btn {
@@ -298,18 +349,80 @@ function goToPreview(): void {
 }
 
 .upload-view__summary {
-  background: var(--color-bg-secondary, #1a1a1a);
+  background: var(--color-bg-secondary, #141414);
+  border: 1px solid var(--color-border, #333);
   border-radius: 12px;
   padding: 1.25rem;
   margin-bottom: 1rem;
 }
 
 .upload-view__summary h3 {
-  font-size: 0.9rem;
+  font-size: 0.7rem;
   margin: 0 0 0.75rem;
-  color: var(--color-text-secondary, #aaa);
+  color: var(--color-text-secondary, #999);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+.upload-view__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.upload-view__table tr + tr {
+  border-top: 1px solid var(--color-border, #333);
+}
+
+.upload-view__table td {
+  padding: 0.55rem 0;
+  font-size: 0.85rem;
+  vertical-align: middle;
+}
+
+.upload-view__table-label {
+  color: var(--color-text-secondary, #999);
+  width: 40%;
+}
+
+.upload-view__table-value {
+  color: var(--color-text, #ffffffde);
+  font-weight: 600;
+  text-align: right;
+}
+
+.upload-view__table-value--mono {
+  font-variant-numeric: tabular-nums;
+}
+
+.upload-view__status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem 1rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-border, #333);
+}
+
+.upload-view__status-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  color: var(--color-text, #ffffffde);
+}
+
+.upload-view__status-icon {
+  flex-shrink: 0;
+}
+
+.upload-view__status-icon--ok {
+  color: var(--color-status-auto, #36b37e);
+}
+
+.upload-view__status-icon--none {
+  color: var(--color-text-secondary, #999);
+  opacity: 0.5;
 }
 
 .upload-view__warning-block {
@@ -320,12 +433,6 @@ function goToPreview(): void {
   border: 1px solid rgba(255, 152, 0, 0.25);
   color: var(--color-warning-text);
   font-size: 0.85rem;
-}
-
-.upload-view__info-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 0.5rem;
 }
 
 .upload-view__actions {
