@@ -59,6 +59,7 @@ interface ProcessingState {
 }
 
 const STREAMING_MUX_FILE_SIZE_BYTES = 512 * 1024 * 1024; // 512 MB
+const STREAMING_MUX_MIN_FRAME_COUNT = 2000;
 /**
  * Process a video file by decoding each frame, overlaying telemetry data,
  * and encoding back to an MP4 container.
@@ -336,8 +337,9 @@ export class VideoProcessor {
         return new OffscreenCanvas(videoMeta.width, videoMeta.height);
     }
 
-    private initializeProcessingState(_params: ProcessFramesParams): ProcessingState {
-        const useStreamingMux = this.options.videoFile.size >= STREAMING_MUX_FILE_SIZE_BYTES;
+    private initializeProcessingState(params: ProcessFramesParams): ProcessingState {
+        const useStreamingMux = this.options.videoFile.size >= STREAMING_MUX_FILE_SIZE_BYTES
+            || params.totalFrames >= STREAMING_MUX_MIN_FRAME_COUNT;
 
         const state: ProcessingState = {
             useStreamingMux,
@@ -395,7 +397,11 @@ export class VideoProcessor {
         );
 
         if (state.useStreamingMux) {
-            state.streamingMuxSession = this.muxer.startStreamingMuxSession(params.demuxed, encodeMeta, this.abortController.signal);
+            try {
+                state.streamingMuxSession = await this.muxer.startStreamingMuxSession(params.demuxed, encodeMeta, this.abortController.signal);
+            } catch {
+                state.useStreamingMux = false;
+            }
         }
 
         return { encoder, encodeMeta };

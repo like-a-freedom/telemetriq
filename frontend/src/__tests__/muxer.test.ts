@@ -165,7 +165,7 @@ describe('muxer', () => {
 
             mockEncodedPacket.fromEncodedChunk.mockReturnValue({});
 
-            const session = muxer.startStreamingMuxSession(
+            const session = await muxer.startStreamingMuxSession(
                 mockDemuxed,
                 mockVideoMeta,
                 abortController.signal,
