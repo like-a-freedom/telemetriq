@@ -31,18 +31,18 @@ interface MetricTypography {
 function getMetricTypography(textScale: number, compact: boolean): MetricTypography {
     return {
         valueSize: compact
-            ? Math.max(24, Math.round(40 * textScale))
-            : Math.max(32, Math.round(54 * textScale)),
+            ? Math.max(26, Math.round(42 * textScale))
+            : Math.max(34, Math.round(56 * textScale)),
         unitSize: compact
-            ? Math.max(16, Math.round(20 * textScale))
-            : Math.max(20, Math.round(26 * textScale)),
+            ? Math.max(26, Math.round(42 * textScale))
+            : Math.max(34, Math.round(56 * textScale)),
         labelSize: compact
-            ? Math.max(13, Math.round(16 * textScale))
-            : Math.max(16, Math.round(22 * textScale)),
+            ? Math.max(16, Math.round(26 * textScale))
+            : Math.max(20, Math.round(32 * textScale)),
         barHeight: Math.max(4, Math.round((compact ? 4 : 5) * textScale)),
-        gapValueToLabel: Math.round((compact ? 12 : 18) * textScale),
-        gapLabelToBar: Math.round((compact ? 10 : 16) * textScale),
-        gapBetweenBlocks: Math.round((compact ? 14 : 22) * textScale),
+        gapValueToLabel: Math.round((compact ? 28 : 38) * textScale),
+        gapLabelToBar: Math.round((compact ? 14 : 20) * textScale),
+        gapBetweenBlocks: Math.round((compact ? 22 : 32) * textScale),
     };
 }
 
@@ -81,11 +81,22 @@ export function renderCyclingProLayout(
     const backdropWidth = sidebarWidth + Math.round(w * (portrait ? 0.08 : 0.06));
 
     ctx.save();
-    applyTextShadow(ctx, config);
 
     const availableMetrics = SIDEBAR_METRICS.filter(
         (metric) => config[metric.configKey] !== false && frame[metric.key] !== undefined,
     );
+
+    const lastBlockBottom = availableMetrics.length > 0
+        ? top + availableMetrics.length * metricBlockHeight
+        : top;
+    const distanceContentHeight = config.showDistance !== false
+        ? typ.valueSize + typ.gapValueToLabel + typ.labelSize
+        : 0;
+    const backdropBottom = lastBlockBottom + distanceContentHeight + Math.round(h * (portrait ? 0.04 : 0.03));
+    drawSidebarBackdrop(ctx, backdropX, backdropY, backdropWidth, Math.max(0, backdropBottom - backdropY), portrait);
+
+    applyTextShadow(ctx, config);
+
     availableMetrics.forEach((metric, index) => {
         const rawValue = frame[metric.key]!;
         drawSidebarMetric(ctx, {
@@ -119,15 +130,6 @@ export function renderCyclingProLayout(
             accentColor,
         });
     }
-
-    const lastBlockBottom = availableMetrics.length > 0
-        ? top + availableMetrics.length * metricBlockHeight
-        : top;
-    const distanceContentHeight = config.showDistance !== false
-        ? typ.valueSize + typ.gapValueToLabel + typ.labelSize
-        : 0;
-    const backdropBottom = lastBlockBottom + distanceContentHeight + Math.round(h * (portrait ? 0.04 : 0.03));
-    drawSidebarBackdrop(ctx, backdropX, backdropY, backdropWidth, Math.max(0, backdropBottom - backdropY), portrait);
 
     if (config.showSpeed !== false) {
         drawSpeedometerGauge(ctx, {
@@ -170,7 +172,6 @@ function drawSidebarBackdrop(
 function drawUnit(
     ctx: OverlayContext2D,
     unit: string,
-    unitColor: string,
     x: number,
     valueWidth: number,
     valueBaseline: number,
@@ -178,7 +179,7 @@ function drawUnit(
     unitSize: number,
     fontFamily: string,
 ): void {
-    ctx.fillStyle = unitColor;
+    ctx.fillStyle = '#FFFFFF';
     ctx.font = `700 ${unitSize}px ${fontFamily}`;
     ctx.fillText(
         unit,
@@ -217,7 +218,7 @@ function drawSidebarMetric(
 
     if (params.unit) {
         const valueWidth = ctx.measureText(params.value).width;
-        drawUnit(ctx, params.unit, params.unitColor, params.x, valueWidth, valueBaseline, t.valueSize, t.unitSize, params.fontFamily);
+        drawUnit(ctx, params.unit, params.x, valueWidth, valueBaseline, t.valueSize, t.unitSize, params.fontFamily);
     }
 
     ctx.fillStyle = params.placeholder ? 'rgba(255,255,255,0.56)' : '#FFFFFF';
@@ -258,7 +259,7 @@ function drawDistanceCallout(
     ctx.fillText(params.distanceValue, params.x, params.valueBaselineY);
 
     const distValueWidth = ctx.measureText(params.distanceValue).width;
-    drawUnit(ctx, 'KM', params.accentColor, params.x, distValueWidth, params.valueBaselineY, t.valueSize, t.unitSize, params.fontFamily);
+    drawUnit(ctx, 'KM', params.x, distValueWidth, params.valueBaselineY, t.valueSize, t.unitSize, params.fontFamily);
 
     ctx.fillStyle = '#FFFFFF';
     ctx.font = `500 ${t.labelSize}px ${params.fontFamily}`;
