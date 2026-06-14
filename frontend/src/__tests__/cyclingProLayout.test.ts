@@ -87,7 +87,7 @@ describe('cyclingPro layout', () => {
         expect(ctx.fillText).toHaveBeenCalledWith('Power', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).toHaveBeenCalledWith('Heart rate', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).toHaveBeenCalledWith('054', expect.any(Number), expect.any(Number));
-        expect(ctx.fillText).toHaveBeenCalledWith('KM/h', expect.any(Number), expect.any(Number));
+        expect(ctx.fillText).toHaveBeenCalledWith('km/h', expect.any(Number), expect.any(Number));
     });
 
     it('does not render sidebar metrics when data is missing', () => {
