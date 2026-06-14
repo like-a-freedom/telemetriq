@@ -38,7 +38,7 @@ describe('speedometerGauge', () => {
         });
 
         expect(ctx.fillText).toHaveBeenCalledWith('054', expect.any(Number), expect.any(Number));
-        expect(ctx.fillText).toHaveBeenCalledWith('KM/h', expect.any(Number), expect.any(Number));
+        expect(ctx.fillText).toHaveBeenCalledWith('km/h', expect.any(Number), expect.any(Number));
         expect(ctx.arc).toHaveBeenCalled();
     });
 });
