@@ -74,6 +74,8 @@ export class VideoProcessor {
     private muxer = createMuxer();
     private codecManager = createVideoCodecManager();
     private activeProfiler = createVideoProcessingProfiler();
+    private paused = false;
+    private pauseResumeResolve: (() => void) | null = null;
 
     constructor(options: VideoProcessorOptions) {
         this.options = options;
@@ -183,6 +185,33 @@ export class VideoProcessor {
      */
     cancel(): void {
         this.abortController.abort();
+    }
+
+    /**
+     * Pause processing. Decode loop waits without spinning.
+     * Call resume() to continue.
+     */
+    pause(): void {
+        this.paused = true;
+    }
+
+    /**
+     * Resume processing after pause.
+     */
+    resume(): void {
+        this.paused = false;
+        this.pauseResumeResolve?.();
+        this.pauseResumeResolve = null;
+    }
+
+    /**
+     * Wait while paused. Resolves immediately if not paused.
+     */
+    private async waitForResume(): Promise<void> {
+        if (!this.paused) return;
+        return new Promise<void>((resolve) => {
+            this.pauseResumeResolve = resolve;
+        });
     }
 
     private async ensureDecodableTrack(
@@ -401,6 +430,16 @@ export class VideoProcessor {
         if (state.useStreamingMux) {
             try {
                 state.streamingMuxSession = await this.muxer.startStreamingMuxSession(params.demuxed, encodeMeta, this.abortController.signal);
+
+                if (!state.streamingMuxSession.opfsAvailable) {
+                    this.options.onProgress?.({
+                        phase: 'processing',
+                        percent: 0,
+                        framesProcessed: 0,
+                        totalFrames: 0,
+                        warning: 'Streaming mux is using in-memory buffer — your device does not support OPFS. Long videos may fail on memory-limited devices.',
+                    });
+                }
             } catch {
                 state.useStreamingMux = false;
             }
@@ -489,6 +528,11 @@ export class VideoProcessor {
         try {
             for (const sample of params.videoSamples) {
                 if (this.abortController.signal.aborted) break;
+
+                if (this.paused) {
+                    await this.waitForResume();
+                    if (this.abortController.signal.aborted) break;
+                }
 
                 if (inFlightTasks.count >= processingProfile.maxInFlightFrameTasks) {
                     await state.frameProcessingQueue;

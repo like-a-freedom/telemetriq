@@ -41,6 +41,7 @@ export type StreamingMuxSession = {
         audioDecoderConfig?: AudioDecoderConfig,
         onProgress?: (percent: number) => void,
     ) => Promise<Blob>;
+    opfsAvailable: boolean;
 };
 
 export type VideoEncodeMeta = {

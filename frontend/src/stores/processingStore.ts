@@ -13,6 +13,16 @@ const PHASE_PERCENT_RANGES: Record<ProcessingProgress['phase'], { min: number; m
 };
 
 const PERSISTED_RESULT_KEY = 'processing-result';
+const PERSISTED_PROCESSING_STATE_KEY = 'processing-state';
+const PROCESSING_STATE_PERSIST_INTERVAL_MS = 5000;
+
+interface PersistedProcessingState {
+    phase: ProcessingProgress['phase'];
+    framesProcessed: number;
+    totalFrames: number;
+    videoFileName: string;
+    timestampMs: number;
+}
 
 function createResultStorage(): BrowserFileSystem | null {
     if (typeof indexedDB === 'undefined') return null;
@@ -26,9 +36,12 @@ export const useProcessingStore = defineStore('processing', () => {
     const resultBlob = ref<Blob | null>(null);
     const resultUrl = ref<string | null>(null);
     const processingError = ref<string | null>(null);
+    const processingWarning = ref<string | null>(null);
     const startedAtMs = ref<number | null>(null);
     const etaCalculator = ref<ReturnType<typeof createEtaCalculator> | null>(null);
     const resultStorage = createResultStorage();
+    let persistTimer: ReturnType<typeof setInterval> | null = null;
+    let lastPersistedVideoFileName = '';
 
     // Computed
     const isComplete = computed(() => progress.value.phase === 'complete');
@@ -39,6 +52,7 @@ export const useProcessingStore = defineStore('processing', () => {
     function startProcessing(totalFrames: number): void {
         isProcessing.value = true;
         processingError.value = null;
+        processingWarning.value = null;
         startedAtMs.value = Date.now();
         etaCalculator.value = createEtaCalculator(startedAtMs.value);
         resultBlob.value = null;
@@ -55,6 +69,8 @@ export const useProcessingStore = defineStore('processing', () => {
             framesProcessed: 0,
             totalFrames,
         };
+
+        startPersistTimer();
     }
 
     function updateProgress(update: ProcessingProgress): void {
@@ -72,9 +88,15 @@ export const useProcessingStore = defineStore('processing', () => {
             percent: safePercent,
             estimatedRemainingSeconds,
         };
+
+        if (update.warning) {
+            processingWarning.value = update.warning;
+        }
     }
 
     function setResult(blob: Blob): void {
+        stopPersistTimer();
+        void deletePersistedProcessingState();
         resultBlob.value = blob;
         resultUrl.value = URL.createObjectURL(blob);
         progress.value = {
@@ -92,6 +114,7 @@ export const useProcessingStore = defineStore('processing', () => {
     }
 
     function setError(message: string): void {
+        stopPersistTimer();
         processingError.value = message;
         isProcessing.value = false;
     }
@@ -145,8 +168,11 @@ export const useProcessingStore = defineStore('processing', () => {
 
     // Helpers
     function resetProcessingState(): void {
+        stopPersistTimer();
+        void deletePersistedProcessingState();
         isProcessing.value = false;
         processingError.value = null;
+        processingWarning.value = null;
         startedAtMs.value = null;
         etaCalculator.value = null;
         resultBlob.value = null;
@@ -162,12 +188,86 @@ export const useProcessingStore = defineStore('processing', () => {
         });
     }
 
+    function startPersistTimer(): void {
+        stopPersistTimer();
+        persistTimer = setInterval(() => {
+            if (!isProcessing.value || !lastPersistedVideoFileName) return;
+            void persistProcessingState(lastPersistedVideoFileName);
+        }, PROCESSING_STATE_PERSIST_INTERVAL_MS);
+    }
+
+    function stopPersistTimer(): void {
+        if (persistTimer !== null) {
+            clearInterval(persistTimer);
+            persistTimer = null;
+        }
+    }
+
+    async function persistProcessingState(videoFileName: string): Promise<void> {
+        if (!resultStorage) return;
+
+        const state: PersistedProcessingState = {
+            phase: progress.value.phase,
+            framesProcessed: progress.value.framesProcessed,
+            totalFrames: progress.value.totalFrames,
+            videoFileName,
+            timestampMs: Date.now(),
+        };
+
+        try {
+            await resultStorage.writeFile(
+                PERSISTED_PROCESSING_STATE_KEY,
+                new Blob([JSON.stringify(state)], { type: 'application/json' }),
+            );
+        } catch (error) {
+            console.warn('[processingStore] Failed to persist processing state', error);
+        }
+    }
+
+    async function restorePersistedProcessingState(): Promise<PersistedProcessingState | null> {
+        if (!resultStorage) return null;
+
+        try {
+            const blob = await resultStorage.readFile(PERSISTED_PROCESSING_STATE_KEY);
+            if (!blob) return null;
+
+            const text = await blob.text();
+            const state = JSON.parse(text) as PersistedProcessingState;
+
+            // Sanity check: state must be recent (within last 30 minutes)
+            if (Date.now() - state.timestampMs > 30 * 60 * 1000) {
+                void deletePersistedProcessingState();
+                return null;
+            }
+
+            return state;
+        } catch (error) {
+            console.warn('[processingStore] Failed to restore persisted processing state', error);
+            return null;
+        }
+    }
+
+    async function deletePersistedProcessingState(): Promise<void> {
+        if (!resultStorage) return;
+
+        try {
+            await resultStorage.deleteFile(PERSISTED_PROCESSING_STATE_KEY);
+        } catch {
+            // best-effort cleanup
+        }
+    }
+
+    function setLastPersistedVideoFileName(name: string): void {
+        lastPersistedVideoFileName = name;
+    }
+
     return {
         isProcessing,
         progress,
         resultBlob,
         resultUrl,
         processingError,
+        processingWarning,
         isComplete,
         hasResult,
         progressPercent,
@@ -179,6 +279,9 @@ export const useProcessingStore = defineStore('processing', () => {
         cancelProcessing,
         reset,
         restorePersistedResult,
+        restorePersistedProcessingState,
+        deletePersistedProcessingState,
+        setLastPersistedVideoFileName,
     };
 });
 

@@ -7,6 +7,32 @@
       </p>
     </header>
 
+    <!-- Interrupted processing state -->
+    <div
+      v-if="interruptedProcessing"
+      class="processing-view__interrupted"
+      data-testid="interrupted-processing"
+    >
+      <p>
+        ⚠️ Processing was interrupted
+        <span v-if="interruptedProcessing.totalFrames > 0">
+          ({{ interruptedProcessing.framesProcessed }} / {{ interruptedProcessing.totalFrames }} frames)
+        </span>
+      </p>
+      <p class="processing-view__interrupted-hint">
+        The previous processing session did not complete. This can happen if the browser tab was backgrounded or closed.
+      </p>
+      <div class="processing-view__actions">
+        <button
+          class="processing-view__btn processing-view__btn--primary"
+          @click="handleInterruptedStartOver"
+          data-testid="start-over-btn"
+        >
+          Start over
+        </button>
+      </div>
+    </div>
+
     <!-- Background warning -->
     <div v-if="!pageVisible && processingStore.isProcessing" class="processing-view__bg-warning">
       <p>⚠️ Tab in background — browser may suspend processing. Return to this tab to continue.</p>
@@ -50,6 +76,14 @@
       :progress="processingStore.progress"
       :has-error="!!processingStore.processingError"
     />
+
+    <div
+      v-if="processingStore.processingWarning"
+      class="processing-view__warning"
+      data-testid="processing-warning"
+    >
+      <p>⚠️ {{ processingStore.processingWarning }}</p>
+    </div>
 
     <div
       v-if="processingStore.processingError"
@@ -181,6 +215,7 @@ async function startProcessingFlow(): Promise<void> {
   const videoMeta = filesStore.videoMeta!;
   const totalFrames = Math.ceil(videoMeta.duration * videoMeta.fps);
 
+  processingStore.setLastPersistedVideoFileName(videoMeta.fileName);
   processingStore.startProcessing(totalFrames);
   await wakeLock.request();
 
@@ -218,7 +253,22 @@ async function startProcessingFlow(): Promise<void> {
 
 function onVisibilityChange(): void {
   pageVisible.value = !document.hidden;
+
+  if (!processorRef.value || !processingStore.isProcessing) return;
+
+  if (document.hidden) {
+    processorRef.value.pause();
+  } else {
+    processorRef.value.resume();
+  }
 }
+
+const interruptedProcessing = ref<{
+  phase: string;
+  framesProcessed: number;
+  totalFrames: number;
+  videoFileName: string;
+} | null>(null);
 
 onMounted(async () => {
   document.addEventListener("visibilitychange", onVisibilityChange);
@@ -242,6 +292,18 @@ onMounted(async () => {
   }
 
   if (!filesStore.isReady && !isE2E) {
+    // Check if there was an interrupted processing session
+    const interrupted = await processingStore.restorePersistedProcessingState();
+    if (interrupted) {
+      // Show interrupted state — user can decide to start over
+      interruptedProcessing.value = {
+        phase: interrupted.phase,
+        framesProcessed: interrupted.framesProcessed,
+        totalFrames: interrupted.totalFrames,
+        videoFileName: interrupted.videoFileName,
+      };
+      return;
+    }
     router.push("/");
     return;
   }
@@ -300,6 +362,13 @@ function goToResult(): void {
   router.push("/result");
 }
 
+function handleInterruptedStartOver(): void {
+  interruptedProcessing.value = null;
+  void processingStore.deletePersistedProcessingState();
+  filesStore.reset();
+  router.push("/");
+}
+
 // Auto-redirect when complete
 watch(
   () => processingStore.isComplete,
@@ -337,6 +406,29 @@ watch(
   margin: 0;
 }
 
+.processing-view__interrupted {
+  margin-bottom: 1.5rem;
+  padding: 1.25rem;
+  background: rgba(255, 152, 0, 0.1);
+  border: 1px solid rgba(255, 152, 0, 0.3);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.processing-view__interrupted p {
+  color: var(--color-warning-text, #ffb74d);
+  margin: 0 0 0.5rem;
+}
+
+.processing-view__interrupted p:last-child {
+  margin-bottom: 0;
+}
+
+.processing-view__interrupted-hint {
+  color: var(--color-text-secondary, #aaa);
+  font-size: 0.85rem;
+}
+
 .processing-view__error {
   margin-top: 1.5rem;
   padding: 1rem;
@@ -345,6 +437,17 @@ watch(
   border-radius: 8px;
   text-align: center;
   color: var(--color-error, #f44336);
+}
+
+.processing-view__warning {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 152, 0, 0.1);
+  border: 1px solid rgba(255, 152, 0, 0.3);
+  border-radius: 8px;
+  text-align: center;
+  color: var(--color-warning-text, #ffb74d);
+  font-size: 0.85rem;
 }
 
 .processing-view__actions {
