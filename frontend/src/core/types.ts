@@ -233,6 +233,8 @@ export interface ProcessingProgress {
     totalFrames: number;
     /** Estimated remaining seconds */
     estimatedRemainingSeconds?: number;
+    /** Non-fatal warning message to display to user */
+    warning?: string;
 }
 
 /** Named video processing phase in profiling output */

@@ -368,6 +368,7 @@ export function createMuxer(): Muxer {
                 enqueueVideoChunk,
                 flushVideoQueue,
                 finalize,
+                opfsAvailable: useOpfs,
             };
         },
     };
