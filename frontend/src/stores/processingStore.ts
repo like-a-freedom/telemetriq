@@ -109,8 +109,8 @@ export const useProcessingStore = defineStore('processing', () => {
     }
 
     async function finalizeResult(blob: Blob): Promise<void> {
-        await persistResult(blob);
         setResult(blob);
+        await persistResult(blob);
     }
 
     function setError(message: string): void {
