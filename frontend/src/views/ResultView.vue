@@ -18,7 +18,7 @@
     </div>
 
     <p
-      v-else-if="processingStore.resultUrl"
+      v-else-if="processingStore.resultBlob"
       class="result-view__preview-hint"
       data-testid="preview-disabled-hint"
     >
