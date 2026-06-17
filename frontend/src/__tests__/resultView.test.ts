@@ -8,7 +8,7 @@ const push = vi.fn();
 vi.mock("vue-router", () => ({
   useRouter: () => ({ push }),
 }));
-vi.mock("../composables/useSeo", () => ({ useSeo: () => {} }));
+vi.mock("../composables/useSeo", () => ({ useSeo: () => { } }));
 
 // In-memory IndexedDB stub for BrowserFileSystem mock
 const persistedFiles = new Map<string, Blob>();

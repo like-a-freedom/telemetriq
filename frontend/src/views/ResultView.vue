@@ -39,14 +39,44 @@
         @click="downloadResult"
         data-testid="download-btn"
       >
-        <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download
+        <svg
+          width="1em"
+          height="1em"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        Download
       </button>
       <button
         class="result-view__btn"
         @click="startOver"
         data-testid="start-over-btn"
       >
-        <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Start over
+        <svg
+          width="1em"
+          height="1em"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <polyline points="23 4 23 10 17 10" />
+          <polyline points="1 20 1 14 7 14" />
+          <path
+            d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"
+          />
+        </svg>
+        Start over
       </button>
     </div>
   </div>
@@ -113,14 +143,14 @@ async function downloadResult(): Promise<void> {
 
   // iOS Safari workaround: use showSaveFilePicker if available,
   // otherwise fall back to link click for blob URLs
-  if ('showSaveFilePicker' in window) {
+  if ("showSaveFilePicker" in window) {
     try {
       const handle = await (window as any).showSaveFilePicker({
         suggestedName: fileName,
         types: [
           {
-            description: 'MP4 Video',
-            accept: { 'video/mp4': ['.mp4'] },
+            description: "MP4 Video",
+            accept: { "video/mp4": [".mp4"] },
           },
         ],
       });
@@ -130,13 +160,13 @@ async function downloadResult(): Promise<void> {
       return;
     } catch (err) {
       // User cancelled or API not supported, fall through to link click
-      if ((err as Error).name === 'AbortError') return;
+      if ((err as Error).name === "AbortError") return;
     }
   }
 
   // Fallback: create blob URL and trigger download via link click
   const resultUrl = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const a = document.createElement("a");
   a.href = resultUrl;
   a.download = fileName;
   document.body.appendChild(a);
