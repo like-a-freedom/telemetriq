@@ -66,7 +66,33 @@ const originalVideoEncoder = globalThis.VideoEncoder;
 const originalVideoFrame = globalThis.VideoFrame;
 const originalEncodedVideoChunk = globalThis.EncodedVideoChunk;
 const originalOffscreenCanvas = globalThis.OffscreenCanvas;
+const originalNavigatorUserAgent = globalThis.navigator?.userAgent;
+const originalNavigatorMaxTouchPoints = globalThis.navigator?.maxTouchPoints;
 let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+
+function setNavigatorEnvironment(userAgent: string, maxTouchPoints: number): void {
+    if (!globalThis.navigator) return;
+
+    Object.defineProperty(globalThis.navigator, 'userAgent', {
+        value: userAgent,
+        configurable: true,
+    });
+    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', {
+        value: maxTouchPoints,
+        configurable: true,
+    });
+}
+
+function createMockVideoSamples(count: number) {
+    return Array.from({ length: count }, (_, index) => ({
+        data: new Uint8Array([1, 2, 3]).buffer,
+        duration: 1_000,
+        dts: index * 1_000,
+        cts: index * 1_000,
+        timescale: 1_000_000,
+        is_rap: index === 0,
+    }));
+}
 
 beforeEach(() => {
     consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
@@ -146,6 +172,16 @@ afterEach(() => {
     globalThis.VideoFrame = originalVideoFrame;
     globalThis.EncodedVideoChunk = originalEncodedVideoChunk;
     globalThis.OffscreenCanvas = originalOffscreenCanvas;
+    if (globalThis.navigator) {
+        Object.defineProperty(globalThis.navigator, 'userAgent', {
+            value: originalNavigatorUserAgent,
+            configurable: true,
+        });
+        Object.defineProperty(globalThis.navigator, 'maxTouchPoints', {
+            value: originalNavigatorMaxTouchPoints,
+            configurable: true,
+        });
+    }
     vi.clearAllMocks();
 });
 
@@ -286,5 +322,86 @@ describe('VideoProcessor', () => {
                 muxing: expect.objectContaining({ durationMs: expect.any(Number) }),
             }),
         }));
+    });
+
+    it('uses streaming mux earlier on Apple mobile WebKit for long videos', async () => {
+        setNavigatorEnvironment(
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.7 Mobile/15E148 Safari/604.1',
+            5,
+        );
+
+        const demuxerModule = await import('../modules/demuxer');
+        vi.mocked(demuxerModule.createDemuxer).mockImplementationOnce(() => ({
+            demux: vi.fn().mockRejectedValue(new Error('Direct demux not available')),
+            demuxWithFallback: vi.fn().mockResolvedValue({
+                videoTrack: { id: 1, codec: 'avc1.640028', codecName: 'avc1', timescale: 1_000_000 },
+                videoSamples: createMockVideoSamples(1_527),
+                audioSamples: [],
+            }),
+        }) as any);
+
+        const startStreamingMuxSession = vi.fn().mockResolvedValue({
+            enqueueVideoChunk: vi.fn(),
+            flushVideoQueue: vi.fn().mockResolvedValue(undefined),
+            finalize: vi.fn().mockResolvedValue(new Blob([new Uint8Array([8])], { type: 'video/mp4' })),
+            opfsAvailable: true,
+        });
+
+        const muxerModule = await import('../modules/muxer');
+        vi.mocked(muxerModule.createMuxer).mockImplementationOnce(() => ({
+            muxMp4: vi.fn().mockResolvedValue(new Blob([new Uint8Array([9])], { type: 'video/mp4' })),
+            startStreamingMuxSession,
+        }) as any);
+
+        const processor = new VideoProcessor({
+            videoFile: new File([], 'long-run.mp4', { type: 'video/mp4' }),
+            videoMeta: createMockVideoMeta({ duration: 51 }),
+            telemetryFrames: [],
+            syncOffsetSeconds: 0,
+        });
+
+        await processor.process();
+
+        expect(startStreamingMuxSession).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips FFmpeg remux on Apple mobile WebKit even when it is requested', async () => {
+        setNavigatorEnvironment(
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.7 Mobile/15E148 Safari/604.1',
+            5,
+        );
+
+        const ffmpegModule = await import('../modules/ffmpegUtils');
+        const processor = new VideoProcessor({
+            videoFile: new File([], 'test.mp4'),
+            videoMeta: createMockVideoMeta(),
+            telemetryFrames: [],
+            syncOffsetSeconds: 0,
+            useFfmpegMux: true,
+        });
+
+        await processor.process();
+
+        expect(ffmpegModule.remuxWithFfmpeg).not.toHaveBeenCalled();
+    });
+
+    it('keeps FFmpeg remux enabled on desktop browsers when requested', async () => {
+        setNavigatorEnvironment(
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+            0,
+        );
+
+        const ffmpegModule = await import('../modules/ffmpegUtils');
+        const processor = new VideoProcessor({
+            videoFile: new File([], 'test.mp4'),
+            videoMeta: createMockVideoMeta(),
+            telemetryFrames: [],
+            syncOffsetSeconds: 0,
+            useFfmpegMux: true,
+        });
+
+        await processor.process();
+
+        expect(ffmpegModule.remuxWithFfmpeg).toHaveBeenCalledTimes(1);
     });
 });

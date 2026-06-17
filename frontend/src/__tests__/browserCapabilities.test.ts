@@ -35,6 +35,9 @@ describe('getVideoProcessingDeviceProfile', () => {
         })).toEqual({
             maxInFlightFrameTasks: 2,
             codecQueueHighWatermark: 12,
+            streamingMuxFileSizeBytes: 128 * 1024 * 1024,
+            streamingMuxMinFrameCount: 1000,
+            allowFfmpegMuxRemux: false,
             profileName: 'apple-mobile-webkit',
         });
     });
@@ -46,6 +49,9 @@ describe('getVideoProcessingDeviceProfile', () => {
         })).toEqual({
             maxInFlightFrameTasks: 3,
             codecQueueHighWatermark: 24,
+            streamingMuxFileSizeBytes: 512 * 1024 * 1024,
+            streamingMuxMinFrameCount: 2000,
+            allowFfmpegMuxRemux: true,
             profileName: 'default',
         });
     });
