@@ -58,9 +58,6 @@ interface ProcessingState {
     frameProcessingQueue: Promise<void>;
     framesProcessed: number;
 }
-
-const STREAMING_MUX_FILE_SIZE_BYTES = 512 * 1024 * 1024; // 512 MB
-const STREAMING_MUX_MIN_FRAME_COUNT = 2000;
 /**
  * Process a video file by decoding each frame, overlaying telemetry data,
  * and encoding back to an MP4 container.
@@ -328,8 +325,8 @@ export class VideoProcessor {
 
     private async processFrames(params: ProcessFramesParams): Promise<Blob> {
         const canvas = this.createProcessingCanvas(params.videoMeta);
-        const processingState = this.initializeProcessingState(params);
         const processingProfile = getVideoProcessingDeviceProfile();
+        const processingState = this.initializeProcessingState(params, processingProfile);
 
         await this.tryInitializeWebGPU();
 
@@ -346,18 +343,18 @@ export class VideoProcessor {
         }
 
         const blob = await this.activeProfiler.measure('muxing', async () => {
-            return await this.muxAndFinalize(params, processingState, encodeMeta);
+            return await this.muxAndFinalize(params, processingState, encodeMeta, processingProfile);
         });
-        this.emitProfile(processingState.framesProcessed);
+        this.emitProfile(processingState.framesProcessed, processingState.useStreamingMux);
         return blob;
     }
 
-    private emitProfile(processedFrames: number): void {
+    private emitProfile(processedFrames: number, usedStreamingMux: boolean): void {
         if (!this.options.onProfile) return;
 
         const profile = this.activeProfiler.finish({
             processedFrames,
-            usedStreamingMux: this.options.videoFile.size >= STREAMING_MUX_FILE_SIZE_BYTES,
+            usedStreamingMux,
         });
 
         this.options.onProfile(profile);
@@ -367,9 +364,12 @@ export class VideoProcessor {
         return new OffscreenCanvas(videoMeta.width, videoMeta.height);
     }
 
-    private initializeProcessingState(params: ProcessFramesParams): ProcessingState {
-        const useStreamingMux = this.options.videoFile.size >= STREAMING_MUX_FILE_SIZE_BYTES
-            || params.totalFrames >= STREAMING_MUX_MIN_FRAME_COUNT;
+    private initializeProcessingState(
+        params: ProcessFramesParams,
+        processingProfile: ReturnType<typeof getVideoProcessingDeviceProfile>,
+    ): ProcessingState {
+        const useStreamingMux = this.options.videoFile.size >= processingProfile.streamingMuxFileSizeBytes
+            || params.totalFrames >= processingProfile.streamingMuxMinFrameCount;
 
         const state: ProcessingState = {
             useStreamingMux,
@@ -567,6 +567,7 @@ export class VideoProcessor {
         params: ProcessFramesParams,
         state: ProcessingState,
         encodeMeta: VideoMeta,
+        processingProfile: ReturnType<typeof getVideoProcessingDeviceProfile>,
     ): Promise<Blob> {
         params.reportMuxProgress.report(0, state.framesProcessed);
 
@@ -581,7 +582,7 @@ export class VideoProcessor {
             framesProcessed: state.framesProcessed,
         });
 
-        if (this.options.useFfmpegMux) {
+        if (this.options.useFfmpegMux && processingProfile.allowFfmpegMuxRemux) {
             params.reportMuxProgress.report(99, state.framesProcessed);
             try {
                 blob = await remuxWithFfmpeg(blob);
