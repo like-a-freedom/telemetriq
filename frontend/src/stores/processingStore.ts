@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import type { ProcessingProgress } from '../core/types';
 import { createEtaCalculator } from './storeUtils';
 import { BrowserFileSystem } from '../modules/fileSystem';
+import { shouldAvoidInlineResultPreview } from '../modules/browserCapabilities';
 
 const PHASE_PERCENT_RANGES: Record<ProcessingProgress['phase'], { min: number; max: number }> = {
     demuxing: { min: 0, max: 5 },
@@ -25,7 +26,12 @@ interface PersistedProcessingState {
 }
 
 function createResultStorage(): BrowserFileSystem | null {
-    if (typeof indexedDB === 'undefined') return null;
+    const hasIndexedDb = typeof indexedDB !== 'undefined';
+    const hasOpfs = typeof navigator !== 'undefined'
+        && typeof navigator.storage?.getDirectory === 'function';
+
+    if (!hasIndexedDb && !hasOpfs) return null;
+
     return new BrowserFileSystem();
 }
 
@@ -48,6 +54,21 @@ export const useProcessingStore = defineStore('processing', () => {
     const hasResult = computed(() => resultBlob.value !== null);
     const progressPercent = computed(() => progress.value.percent);
 
+    function revokeResultUrl(): void {
+        if (resultUrl.value) {
+            URL.revokeObjectURL(resultUrl.value);
+            resultUrl.value = null;
+        }
+    }
+
+    function syncResultUrl(blob: Blob): void {
+        revokeResultUrl();
+
+        if (!shouldAvoidInlineResultPreview()) {
+            resultUrl.value = URL.createObjectURL(blob);
+        }
+    }
+
     // Actions
     function startProcessing(totalFrames: number): void {
         isProcessing.value = true;
@@ -57,11 +78,7 @@ export const useProcessingStore = defineStore('processing', () => {
         etaCalculator.value = createEtaCalculator(startedAtMs.value);
         resultBlob.value = null;
         deletePersistedResult();
-
-        if (resultUrl.value) {
-            URL.revokeObjectURL(resultUrl.value);
-            resultUrl.value = null;
-        }
+        revokeResultUrl();
 
         progress.value = {
             phase: 'demuxing',
@@ -96,9 +113,8 @@ export const useProcessingStore = defineStore('processing', () => {
 
     function setResult(blob: Blob): void {
         stopPersistTimer();
-        void deletePersistedProcessingState();
         resultBlob.value = blob;
-        resultUrl.value = URL.createObjectURL(blob);
+        syncResultUrl(blob);
         progress.value = {
             ...progress.value,
             phase: 'complete',
@@ -110,7 +126,10 @@ export const useProcessingStore = defineStore('processing', () => {
 
     async function finalizeResult(blob: Blob): Promise<void> {
         setResult(blob);
-        await persistResult(blob);
+        const persisted = await persistResult(blob);
+        if (persisted) {
+            await deletePersistedProcessingState();
+        }
     }
 
     function setError(message: string): void {
@@ -124,9 +143,7 @@ export const useProcessingStore = defineStore('processing', () => {
     }
 
     function reset(): void {
-        if (resultUrl.value) {
-            URL.revokeObjectURL(resultUrl.value);
-        }
+        revokeResultUrl();
         deletePersistedResult();
         resetProcessingState();
     }
@@ -139,7 +156,7 @@ export const useProcessingStore = defineStore('processing', () => {
             if (!persistedBlob) return;
 
             resultBlob.value = persistedBlob;
-            resultUrl.value = URL.createObjectURL(persistedBlob);
+            syncResultUrl(persistedBlob);
             processingError.value = null;
             isProcessing.value = false;
             startedAtMs.value = null;
@@ -156,13 +173,15 @@ export const useProcessingStore = defineStore('processing', () => {
         }
     }
 
-    async function persistResult(blob: Blob): Promise<void> {
-        if (!resultStorage) return;
+    async function persistResult(blob: Blob): Promise<boolean> {
+        if (!resultStorage) return false;
 
         try {
             await resultStorage.writeFile(PERSISTED_RESULT_KEY, blob);
+            return true;
         } catch (error) {
             console.warn('[processingStore] Failed to persist result', error);
+            return false;
         }
     }
 
@@ -176,7 +195,7 @@ export const useProcessingStore = defineStore('processing', () => {
         startedAtMs.value = null;
         etaCalculator.value = null;
         resultBlob.value = null;
-        resultUrl.value = null;
+        revokeResultUrl();
         progress.value = createInitialProgress();
     }
 

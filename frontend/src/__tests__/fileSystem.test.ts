@@ -5,8 +5,14 @@
  * Functional IndexedDB round-trip behavior requires a real browser environment
  * and is validated in E2E tests.
  */
-import { describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BrowserFileSystem, type FileSystemInterface } from '../modules/fileSystem';
+
+function createNotFoundError(): Error {
+    const error = new Error('Not found');
+    error.name = 'NotFoundError';
+    return error;
+}
 
 describe('FileSystemInterface', () => {
     it('should define the required interface methods', () => {
@@ -29,6 +35,14 @@ describe('FileSystemInterface', () => {
 });
 
 describe('BrowserFileSystem', () => {
+    beforeEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
     it('should create an instance', () => {
         const fs = new BrowserFileSystem();
         expect(fs).toBeInstanceOf(BrowserFileSystem);
@@ -37,5 +51,69 @@ describe('BrowserFileSystem', () => {
     it('should be usable as FileSystemInterface', () => {
         const fs: FileSystemInterface = new BrowserFileSystem();
         expect(fs).toBeDefined();
+    });
+
+    it('stores files in OPFS when navigator.storage.getDirectory is available', async () => {
+        const opfsFiles = new Map<string, Blob>();
+        const root = {
+            async getFileHandle(name: string, options?: { create?: boolean }) {
+                if (!options?.create && !opfsFiles.has(name)) {
+                    throw createNotFoundError();
+                }
+
+                return {
+                    name,
+                    async createWritable() {
+                        return {
+                            async write(data: Blob) {
+                                opfsFiles.set(name, data);
+                            },
+                            async close() {
+                                return undefined;
+                            },
+                        };
+                    },
+                    async getFile() {
+                        const blob = opfsFiles.get(name);
+                        if (!blob) {
+                            throw createNotFoundError();
+                        }
+
+                        return new File([blob], name, { type: blob.type });
+                    },
+                };
+            },
+            async removeEntry(name: string) {
+                if (!opfsFiles.delete(name)) {
+                    throw createNotFoundError();
+                }
+            },
+            async *entries() {
+                for (const name of opfsFiles.keys()) {
+                    yield [name, { kind: 'file', name }];
+                }
+            },
+        };
+
+        vi.stubGlobal('navigator', {
+            storage: {
+                getDirectory: vi.fn().mockResolvedValue(root),
+            },
+        });
+        vi.stubGlobal('indexedDB', undefined);
+
+        const fs = new BrowserFileSystem();
+        const blob = new Blob(['opfs-data'], { type: 'text/plain' });
+
+        await fs.writeFile('processing-result', blob);
+
+        const roundTrip = await fs.readFile('processing-result');
+        expect(await roundTrip?.text()).toBe('opfs-data');
+
+        const files = await fs.listFiles();
+        expect(files).toContain('processing-result');
+
+        await fs.deleteFile('processing-result');
+        await expect(fs.readFile('processing-result')).resolves.toBeNull();
     });
 });

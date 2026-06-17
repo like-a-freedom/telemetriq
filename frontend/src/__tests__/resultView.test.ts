@@ -9,9 +9,6 @@ vi.mock("vue-router", () => ({
   useRouter: () => ({ push }),
 }));
 vi.mock("../composables/useSeo", () => ({ useSeo: () => {} }));
-vi.mock("../modules/browserCapabilities", () => ({
-  shouldAvoidInlineResultPreview: () => false,
-}));
 
 // In-memory IndexedDB stub for BrowserFileSystem mock
 const persistedFiles = new Map<string, Blob>();
@@ -38,6 +35,7 @@ vi.mock("../modules/fileSystem", () => ({
 }));
 
 import ResultView from "../views/ResultView.vue";
+import * as browserCapabilities from "../modules/browserCapabilities";
 import { useFilesStore } from "../stores/filesStore";
 import { useProcessingStore } from "../stores/processingStore";
 import { useSettingsStore } from "../stores/settingsStore";
@@ -45,7 +43,9 @@ import { useSyncStore } from "../stores/syncStore";
 
 describe("ResultView", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     push.mockReset();
+    vi.spyOn(browserCapabilities, "shouldAvoidInlineResultPreview").mockReturnValue(false);
     persistedFiles.clear();
     vi.stubGlobal("indexedDB", indexedDbStub);
     setActivePinia(createPinia());
@@ -379,6 +379,25 @@ describe("ResultView", () => {
       await flushPromises();
 
       expect(wrapper.find('[data-testid="result-video"]').exists()).toBe(true);
+    });
+
+    it("shows the low-memory hint when preview is disabled even without a blob URL", async () => {
+      vi.spyOn(browserCapabilities, "shouldAvoidInlineResultPreview").mockReturnValue(true);
+
+      const processingStore = useProcessingStore();
+      processingStore.setResult(
+        new Blob(["processed-video"], { type: "video/mp4" }),
+      );
+      processingStore.resultUrl = null;
+
+      const wrapper = mount(ResultView, {
+        global: { stubs: { FileInfo: true } },
+      });
+
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="preview-disabled-hint"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="download-btn"]').exists()).toBe(true);
     });
   });
 });

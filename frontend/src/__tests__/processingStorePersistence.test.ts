@@ -1,11 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
 const persistedFiles = new Map<string, Blob>();
 const indexedDbStub = {} as IDBFactory;
+const failingWriteKeys = new Set<string>();
 
 class MockBrowserFileSystem {
     async writeFile(key: string, data: Blob): Promise<void> {
+        if (failingWriteKeys.has(key)) {
+            throw new Error(`Failed to persist ${key}`);
+        }
+
         persistedFiles.set(key, data);
     }
 
@@ -29,10 +34,16 @@ vi.mock('../modules/fileSystem', () => ({
 describe('processingStore persisted result recovery', () => {
     beforeEach(() => {
         vi.resetModules();
+        vi.useRealTimers();
         vi.stubGlobal('indexedDB', indexedDbStub);
         persistedFiles.clear();
+        failingWriteKeys.clear();
         sessionStorage.clear();
         setActivePinia(createPinia());
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
     });
 
     it('restores the processed result after a simulated app reload', async () => {
@@ -69,6 +80,39 @@ describe('processingStore persisted result recovery', () => {
         store.reset();
         await vi.waitFor(() => {
             expect(persistedFiles.size).toBe(0);
+        });
+    });
+
+    it('keeps interrupted-processing recovery state when final result persistence fails', async () => {
+        vi.useFakeTimers();
+
+        const { useProcessingStore } = await import('../stores/processingStore');
+
+        const store = useProcessingStore();
+        store.setLastPersistedVideoFileName('long-run.mp4');
+        store.startProcessing(1500);
+        store.updateProgress({
+            phase: 'muxing',
+            percent: 80,
+            framesProcessed: 1490,
+            totalFrames: 1500,
+        });
+
+        await vi.advanceTimersByTimeAsync(5000);
+        await vi.waitFor(() => {
+            expect(persistedFiles.has('processing-state')).toBe(true);
+        });
+
+        failingWriteKeys.add('processing-result');
+
+        await store.finalizeResult(new Blob(['processed-video'], { type: 'video/mp4' }));
+
+        const interruptedState = await store.restorePersistedProcessingState();
+
+        expect(interruptedState).toMatchObject({
+            videoFileName: 'long-run.mp4',
+            totalFrames: 1500,
+            framesProcessed: 1490,
         });
     });
 });
