@@ -379,7 +379,21 @@ function findDateInUnknown(value: unknown): Date | undefined {
             if (fromKey) return fromKey;
         }
 
-        for (const nestedValue of Object.values(record)) {
+        const skipKeys = new Set([
+            'modification_time',
+            'modificationTime',
+            'modificationdate',
+            'modificationDate',
+            'modified_time',
+            'modifiedTime',
+            'mod_date',
+            'modDate',
+            'updated_at',
+            'updatedAt',
+        ]);
+
+        for (const [key, nestedValue] of Object.entries(record)) {
+            if (skipKeys.has(key)) continue;
             const nested = findDateInUnknown(nestedValue);
             if (nested) return nested;
         }
