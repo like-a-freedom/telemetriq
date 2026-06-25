@@ -4,14 +4,7 @@ import type { ProcessingProgress } from '../core/types';
 import { createEtaCalculator } from './storeUtils';
 import { BrowserFileSystem } from '../modules/fileSystem';
 import { shouldAvoidInlineResultPreview } from '../modules/browserCapabilities';
-
-const PHASE_PERCENT_RANGES: Record<ProcessingProgress['phase'], { min: number; max: number }> = {
-    demuxing: { min: 0, max: 5 },
-    encoding: { min: 5, max: 85 },
-    processing: { min: 5, max: 92 },
-    muxing: { min: 92, max: 99 },
-    complete: { min: 100, max: 100 },
-};
+import { mapProgressPhase } from '../modules/progressUtils';
 
 const PERSISTED_RESULT_KEY = 'processing-result';
 const PERSISTED_PROCESSING_STATE_KEY = 'processing-state';
@@ -91,8 +84,7 @@ export const useProcessingStore = defineStore('processing', () => {
     }
 
     function updateProgress(update: ProcessingProgress): void {
-        const mappedPercent = calculateMappedPercent(update.phase, update.percent);
-        const safePercent = calculateSafePercent(update.phase, mappedPercent, progress.value.percent);
+        const safePercent = mapProgressPhase(update.phase, update.percent, progress.value.percent);
 
         const estimatedRemainingSeconds = calculateEta(
             safePercent,
@@ -311,24 +303,6 @@ function createInitialProgress(): ProcessingProgress {
         framesProcessed: 0,
         totalFrames: 0,
     };
-}
-
-function calculateMappedPercent(phase: ProcessingProgress['phase'], rawPercent: number): number {
-    if (phase === 'complete') return 100;
-
-    const { min, max } = PHASE_PERCENT_RANGES[phase];
-    const normalized = Math.max(0, Math.min(100, rawPercent)) / 100;
-    return Math.round(min + (max - min) * normalized);
-}
-
-function calculateSafePercent(
-    phase: ProcessingProgress['phase'],
-    mappedPercent: number,
-    previousPercent: number,
-): number {
-    return phase === 'complete'
-        ? 100
-        : Math.min(99, Math.max(previousPercent, mappedPercent));
 }
 
 function calculateEta(

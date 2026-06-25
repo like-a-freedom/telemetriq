@@ -84,47 +84,20 @@ export class CodecError extends AppError {
 
 // ── Type guards ──────────────────────────────────────────────────────────
 
+function createErrorTypeGuard<T extends AppError>(ctor: new (...args: any[]) => T): (err: unknown) => err is T {
+    return (err: unknown): err is T => err instanceof ctor;
+}
+
 /** Check if error is an AppError */
 export function isAppError(err: unknown): err is AppError {
     return err instanceof Error && 'code' in err && typeof (err as AppError).code === 'string';
 }
 
-/** Check if error is a ValidationError */
-export function isValidationError(err: unknown): err is ValidationError {
-    return err instanceof ValidationError;
-}
-
-/** Check if error is a ParseError */
-export function isParseError(err: unknown): err is ParseError {
-    return err instanceof ParseError;
-}
-
-/** Check if error is a SyncError */
-export function isSyncError(err: unknown): err is SyncError {
-    return err instanceof SyncError;
-}
-
-/** Check if error is a ProcessingError */
-export function isProcessingError(err: unknown): err is ProcessingError {
-    return err instanceof ProcessingError;
-}
-
-/** Check if error is a MemoryError */
-export function isMemoryError(err: unknown): err is MemoryError {
-    return err instanceof MemoryError;
-}
-
-/** Check if error is a NotSupportedError */
-export function isNotSupportedError(err: unknown): err is NotSupportedError {
-    return err instanceof NotSupportedError;
-}
-
-/** Check if error is a FileSystemError */
-export function isFileSystemError(err: unknown): err is FileSystemError {
-    return err instanceof FileSystemError;
-}
-
-/** Check if error is a CodecError */
-export function isCodecError(err: unknown): err is CodecError {
-    return err instanceof CodecError;
-}
+export const isValidationError = createErrorTypeGuard(ValidationError);
+export const isParseError = createErrorTypeGuard(ParseError);
+export const isSyncError = createErrorTypeGuard(SyncError);
+export const isProcessingError = createErrorTypeGuard(ProcessingError);
+export const isMemoryError = createErrorTypeGuard(MemoryError);
+export const isNotSupportedError = createErrorTypeGuard(NotSupportedError);
+export const isFileSystemError = createErrorTypeGuard(FileSystemError);
+export const isCodecError = createErrorTypeGuard(CodecError);
