@@ -2,11 +2,11 @@
  * Unit tests for store-utils module.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { clamp } from '../modules/overlayUtils';
 import {
     createEtaCalculator,
     mapProgressPhase,
     safeNumber,
-    clamp,
     formatErrorMessage,
     formatErrorDetails,
     normalizeProcessingError,
