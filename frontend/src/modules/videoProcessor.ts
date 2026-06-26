@@ -1,13 +1,6 @@
 import type { TelemetryFrame, ExtendedOverlayConfig, ProcessingProgress, VideoMeta, VideoProcessingProfile } from '../core/types';
 import { ProcessingError } from '../core/errors';
-import {
-    getInterpolatedHeartRateHistory,
-    getInterpolatedElevationHistory,
-    getTelemetryAtTime,
-    TRAIL_RUN_GRAPH_LOOKBACK_SECONDS,
-    TRAIL_RUN_GRAPH_SAMPLE_COUNT,
-} from './telemetryCore';
-import { renderOverlay, DEFAULT_OVERLAY_CONFIG } from './overlayRenderer';
+import { DEFAULT_OVERLAY_CONFIG } from './overlayRenderer';
 import { transcodeWithForcedKeyframes, remuxWithFfmpeg } from './ffmpegUtils';
 import { createKeyframeDetector, detectSourceGopSize } from './keyframeDetector';
 import { createDemuxer } from './demuxer';
@@ -19,7 +12,7 @@ import {
 } from './progressUtils';
 import { isCodecQueuePressureHigh, waitForCodecQueues } from './videoProcessingTypes';
 import type { DemuxedMedia, StreamingMuxSession } from './videoProcessingTypes';
-import { drawVideoFrameWithRotation } from './frameOrientation';
+import { renderAndEncodeFrame, createVideoChunk, closeCodec } from './videoProcessing';
 import { createVideoProcessingProfiler } from './videoProcessingProfiler';
 import { getVideoProcessingDeviceProfile } from './browserCapabilities';
 
@@ -491,7 +484,7 @@ export class VideoProcessor {
                     return;
                 }
 
-                await this.renderAndEncodeFrame({
+                renderAndEncodeFrame({
                     frame,
                     canvas,
                     ctx,
@@ -538,7 +531,7 @@ export class VideoProcessor {
                     await state.frameProcessingQueue;
                 }
 
-                const chunk = this.createVideoChunk(sample);
+                const chunk = createVideoChunk(sample);
                 decoder.decode(chunk);
                 framesProcessed++;
                 params.reportProcessingProgress.report(framesProcessed);
@@ -556,8 +549,8 @@ export class VideoProcessor {
                 await encoder.flush();
             }
         } finally {
-            this.closeCodec(decoder, 'VideoDecoder');
-            this.closeCodec(encoder, 'VideoEncoder');
+            closeCodec(decoder, 'VideoDecoder');
+            closeCodec(encoder, 'VideoEncoder');
         }
 
         state.framesProcessed = framesProcessed;
@@ -594,100 +587,6 @@ export class VideoProcessor {
         this.options.onProgress?.({ phase: 'complete', percent: 100, framesProcessed: state.framesProcessed, totalFrames: params.totalFrames });
 
         return blob;
-    }
-
-    private async renderAndEncodeFrame(params: {
-        frame: VideoFrame;
-        canvas: OffscreenCanvas;
-        ctx: OffscreenCanvasRenderingContext2D;
-        videoMeta: VideoMeta;
-        videoRotation?: 0 | 90 | 180 | 270;
-        telemetryFrames: TelemetryFrame[];
-        safeSyncOffsetSeconds: number;
-        config: ExtendedOverlayConfig;
-        encoder: VideoEncoder;
-        gopFrames: number;
-        encodedFrameCount: number;
-    }): Promise<void> {
-        const {
-            frame, canvas, ctx, videoMeta, videoRotation, telemetryFrames,
-            safeSyncOffsetSeconds, config, encoder, gopFrames, encodedFrameCount,
-        } = params;
-
-        const videoTimeSec = (frame.timestamp ?? 0) / 1_000_000;
-        const telemetry = getTelemetryAtTime(
-            telemetryFrames,
-            videoTimeSec,
-            safeSyncOffsetSeconds,
-            videoMeta.duration,
-        );
-
-        const hrHistory = getInterpolatedHeartRateHistory(
-            telemetryFrames,
-            videoTimeSec,
-            safeSyncOffsetSeconds,
-            TRAIL_RUN_GRAPH_LOOKBACK_SECONDS,
-            TRAIL_RUN_GRAPH_SAMPLE_COUNT,
-        );
-
-        const elevationHistory = getInterpolatedElevationHistory(
-            telemetryFrames,
-            videoTimeSec,
-            safeSyncOffsetSeconds,
-            TRAIL_RUN_GRAPH_LOOKBACK_SECONDS,
-            TRAIL_RUN_GRAPH_SAMPLE_COUNT,
-        );
-
-        drawVideoFrameWithRotation(ctx, frame, videoMeta.width, videoMeta.height, videoRotation);
-        if (telemetry) {
-            await renderOverlay(ctx, telemetry, videoMeta.width, videoMeta.height, config, {
-                hrHistory,
-                elevationHistory,
-                destinationHasBaseFrame: true,
-            });
-        }
-
-        const newFrame = new VideoFrame(canvas, {
-            timestamp: frame.timestamp,
-            duration: frame.duration ?? undefined,
-        });
-        frame.close();
-
-        const forceKeyFrame = encodedFrameCount === 0 || (gopFrames > 0 && encodedFrameCount % gopFrames === 0);
-        if (forceKeyFrame) {
-            encoder.encode(newFrame, { keyFrame: true });
-        } else {
-            encoder.encode(newFrame);
-        }
-        newFrame.close();
-    }
-
-    private createVideoChunk(sample: DemuxedMedia['videoSamples'][number]): EncodedVideoChunk {
-        const timestampUs = (sample.cts / sample.timescale) * 1_000_000;
-        const durationUs = (sample.duration / sample.timescale) * 1_000_000;
-        const sanitizedTimestampUs = Number.isFinite(timestampUs)
-            ? Math.max(0, Math.round(timestampUs))
-            : 0;
-        const sanitizedDurationUs = Number.isFinite(durationUs)
-            ? Math.max(1, Math.round(durationUs))
-            : 1;
-
-        return new EncodedVideoChunk({
-            type: sample.is_rap ? 'key' : 'delta',
-            timestamp: sanitizedTimestampUs,
-            duration: sanitizedDurationUs,
-            data: new Uint8Array(sample.data),
-        });
-    }
-
-    private closeCodec(codec: VideoDecoder | VideoEncoder, name: string): void {
-        if (codec.state !== 'closed') {
-            try {
-                codec.close();
-            } catch (error) {
-                console.warn(`${name} close failed`, error);
-            }
-        }
     }
 
     private async finalizeOutput(params: {
