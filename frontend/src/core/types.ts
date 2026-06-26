@@ -264,3 +264,13 @@ export interface FileValidation {
     errors: string[];
     warnings: string[];
 }
+
+/** A single metric label/value/unit triple used by overlay renderers */
+export interface MetricItem {
+    label: string;
+    value: string;
+    unit: string;
+}
+
+/** Canvas 2D rendering context (browser or offscreen) */
+export type OverlayContext2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;

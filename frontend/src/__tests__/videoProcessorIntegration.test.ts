@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ALL_FORMATS, BlobSource, EncodedPacketSink, Input } from 'mediabunny';
 import { createDemuxer } from '../modules/demuxer';
-import { createKeyframeDetector } from '../modules/keyframeDetector';
+import { createKeyframeDetector } from '../modules/videoProcessing/keyframeDetector';
 
 const DJI_FILE_PATH = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../test_data/dji/dji-osmo-pocket-3.MP4');
 

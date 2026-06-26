@@ -162,7 +162,7 @@ import {
 import { normalizeProcessingError } from "../stores/storeUtils";
 import { buildTelemetryTimeline } from "../modules/telemetryCore";
 import { VideoProcessor } from "../modules/videoProcessor";
-import { preparePointsWithPower } from "../modules/powerEstimator";
+import { preparePointsWithPower } from "../modules/telemetry/powerEstimator";
 import { getWebGPUStatus, toggleWebGPU } from "../modules/webgpu";
 import { useSeo } from "../composables/useSeo";
 import { useWakeLock } from "../composables/useWakeLock";

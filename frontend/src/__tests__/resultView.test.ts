@@ -35,7 +35,7 @@ vi.mock("../modules/fileSystem", () => ({
 }));
 
 import ResultView from "../views/ResultView.vue";
-import * as browserCapabilities from "../modules/browserCapabilities";
+import * as browserCapabilities from "../modules/videoProcessing/deviceProfile";
 import { useFilesStore } from "../stores/filesStore";
 import { useProcessingStore } from "../stores/processingStore";
 import { useSettingsStore } from "../stores/settingsStore";

@@ -1,4 +1,4 @@
-import type { TelemetryFrame, ExtendedOverlayConfig } from '../core/types';
+import type { TelemetryFrame, ExtendedOverlayConfig, MetricItem } from '../core/types';
 import { formatPace } from './telemetryCore';
 import { getTemplateConfig } from './templates';
 import type { OverlayContext2D } from './overlayUtils';
@@ -31,11 +31,7 @@ const HIGH_RES_SINGLE_CACHE_MAX_PIXELS = 1920 * 1080;
 let highResolutionOverlayCache: { key: string; overlay: CachedOverlay } | null = null;
 
 /** Metric data prepared for rendering */
-export interface MetricItem {
-    label: string;
-    value: string;
-    unit: string;
-}
+export type { MetricItem } from '../core/types';
 
 export interface OverlayRenderContext {
     hrHistory?: number[];

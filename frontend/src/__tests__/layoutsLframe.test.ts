@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderLFrameLayout } from '../modules/layouts/lframeLayout';
-import type { MetricItem } from '../modules/overlayRenderer';
+import type { MetricItem } from '../core/types';
 import type { ExtendedOverlayConfig, TelemetryFrame } from '../core/types';
 
 function createMockContext() {

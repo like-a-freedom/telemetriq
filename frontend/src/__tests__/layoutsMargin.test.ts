@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderMarginLayout } from '../modules/layouts/marginLayout';
-import type { MetricItem } from '../modules/overlayRenderer';
+import type { MetricItem } from '../core/types';
 import type { ExtendedOverlayConfig } from '../core/types';
 
 function createMockContext() {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { drawVideoFrameWithRotation, normalizeVideoRotation } from '../modules/frameOrientation';
+import { drawVideoFrameWithRotation, normalizeVideoRotation } from '../modules/videoProcessing/frameOrientation';
 
 describe('frame-orientation', () => {
     it('normalizes unexpected rotation to 0', () => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     getVideoProcessingDeviceProfile,
     shouldAvoidInlineResultPreview,
-} from '../modules/browserCapabilities';
+} from '../modules/videoProcessing/deviceProfile';
 
 describe('shouldAvoidInlineResultPreview', () => {
     it('returns true for iPhone Safari', () => {

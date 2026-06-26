@@ -7,7 +7,7 @@ import {
     createMuxProgressReporter,
     createEtaCalculator,
     mapProgressPhase,
-} from '../modules/progressUtils';
+} from '../modules/videoProcessing/progressUtils';
 
 describe('progress-utils', () => {
     describe('createProcessingProgressReporter', () => {

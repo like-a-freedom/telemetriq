@@ -6,7 +6,7 @@ import type { ProcessingProgress } from '../core/types';
 import {
     createEtaCalculator as createBaseEtaCalculator,
     mapProgressPhase as mapBaseProgressPhase,
-} from '../modules/progressUtils';
+} from '../modules/videoProcessing/progressUtils';
 import { formatErrorMessage, formatErrorDetails, normalizeProcessingError } from './errorFormatter';
 
 export interface EtaCalculator {

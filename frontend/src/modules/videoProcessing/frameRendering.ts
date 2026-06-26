@@ -7,7 +7,7 @@ import {
     TRAIL_RUN_GRAPH_SAMPLE_COUNT,
 } from '../telemetryCore';
 import { renderOverlay } from '../overlayRenderer';
-import { drawVideoFrameWithRotation } from '../frameOrientation';
+import { drawVideoFrameWithRotation } from './frameOrientation';
 
 export interface RenderFrameParams {
     frame: VideoFrame;

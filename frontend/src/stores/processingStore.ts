@@ -3,8 +3,8 @@ import { ref, computed } from 'vue';
 import type { ProcessingProgress } from '../core/types';
 import { createEtaCalculator } from './storeUtils';
 import { BrowserFileSystem } from '../modules/fileSystem';
-import { shouldAvoidInlineResultPreview } from '../modules/browserCapabilities';
-import { mapProgressPhase } from '../modules/progressUtils';
+import { shouldAvoidInlineResultPreview } from '../modules/videoProcessing/deviceProfile';
+import { mapProgressPhase } from '../modules/videoProcessing/progressUtils';
 
 const PERSISTED_RESULT_KEY = 'processing-result';
 const PERSISTED_PROCESSING_STATE_KEY = 'processing-state';

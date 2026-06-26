@@ -3,7 +3,7 @@
  * Extracted from video-processor for SRP compliance.
  */
 
-import type { VideoMeta } from '../core/types';
+import type { VideoMeta } from '../../core/types';
 
 /**
  * Get codec candidates for encoding based on source codec and resolution.

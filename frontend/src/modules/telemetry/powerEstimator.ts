@@ -1,4 +1,4 @@
-import type { TrackPoint } from '../core/types';
+import type { TrackPoint } from '../../core/types';
 
 const G = 9.80665;
 const RHO = 1.225;

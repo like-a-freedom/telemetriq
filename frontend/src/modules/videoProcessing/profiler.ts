@@ -2,7 +2,7 @@ import type {
     VideoProcessingPhaseMetrics,
     VideoProcessingProfile,
     VideoProcessingProfilePhase,
-} from '../core/types';
+} from '../../core/types';
 
 export interface VideoProcessingProfiler {
     measure<T>(phase: VideoProcessingProfilePhase | string, action: () => Promise<T> | T): Promise<T>;

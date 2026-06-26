@@ -2,19 +2,19 @@ import type { TelemetryFrame, ExtendedOverlayConfig, ProcessingProgress, VideoMe
 import { ProcessingError } from '../core/errors';
 import { DEFAULT_OVERLAY_CONFIG } from './overlayRenderer';
 import { transcodeWithForcedKeyframes, remuxWithFfmpeg } from './ffmpegUtils';
-import { createKeyframeDetector, detectSourceGopSize } from './keyframeDetector';
+import { createKeyframeDetector, detectSourceGopSize } from './videoProcessing/keyframeDetector';
 import { createDemuxer } from './demuxer';
 import { createMuxer } from './muxer';
-import { createVideoCodecManager } from './videoCodecManager';
+import { createVideoCodecManager } from './videoProcessing/codecManager';
 import {
     createProcessingProgressReporter,
     createMuxProgressReporter,
-} from './progressUtils';
+} from './videoProcessing/progressUtils';
 import { isCodecQueuePressureHigh, waitForCodecQueues } from './videoProcessingTypes';
 import type { DemuxedMedia, StreamingMuxSession } from './videoProcessingTypes';
 import { renderAndEncodeFrame, createVideoChunk, closeCodec } from './videoProcessing';
-import { createVideoProcessingProfiler } from './videoProcessingProfiler';
-import { getVideoProcessingDeviceProfile } from './browserCapabilities';
+import { createVideoProcessingProfiler } from './videoProcessing/profiler';
+import { getVideoProcessingDeviceProfile } from './videoProcessing/deviceProfile';
 
 export interface VideoProcessorOptions {
     videoFile: File;

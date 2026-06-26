@@ -1,4 +1,6 @@
-import type { ExtendedOverlayConfig } from '../core/types';
+import type { ExtendedOverlayConfig, OverlayContext2D } from '../core/types';
+
+export type { OverlayContext2D } from '../core/types';
 
 export type ResolutionTuning = {
     textScale: number;
@@ -30,8 +32,6 @@ export function fontWeightValue(weight: string): number {
         default: return 400;
     }
 }
-
-export type OverlayContext2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
 export function applyTextShadow(ctx: OverlayContext2D, config: ExtendedOverlayConfig): void {
     if (config.textShadow && config.textShadowColor) {

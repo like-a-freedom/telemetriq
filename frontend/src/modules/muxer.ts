@@ -9,7 +9,7 @@ import {
     Output,
     StreamTarget,
 } from 'mediabunny';
-import { toMediabunnyVideoCodec, toMediabunnyAudioCodec } from './codecUtils';
+import { toMediabunnyVideoCodec, toMediabunnyAudioCodec } from './videoProcessing/codecUtils';
 import type { VideoMeta } from '../core/types';
 
 export interface Muxer {

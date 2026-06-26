@@ -10,7 +10,7 @@ import {
     estimateTargetBitrate,
     toMediabunnyVideoCodec,
     toMediabunnyAudioCodec,
-} from '../modules/codecUtils';
+} from '../modules/videoProcessing/codecUtils';
 import type { VideoMeta } from '../core/types';
 
 describe('codec-utils', () => {

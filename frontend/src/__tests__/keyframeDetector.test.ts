@@ -2,7 +2,7 @@
  * Tests for keyframe detector module.
  */
 import { describe, it, expect } from 'vitest';
-import { createKeyframeDetector, detectSourceGopSize, type Mp4Sample } from '../modules/keyframeDetector';
+import { createKeyframeDetector, detectSourceGopSize, type Mp4Sample } from '../modules/videoProcessing/keyframeDetector';
 
 describe('keyframe-detector', () => {
     describe('createKeyframeDetector', () => {

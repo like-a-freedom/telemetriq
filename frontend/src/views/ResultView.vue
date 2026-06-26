@@ -92,7 +92,7 @@ import {
   useSyncStore,
 } from "../stores";
 import { useSeo } from "../composables/useSeo";
-import { shouldAvoidInlineResultPreview } from "../modules/browserCapabilities";
+import { shouldAvoidInlineResultPreview } from "../modules/videoProcessing/deviceProfile";
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
 import FileInfo from "../components/FileInfo.vue";
 
