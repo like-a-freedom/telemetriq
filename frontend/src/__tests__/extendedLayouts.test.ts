@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderExtendedLayout } from '../modules/layouts/extendedLayouts';
 import { getTemplateConfig } from '../modules/templateConfigs';
-import type { MetricItem } from '../modules/overlayRenderer';
+import type { MetricItem } from '../core/types';
 import type { OverlayContext2D } from '../modules/overlayUtils';
 
 type FillTextEntry = {

@@ -9,7 +9,7 @@ import {
 import {
     createVideoProcessingProfiler,
     type VideoProcessingProfile,
-} from '../modules/videoProcessingProfiler';
+} from '../modules/videoProcessing/profiler';
 import { createDemuxer } from '../modules/demuxer';
 import { renderOverlay, DEFAULT_OVERLAY_CONFIG } from '../modules/overlayRenderer';
 import type { TelemetryFrame } from '../core/types';

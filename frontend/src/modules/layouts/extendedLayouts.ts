@@ -1,4 +1,4 @@
-import type { MetricItem } from '../overlayRenderer';
+import type { MetricItem } from '../../core/types';
 import type { ExtendedOverlayConfig } from '../../core/types';
 import { applyTextShadow, getResolutionTuning } from '../overlayUtils';
 import type { OverlayContext2D } from '../overlayUtils';

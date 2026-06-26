@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderClassicLayout } from '../modules/layouts/classicLayout';
-import type { MetricItem } from '../modules/overlayRenderer';
+import type { MetricItem } from '../core/types';
 import type { ExtendedOverlayConfig } from '../core/types';
 
 // Mock canvas context

@@ -1,5 +1,5 @@
-import type { VideoMeta } from '../core/types';
-import { ProcessingError } from '../core/errors';
+import type { VideoMeta } from '../../core/types';
+import { ProcessingError } from '../../core/errors';
 import {
     getCodecCandidates,
     estimateTargetBitrate,

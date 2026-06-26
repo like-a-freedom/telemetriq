@@ -40,7 +40,7 @@ vi.mock('../modules/muxer', () => ({
     })),
 }));
 
-vi.mock('../modules/videoCodecManager', () => ({
+vi.mock('../modules/videoProcessing/codecManager', () => ({
     createVideoCodecManager: vi.fn(() => ({
         createDecoder: vi.fn().mockReturnValue({
             state: 'configured',
@@ -251,7 +251,7 @@ describe('VideoProcessor', () => {
 
     it('recovers from decoder failure by transcoding and retrying', async () => {
         // make codec manager return a decoder that fails on the first run and succeeds on retry
-        const codecModule = await import('../modules/videoCodecManager');
+        const codecModule = await import('../modules/videoProcessing/codecManager');
         let createDecoderCall = 0;
         vi.mocked(codecModule.createVideoCodecManager).mockImplementation(() => ({
             createDecoder: (codec: string, description: any, onFrame: any, onError: any) => {

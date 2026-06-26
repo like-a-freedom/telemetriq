@@ -163,7 +163,7 @@ import { useFilesStore, useSyncStore, useSettingsStore } from "../stores";
 import { useTemplateCapabilities } from "../composables/useTemplateCapabilities";
 import { buildTelemetryTimeline } from "../modules/telemetryCore";
 import { getGpxTimeRange } from "../modules/syncEngine";
-import { preparePointsWithPower } from "../modules/powerEstimator";
+import { preparePointsWithPower } from "../modules/telemetry/powerEstimator";
 import type { ExtendedOverlayConfig, TelemetryFrame } from "../core/types";
 import type { MetricType } from "../modules/templates";
 import { useSeo } from "../composables/useSeo";

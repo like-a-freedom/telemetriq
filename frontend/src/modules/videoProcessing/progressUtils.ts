@@ -1,4 +1,4 @@
-import type { ProcessingProgress } from '../core/types';
+import type { ProcessingProgress } from '../../core/types';
 
 const PROGRESS_UPDATE_MIN_INTERVAL_MS = 120;
 

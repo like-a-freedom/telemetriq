@@ -2,7 +2,7 @@
  * Unit tests for video-codec-manager module.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createVideoCodecManager } from '../modules/videoCodecManager';
+import { createVideoCodecManager } from '../modules/videoProcessing/codecManager';
 import type { VideoMeta } from '../core/types';
 
 describe('video-codec-manager', () => {

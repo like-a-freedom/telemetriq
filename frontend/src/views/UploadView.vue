@@ -195,7 +195,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useFilesStore, useProcessingStore, useSettingsStore } from "../stores";
 import { checkBrowserCapabilities } from "../modules/fileValidation";
-import { hasNativePowerData } from "../modules/powerEstimator";
+import { hasNativePowerData } from "../modules/telemetry/powerEstimator";
 import { useSeo } from "../composables/useSeo";
 import { useFormatters } from "../composables/useFormatters";
 // @ts-ignore Vue SFC default export typing handled by current tooling setup
