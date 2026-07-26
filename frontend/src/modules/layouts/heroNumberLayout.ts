@@ -1,6 +1,6 @@
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import { type MetricMap, type Orientation } from './shared';
+import { toStandardMetricItems, type MetricMap, type Orientation } from './shared';
 
 export function drawHeroNumber(
     ctx: OverlayContext2D,
@@ -26,16 +26,23 @@ export function drawHeroNumber(
     }
 
     const rowY = h - orientation.safePad;
-    const cols = [
-        data.heartRate ? `♥ ${data.heartRate} bpm` : null,
-        data.distance ? `↗ ${data.distance} km` : null,
-        data.time ? `◷ ${data.time}` : null,
-    ].filter(Boolean) as string[];
+    const cols = toStandardMetricItems(
+        data,
+        {
+            heartRate: { label: '♥', unit: 'bpm' },
+            distance: { label: '↗', unit: 'km' },
+            time: { label: '◷', unit: '' },
+        },
+        ['heartRate', 'distance', 'time'],
+    );
     if (cols.length === 0) return;
     const step = w / (cols.length + 1);
-    ctx.font = `400 ${Math.max(11, Math.round(unitSize * 0.95))}px ${config.fontFamily}`;
+    const fontPx = `400 ${Math.max(11, Math.round(unitSize * 0.95))}px ${config.fontFamily}`;
+    ctx.font = fontPx;
+    ctx.fillStyle = 'rgba(255,255,255,0.82)';
     for (let i = 0; i < cols.length; i++) {
-        ctx.fillStyle = 'rgba(255,255,255,0.82)';
-        ctx.fillText(cols[i]!, step * (i + 1), rowY);
+        const item = cols[i]!;
+        const icon = `${item.label} ${item.value}`;
+        ctx.fillText(item.unit ? `${icon} ${item.unit}` : icon, step * (i + 1), rowY);
     }
 }

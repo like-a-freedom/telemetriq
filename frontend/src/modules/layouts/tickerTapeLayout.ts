@@ -1,7 +1,21 @@
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
 import { getStableMetricValue } from '../overlayUtils';
-import type { MetricMap, Orientation } from './shared';
+import { toStandardMetricItems, type MetricMap, type MetricItemSpec, type Orientation } from './shared';
+
+const STABLE_KEY: Record<MetricItemSpec['key'], string> = {
+    pace: 'pace',
+    heartRate: 'heart rate',
+    distance: 'distance',
+    time: 'time',
+};
+
+function tickerParts(items: MetricItemSpec[], stable: (key: MetricItemSpec['key']) => string): string[] {
+    return items.map((item) => {
+        const head = `${item.label} ${stable(item.key)}`;
+        return item.unit ? `${head} ${item.unit}` : head;
+    });
+}
 
 export function drawTickerTape(
     ctx: OverlayContext2D,
@@ -25,21 +39,19 @@ export function drawTickerTape(
     ctx.font = `700 ${Math.max(8, Math.round(textSize * 0.92))}px ${config.fontFamily}`;
     ctx.fillText('LIVE', orientation.safePad, y + barH / 2);
 
-    const parts = [
-        data.pace ? `PACE ${data.pace} min/km` : null,
-        data.heartRate ? `HR ${data.heartRate} bpm` : null,
-        data.distance ? `DIST ${data.distance} km` : null,
-        data.time ? `TIME ${data.time}` : null,
-    ].filter(Boolean) as string[];
-    if (parts.length === 0) return;
+    const items = toStandardMetricItems(
+        data,
+        {
+            pace: { label: 'PACE', unit: 'min/km' },
+            heartRate: { label: 'HR', unit: 'bpm' },
+            distance: { label: 'DIST', unit: 'km' },
+            time: { label: 'TIME', unit: '' },
+        },
+    );
+    if (items.length === 0) return;
 
-    const content = parts.join('  |  ');
-    const worstCaseContent = [
-        data.pace ? `PACE ${getStableMetricValue('pace')} min/km` : null,
-        data.heartRate ? `HR ${getStableMetricValue('heart rate')} bpm` : null,
-        data.distance ? `DIST ${getStableMetricValue('distance')} km` : null,
-        data.time ? `TIME ${getStableMetricValue('time')}` : null,
-    ].filter(Boolean).join('  |  ');
+    const content = tickerParts(items, (key) => data[key] ?? '').join('  |  ');
+    const worstCaseContent = tickerParts(items, (key) => getStableMetricValue(STABLE_KEY[key])).join('  |  ');
     const contentX = orientation.safePad + textSize * 4.4;
     const maxContentWidth = w - contentX - orientation.safePad;
 
