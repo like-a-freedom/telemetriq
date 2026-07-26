@@ -7,6 +7,7 @@ docs/
 design-references/
 playwright-report/
 test_data/
+.agents/prompts/
 
 # Dependencies
 node_modules/
