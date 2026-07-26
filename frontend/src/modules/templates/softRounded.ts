@@ -1,3 +1,7 @@
+/**
+ * Soft Rounded template - Rounded soft cards with gentle contrast.
+ */
+
 import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
 
 export const softRoundedTemplate = defineTemplate({
@@ -12,22 +16,12 @@ export const softRoundedTemplate = defineTemplate({
     position: 'bottom-left',
     backgroundOpacity: 0.9,
     fontSizePercent: 1.95,
-    showHr: true,
-    showPace: true,
-    showDistance: true,
-    showTime: true,
     fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     textColor: '#111827',
     backgroundColor: 'rgba(255,255,255,0.92)',
-    borderWidth: 0,
-    borderColor: 'transparent',
     cornerRadius: 20,
-    textShadow: false,
-    textShadowColor: '#000000',
-    textShadowBlur: 0,
     lineSpacing: 1.1,
     layout: 'horizontal',
-    iconStyle: 'none',
     gradientBackground: false,
     gradientStartColor: '#ffffff',
     gradientEndColor: '#ffffff',
@@ -40,24 +34,17 @@ export const softRoundedTemplate = defineTemplate({
   },
   capabilities: {
     ...DEFAULT_CAPABILITIES,
-    supportedMetrics: ['pace', 'hr', 'distance', 'time', 'power'],
-    requiredMetrics: [],
     supportsPosition: false,
-    supportsBackgroundOpacity: true,
     supportsGradient: false,
     supportsBorder: false,
     supportsTextShadow: true,
-    supportsAccentColor: true,
     supportsLayoutDirection: false,
   },
   styles: {
     typography: {
       fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      valueFontWeight: 'normal',
-      labelFontWeight: 'normal',
       valueSizeMultiplier: 2.0,
       labelSizeMultiplier: 0.4,
-      labelLetterSpacing: 0.1,
     },
     spacing: {
       basePaddingPercent: 0.02,
@@ -65,11 +52,7 @@ export const softRoundedTemplate = defineTemplate({
       lineSpacing: 1.2,
     },
     visual: {
-      cornerRadius: 0,
-      borderWidth: 0,
-      textShadow: false,
-      textShadowBlur: 0,
-      iconStyle: 'none',
+      cornerRadius: 20,
       labelStyle: 'uppercase',
     },
   },

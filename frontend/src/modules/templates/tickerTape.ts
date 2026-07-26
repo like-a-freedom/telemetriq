@@ -1,3 +1,7 @@
+/**
+ * Ticker Tape template - Live ticker strip at the bottom edge.
+ */
+
 import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
 
 export const tickerTapeTemplate = defineTemplate({
@@ -12,28 +16,15 @@ export const tickerTapeTemplate = defineTemplate({
     position: 'bottom-left',
     backgroundOpacity: 0.95,
     fontSizePercent: 1.7,
-    showHr: true,
-    showPace: true,
-    showDistance: true,
-    showTime: true,
     fontFamily: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
     textColor: '#FFFFFF',
     backgroundColor: '#000000',
-    borderWidth: 0,
-    borderColor: 'transparent',
-    cornerRadius: 0,
-    textShadow: false,
-    textShadowColor: '#000000',
-    textShadowBlur: 0,
     lineSpacing: 1.2,
     layout: 'horizontal',
-    iconStyle: 'none',
     gradientBackground: false,
     gradientStartColor: '#000000',
     gradientEndColor: '#333333',
     labelStyle: 'hidden',
-    valueFontWeight: 'normal',
-    valueSizeMultiplier: 1.0,
     labelSizeMultiplier: 0.4,
     labelLetterSpacing: 0.12,
     accentColor: '#ef4444',
@@ -41,23 +32,17 @@ export const tickerTapeTemplate = defineTemplate({
   capabilities: {
     ...DEFAULT_CAPABILITIES,
     supportedMetrics: ['pace', 'hr', 'distance', 'time', 'power'],
-    requiredMetrics: [],
     supportsPosition: false,
-    supportsBackgroundOpacity: true,
     supportsGradient: false,
     supportsBorder: false,
     supportsTextShadow: true,
-    supportsAccentColor: true,
     supportsLayoutDirection: false,
   },
   styles: {
     typography: {
       fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      valueFontWeight: 'normal',
-      labelFontWeight: 'normal',
       valueSizeMultiplier: 2.0,
       labelSizeMultiplier: 0.4,
-      labelLetterSpacing: 0.1,
     },
     spacing: {
       basePaddingPercent: 0.02,
@@ -65,11 +50,6 @@ export const tickerTapeTemplate = defineTemplate({
       lineSpacing: 1.2,
     },
     visual: {
-      cornerRadius: 0,
-      borderWidth: 0,
-      textShadow: false,
-      textShadowBlur: 0,
-      iconStyle: 'none',
       labelStyle: 'uppercase',
     },
   },
