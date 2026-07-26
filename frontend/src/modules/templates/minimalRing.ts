@@ -2,7 +2,7 @@ import type { ExtendedOverlayConfig } from '../../core/types';
 import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
 import type { ResolutionTuning } from '../overlayUtils';
 import type { OverlayContext2D } from '../overlayUtils';
-import { parsePace } from '../layouts/shared';
+import { parsePace, toStandardMetricItems } from '../layouts/shared';
 import type { MetricMap, Orientation } from '../layouts/shared';
 
 export const minimalRingTemplate = defineTemplate({
@@ -119,10 +119,14 @@ export function drawMinimalRing(
     ctx.fillText('MIN/KM', cx, cy + paceSize * 0.3 + paceUnitSize * 1.3);
 
     // Sub-metrics below the ring
-    const subItems = [
-        data.heartRate ? { label: 'BPM', value: data.heartRate } : null,
-        data.distance ? { label: 'KM', value: data.distance } : null,
-    ].filter(Boolean) as Array<{ label: string; value: string }>;
+    const subItems = toStandardMetricItems(
+        data,
+        {
+            heartRate: { label: 'BPM', unit: '' },
+            distance: { label: 'KM', unit: '' },
+        },
+        ['heartRate', 'distance'],
+    );
 
     if (subItems.length > 0) {
         const subSize = Math.max(11, Math.round(ringRadius * 0.4 * tuning.textScale));
