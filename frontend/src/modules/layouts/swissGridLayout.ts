@@ -1,6 +1,6 @@
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import type { MetricMap, Orientation } from './shared';
+import { toStandardMetricItems, type MetricMap, type Orientation } from './shared';
 
 export function drawSwissGrid(
     ctx: OverlayContext2D,
@@ -15,12 +15,12 @@ export function drawSwissGrid(
     const y = h - barH;
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(0, y, w, barH);
-    const items = [
-        data.pace ? ['PACE', data.pace, 'min/km'] : null,
-        data.heartRate ? ['HEART RATE', data.heartRate, 'bpm'] : null,
-        data.distance ? ['DISTANCE', data.distance, 'km'] : null,
-        data.time ? ['TIME', data.time, ''] : null,
-    ].filter(Boolean) as Array<[string, string, string]>;
+    const items = toStandardMetricItems(data, {
+        pace: { label: 'PACE', unit: 'min/km' },
+        heartRate: { label: 'HEART RATE', unit: 'bpm' },
+        distance: { label: 'DISTANCE', unit: 'km' },
+        time: { label: 'TIME', unit: '' },
+    });
     if (items.length === 0) return;
     const sidePad = orientation.safePad;
     const contentX = sidePad;
@@ -31,6 +31,7 @@ export function drawSwissGrid(
     const unitSize = Math.max(8, Math.round(labelSize * 0.9));
 
     for (let i = 0; i < items.length; i++) {
+        const item = items[i]!;
         const colX = contentX + colW * i;
         if (i > 0) {
             ctx.strokeStyle = 'rgba(255,255,255,0.1)';
@@ -45,16 +46,16 @@ export function drawSwissGrid(
 
         ctx.fillStyle = 'rgba(255,255,255,0.42)';
         ctx.font = `500 ${labelSize}px ${config.fontFamily}`;
-        ctx.fillText(items[i]![0]!, centerX, y + barH * 0.27);
+        ctx.fillText(item.label, centerX, y + barH * 0.27);
 
         ctx.fillStyle = config.textColor || '#FFFFFF';
         ctx.font = `300 ${valueSize}px ${config.fontFamily}`;
-        ctx.fillText(items[i]![1]!, centerX, y + barH * 0.58);
+        ctx.fillText(item.value, centerX, y + barH * 0.58);
 
-        if (items[i]![2]) {
+        if (item.unit) {
             ctx.fillStyle = 'rgba(255,255,255,0.32)';
             ctx.font = `400 ${unitSize}px ${config.fontFamily}`;
-            ctx.fillText(items[i]![2]!, centerX, y + barH * 0.76);
+            ctx.fillText(item.unit, centerX, y + barH * 0.76);
         }
     }
 }

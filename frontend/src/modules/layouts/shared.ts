@@ -18,6 +18,58 @@ export type Orientation = {
     compactPad: number;
 };
 
+/**
+ * Canonical display item used by every layout renderer.
+ *
+ * `key` lets layouts recover the numeric source when they need it (e.g. parsePace).
+ * `label`, `value`, and optional `unit` form the text shown on screen.
+ * `emphasis` is a per-layout hint ('big' / 'minor' / 'normal'). Layouts may
+ *  choose to honor it or treat every item as 'normal'.
+ */
+export interface MetricItemSpec {
+    key: 'pace' | 'heartRate' | 'distance' | 'time';
+    label: string;
+    value: string;
+    unit?: string;
+    emphasis?: 'normal' | 'big' | 'minor';
+}
+
+/** Per-metric presentation hints passed to {@link toStandardMetricItems}. */
+export interface MetricItemMapping {
+    label: string;
+    unit?: string;
+    emphasis?: MetricItemSpec['emphasis'];
+}
+
+/**
+ * Build the canonical list of items to show, in display order.
+ *
+ * Iterates over `mapping` in the order the caller supplies and drops any
+ * metric that doesn't have a value in `data`. Callers therefore control
+ * both the labels/units and the order; layouts only render.
+ */
+export function toStandardMetricItems(
+    data: MetricMap,
+    mapping: Partial<Record<MetricItemSpec['key'], MetricItemMapping>>,
+    order: readonly MetricItemSpec['key'][] = ['pace', 'heartRate', 'distance', 'time'],
+): MetricItemSpec[] {
+    const items: MetricItemSpec[] = [];
+    for (const key of order) {
+        const raw = data[key];
+        if (!raw) continue;
+        const spec = mapping[key];
+        if (!spec) continue;
+        items.push({
+            key,
+            label: spec.label,
+            value: raw,
+            unit: spec.unit,
+            emphasis: spec.emphasis,
+        });
+    }
+    return items;
+}
+
 export function toMetricMap(metrics: MetricItem[]): MetricMap {
     const find = (label: string): string | undefined =>
         metrics.find((m) => m.label.toLowerCase() === label.toLowerCase())?.value;

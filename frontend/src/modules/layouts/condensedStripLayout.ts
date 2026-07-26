@@ -1,6 +1,6 @@
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import { condensedStripStableValue, type MetricMap, type Orientation } from './shared';
+import { condensedStripStableValue, toStandardMetricItems, type MetricMap, type Orientation } from './shared';
 
 export function drawCondensedStrip(
     ctx: OverlayContext2D,
@@ -15,12 +15,12 @@ export function drawCondensedStrip(
     const y = h - barH;
     ctx.fillStyle = config.backgroundColor || '#FFFFFF';
     ctx.fillRect(0, y, w, barH);
-    const items = [
-        data.pace ? ['PACE', `${data.pace} min/km`] : null,
-        data.heartRate ? ['HR', `${data.heartRate} bpm`] : null,
-        data.distance ? ['DIST', `${data.distance} km`] : null,
-        data.time ? ['TIME', data.time] : null,
-    ].filter(Boolean) as Array<[string, string]>;
+    const items = toStandardMetricItems(data, {
+        pace: { label: 'PACE', unit: 'min/km' },
+        heartRate: { label: 'HR', unit: 'bpm' },
+        distance: { label: 'DIST', unit: 'km' },
+        time: { label: 'TIME', unit: '' },
+    });
     if (items.length === 0) return;
     const segW = w / items.length;
     const labelSize = Math.max(8, Math.round(barH * 0.18 * tuning.textScale));
@@ -31,7 +31,7 @@ export function drawCondensedStrip(
         let allFit = true;
         ctx.font = `700 ${valueSize}px ${config.fontFamily}`;
         for (const item of items) {
-            const stableValue = condensedStripStableValue(item[0]);
+            const stableValue = condensedStripStableValue(item.label);
             if (ctx.measureText(stableValue).width > segW * 0.9) {
                 allFit = false;
                 break;
@@ -42,6 +42,7 @@ export function drawCondensedStrip(
     }
 
     for (let i = 0; i < items.length; i++) {
+        const item = items[i]!;
         const x = segW * i + segW * 0.5;
         if (i > 0) {
             ctx.strokeStyle = 'rgba(0,0,0,0.1)';
@@ -53,9 +54,9 @@ export function drawCondensedStrip(
         ctx.textAlign = 'center';
         ctx.fillStyle = 'rgba(0,0,0,0.45)';
         ctx.font = `400 ${labelSize}px ${config.fontFamily}`;
-        ctx.fillText(items[i]![0]!, x, y + barH * 0.32);
+        ctx.fillText(item.label, x, y + barH * 0.32);
         ctx.fillStyle = '#111111';
         ctx.font = `700 ${valueSize}px ${config.fontFamily}`;
-        ctx.fillText(items[i]![1]!, x, y + barH * 0.82);
+        ctx.fillText(item.unit ? `${item.value} ${item.unit}` : item.value, x, y + barH * 0.82);
     }
 }

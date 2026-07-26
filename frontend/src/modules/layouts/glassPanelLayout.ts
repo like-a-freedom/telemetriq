@@ -1,6 +1,11 @@
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import type { MetricMap, Orientation } from './shared';
+import {
+    toStandardMetricItems,
+    type MetricMap,
+    type Orientation,
+    type MetricItemSpec,
+} from './shared';
 
 export function drawGlassPanel(
     ctx: OverlayContext2D,
@@ -11,19 +16,19 @@ export function drawGlassPanel(
     orientation: Orientation,
     tuning: { textScale: number },
 ): void {
-    const items = [
-        data.pace ? { label: 'PACE', value: data.pace, unit: 'min/km' } : null,
-        data.heartRate ? { label: 'HR', value: data.heartRate, unit: 'bpm' } : null,
-        data.distance ? { label: 'DIST', value: data.distance, unit: 'km' } : null,
-        data.time ? { label: 'TIME', value: data.time, unit: '' } : null,
-    ].filter(Boolean) as Array<{ label: string; value: string; unit: string }>;
+    const items = toStandardMetricItems(data, {
+        pace: { label: 'PACE', unit: 'min/km' },
+        heartRate: { label: 'HR', unit: 'bpm' },
+        distance: { label: 'DIST', unit: 'km' },
+        time: { label: 'TIME', unit: '' },
+    });
     if (items.length === 0) return;
 
     const valSize = Math.max(15, Math.round(orientation.shortSide * 0.048 * tuning.textScale));
     const lblSize = Math.max(8, Math.round(valSize * 0.32));
     const itemPad = Math.max(18, Math.round(valSize * 0.88));
     const innerPadV = Math.max(12, Math.round(valSize * 0.7));
-    const totalW = items.length * itemPad * 2 + items.reduce((sum, item) => {
+    const totalW = items.length * itemPad * 2 + items.reduce((sum, item: MetricItemSpec) => {
         ctx.font = `500 ${valSize}px ${config.fontFamily}`;
         return sum + Math.max(ctx.measureText(item.value).width, ctx.measureText(item.label).width);
     }, 0) + (items.length - 1) * itemPad;
