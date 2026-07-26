@@ -80,6 +80,18 @@ export interface TemplateStyles {
   visual: VisualPreset;
 }
 
+/**
+ * Styling input for {@link defineTemplate}.
+ *
+ * Each sub-preset is a `Partial` of its concrete counterpart because
+ * `defineTemplate` deep-merges missing fields from `DEFAULT_STYLES`.
+ */
+export type TemplateStylesInput = {
+  typography?: Partial<TypographyPreset>;
+  spacing?: Partial<SpacingPreset>;
+  visual?: Partial<VisualPreset>;
+};
+
 /** Template display metadata */
 export interface TemplateMetadata {
   id: TemplateId;
@@ -116,7 +128,7 @@ export interface TemplateDefinitionInput {
   metadata: TemplateMetadataInput;
   config: TemplateConfigInput;
   capabilities?: TemplateCapabilities;
-  styles?: TemplateStyles;
+  styles?: TemplateStylesInput;
 }
 
 /** Base template configuration with common defaults */

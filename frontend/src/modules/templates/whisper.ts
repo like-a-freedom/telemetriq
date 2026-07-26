@@ -1,3 +1,7 @@
+/**
+ * Whisper template - Ultra-subtle and low-contrast corner telemetry.
+ */
+
 import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
 
 export const whisperTemplate = defineTemplate({
@@ -12,22 +16,11 @@ export const whisperTemplate = defineTemplate({
     position: 'bottom-right',
     backgroundOpacity: 0,
     fontSizePercent: 1.5,
-    showHr: true,
-    showPace: true,
-    showDistance: true,
-    showTime: true,
     fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     textColor: 'rgba(255,255,255,0.28)',
     backgroundColor: 'transparent',
-    borderWidth: 0,
-    borderColor: 'transparent',
-    cornerRadius: 0,
-    textShadow: false,
-    textShadowColor: '#000000',
-    textShadowBlur: 0,
     lineSpacing: 1.05,
     layout: 'vertical',
-    iconStyle: 'none',
     gradientBackground: false,
     gradientStartColor: '#000000',
     gradientEndColor: '#333333',
@@ -40,24 +33,17 @@ export const whisperTemplate = defineTemplate({
   },
   capabilities: {
     ...DEFAULT_CAPABILITIES,
-    supportedMetrics: ['pace', 'hr', 'distance', 'time', 'power'],
-    requiredMetrics: [],
     supportsPosition: false,
-    supportsBackgroundOpacity: true,
     supportsGradient: false,
     supportsBorder: false,
     supportsTextShadow: true,
-    supportsAccentColor: true,
     supportsLayoutDirection: false,
   },
   styles: {
     typography: {
       fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      valueFontWeight: 'normal',
-      labelFontWeight: 'normal',
       valueSizeMultiplier: 2.0,
       labelSizeMultiplier: 0.4,
-      labelLetterSpacing: 0.1,
     },
     spacing: {
       basePaddingPercent: 0.02,
@@ -65,11 +51,6 @@ export const whisperTemplate = defineTemplate({
       lineSpacing: 1.2,
     },
     visual: {
-      cornerRadius: 0,
-      borderWidth: 0,
-      textShadow: false,
-      textShadowBlur: 0,
-      iconStyle: 'none',
       labelStyle: 'uppercase',
     },
   },

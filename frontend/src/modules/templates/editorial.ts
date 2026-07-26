@@ -1,3 +1,7 @@
+/**
+ * Editorial template - Magazine-inspired serif hero pace with small side stats.
+ */
+
 import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
 
 export const editorialTemplate = defineTemplate({
@@ -12,22 +16,14 @@ export const editorialTemplate = defineTemplate({
     position: 'bottom-left',
     backgroundOpacity: 0,
     fontSizePercent: 2.1,
-    showHr: true,
-    showPace: true,
-    showDistance: true,
-    showTime: true,
     fontFamily: '"Georgia", "Times New Roman", serif',
     textColor: '#FFFFFF',
     backgroundColor: 'transparent',
-    borderWidth: 0,
-    borderColor: 'transparent',
-    cornerRadius: 0,
     textShadow: true,
     textShadowColor: 'rgba(0,0,0,0.35)',
     textShadowBlur: 3,
     lineSpacing: 1.1,
     layout: 'vertical',
-    iconStyle: 'none',
     gradientBackground: false,
     gradientStartColor: '#000000',
     gradientEndColor: '#333333',
@@ -40,24 +36,18 @@ export const editorialTemplate = defineTemplate({
   },
   capabilities: {
     ...DEFAULT_CAPABILITIES,
-    supportedMetrics: ['pace', 'hr', 'distance', 'time', 'power'],
-    requiredMetrics: [],
     supportsPosition: false,
-    supportsBackgroundOpacity: true,
     supportsGradient: false,
     supportsBorder: false,
     supportsTextShadow: true,
-    supportsAccentColor: true,
     supportsLayoutDirection: false,
   },
   styles: {
     typography: {
       fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       valueFontWeight: 'normal',
-      labelFontWeight: 'normal',
       valueSizeMultiplier: 2.0,
       labelSizeMultiplier: 0.4,
-      labelLetterSpacing: 0.1,
     },
     spacing: {
       basePaddingPercent: 0.02,
@@ -65,11 +55,8 @@ export const editorialTemplate = defineTemplate({
       lineSpacing: 1.2,
     },
     visual: {
-      cornerRadius: 0,
-      borderWidth: 0,
-      textShadow: false,
-      textShadowBlur: 0,
-      iconStyle: 'none',
+      textShadow: true,
+      textShadowBlur: 3,
       labelStyle: 'uppercase',
     },
   },
