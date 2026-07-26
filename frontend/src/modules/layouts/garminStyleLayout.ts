@@ -1,6 +1,6 @@
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import type { MetricMap, Orientation } from './shared';
+import { toStandardMetricItems, type MetricMap, type Orientation } from './shared';
 
 export function drawGarminStyle(
     ctx: OverlayContext2D,
@@ -56,11 +56,15 @@ export function drawGarminStyle(
     }
 
     const rightX = w - orientation.safePad;
-    const metricRows = [
-        data.pace ? { label: 'PACE', unit: 'min/km', value: data.pace } : null,
-        data.distance ? { label: 'DIST', unit: 'km', value: data.distance } : null,
-        data.time ? { label: 'TIME', unit: '', value: data.time } : null,
-    ].filter(Boolean) as Array<{ label: string; unit: string; value: string }>;
+    const metricRows = toStandardMetricItems(
+        data,
+        {
+            pace: { label: 'PACE', unit: 'min/km' },
+            distance: { label: 'DIST', unit: 'km' },
+            time: { label: 'TIME', unit: '' },
+        },
+        ['pace', 'distance', 'time'],
+    );
 
     const valSize = Math.max(16, Math.round(orientation.shortSide * 0.055 * tuning.textScale));
     const lblSize = Math.max(7, Math.round(valSize * 0.32));

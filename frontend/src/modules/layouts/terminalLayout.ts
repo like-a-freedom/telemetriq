@@ -1,6 +1,6 @@
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import type { MetricMap, Orientation } from './shared';
+import { toStandardMetricItems, type MetricMap, type Orientation } from './shared';
 
 export function drawTerminal(
     ctx: OverlayContext2D,
@@ -11,12 +11,16 @@ export function drawTerminal(
     orientation: Orientation,
     tuning: { textScale: number },
 ): void {
-    const rows = [
-        data.pace ? { key: 'pace', value: data.pace, unit: 'min/km' } : null,
-        data.heartRate ? { key: 'hr', value: data.heartRate, unit: 'bpm' } : null,
-        data.distance ? { key: 'dist', value: data.distance, unit: 'km' } : null,
-        data.time ? { key: 'time', value: data.time, unit: '' } : null,
-    ].filter(Boolean) as Array<{ key: string; value: string; unit: string }>;
+    const rows = toStandardMetricItems(
+        data,
+        {
+            pace: { label: 'PACE', unit: 'min/km' },
+            heartRate: { label: 'hr', unit: 'bpm' },
+            distance: { label: 'dist', unit: 'km' },
+            time: { label: 'time', unit: '' },
+        },
+        ['pace', 'heartRate', 'distance', 'time'],
+    );
     if (rows.length === 0) return;
 
     const textSize = Math.max(10, Math.round(orientation.shortSide * 0.025 * tuning.textScale));
@@ -60,22 +64,22 @@ export function drawTerminal(
         const promptW = ctx.measureText('› ').width;
         ctx.fillStyle = greenDim;
         ctx.font = `400 ${textSize}px ${config.fontFamily}`;
-        ctx.fillText(row.key, boxX + innerPad + promptW, rowY);
+        ctx.fillText(row.label, boxX + innerPad + promptW, rowY);
 
-        const keyW = ctx.measureText(row.key + ' ').width;
+        const promptKeyW = ctx.measureText(row.label + ' ').width;
         ctx.fillStyle = greenFaint;
-        ctx.fillText('=', boxX + innerPad + promptW + keyW, rowY);
+        ctx.fillText('=', boxX + innerPad + promptW + promptKeyW, rowY);
 
         const eqW = ctx.measureText('= ').width;
         ctx.fillStyle = green;
         ctx.font = `500 ${textSize}px ${config.fontFamily}`;
-        ctx.fillText(row.value, boxX + innerPad + promptW + keyW + eqW, rowY);
+        ctx.fillText(row.value, boxX + innerPad + promptW + promptKeyW + eqW, rowY);
 
         if (row.unit) {
             const valW = ctx.measureText(row.value + ' ').width;
             ctx.fillStyle = 'rgba(34,197,94,0.32)';
             ctx.font = `400 ${Math.max(8, Math.round(textSize * 0.78))}px ${config.fontFamily}`;
-            ctx.fillText(row.unit, boxX + innerPad + promptW + keyW + eqW + valW, rowY);
+            ctx.fillText(row.unit, boxX + innerPad + promptW + promptKeyW + eqW + valW, rowY);
         }
     }
 

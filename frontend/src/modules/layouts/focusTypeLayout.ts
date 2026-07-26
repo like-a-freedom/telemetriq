@@ -1,6 +1,6 @@
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import type { MetricMap, Orientation } from './shared';
+import { toStandardMetricItems, type MetricMap, type Orientation } from './shared';
 
 export function drawFocusType(
     ctx: OverlayContext2D,
@@ -37,11 +37,15 @@ export function drawFocusType(
         ctx.fillText('MIN / KM', centerX, centerY + paceUnitSize * 2.55);
     }
 
-    const subItems = [
-        data.heartRate ? { label: 'HEART RATE', value: data.heartRate, unit: 'BPM' } : null,
-        data.distance ? { label: 'DISTANCE', value: data.distance, unit: 'KM' } : null,
-        data.time ? { label: 'TIME', value: data.time, unit: '' } : null,
-    ].filter(Boolean) as Array<{ label: string; value: string; unit: string }>;
+    const subItems = toStandardMetricItems(
+        data,
+        {
+            heartRate: { label: 'HEART RATE', unit: 'BPM' },
+            distance: { label: 'DISTANCE', unit: 'KM' },
+            time: { label: 'TIME', unit: '' },
+        },
+        ['heartRate', 'distance', 'time'],
+    );
 
     if (subItems.length === 0) return;
 

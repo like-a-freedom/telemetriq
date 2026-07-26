@@ -1,6 +1,6 @@
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import type { MetricMap, Orientation } from './shared';
+import { toStandardMetricItems, type MetricItemSpec, type MetricMap, type Orientation } from './shared';
 
 export function drawCockpitHud(
     ctx: OverlayContext2D,
@@ -117,11 +117,19 @@ export function drawCockpitHud(
         ctx.fillText('MIN / KM', paceX, paceBaseline + paceUnitSize * 1.2);
     }
 
-    const secondaryItems = [
-        data.distance ? { label: 'DISTANCE', value: data.distance, unit: 'km' } : null,
-        data.heartRate ? { label: 'HEART RATE', value: data.heartRate, unit: 'bpm' } : null,
-        !data.pace && data.time ? { label: 'ELAPSED', value: data.time, unit: '' } : null,
-    ].filter(Boolean) as Array<{ label: string; value: string; unit: string }>;
+    const secondaryItems: MetricItemSpec[] = [
+        ...toStandardMetricItems(
+            data,
+            {
+                distance: { label: 'DISTANCE', unit: 'km' },
+                heartRate: { label: 'HEART RATE', unit: 'bpm' },
+            },
+            ['distance', 'heartRate'],
+        ),
+        ...(!data.pace && data.time
+            ? [{ key: 'time' as const, label: 'ELAPSED', value: data.time, unit: '' }]
+            : []),
+    ];
 
     if (secondaryItems.length > 0) {
         const secondaryX = panelX + innerPad + paceWidth + (data.pace ? innerPad : 0);

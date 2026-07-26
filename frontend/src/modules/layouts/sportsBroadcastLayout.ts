@@ -1,6 +1,6 @@
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import type { MetricMap, Orientation } from './shared';
+import { toStandardMetricItems, type MetricMap, type Orientation } from './shared';
 
 export function drawSportsBroadcast(
     ctx: OverlayContext2D,
@@ -37,12 +37,15 @@ export function drawSportsBroadcast(
     ctx.fillText('RUN', 0, 0);
     ctx.restore();
 
-    const items = [
-        data.pace ? { label: 'PACE', unit: 'min/km', value: data.pace } : null,
-        data.heartRate ? { label: 'HR', unit: 'bpm', value: data.heartRate } : null,
-        data.distance ? { label: 'DIST', unit: 'km', value: data.distance } : null,
-        data.time ? { label: 'TIME', unit: '', value: data.time } : null,
-    ].filter(Boolean) as Array<{ label: string; unit: string; value: string }>;
+    const items = toStandardMetricItems(
+        data,
+        {
+            pace: { label: 'PACE', unit: 'min/km' },
+            heartRate: { label: 'HR', unit: 'bpm' },
+            distance: { label: 'DIST', unit: 'km' },
+            time: { label: 'TIME', unit: '' },
+        },
+    );
     if (items.length === 0) return;
 
     const contentX = sideTagW;
