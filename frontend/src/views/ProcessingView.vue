@@ -167,7 +167,6 @@ import { getWebGPUStatus, toggleWebGPU } from "../modules/webgpu";
 import { useSeo } from "../composables/useSeo";
 import { useWakeLock } from "../composables/useWakeLock";
 
-// @ts-ignore Vue SFC default export typing handled by current tooling setup
 import ProgressBar from "../components/ProgressBar.vue";
 
 // SEO

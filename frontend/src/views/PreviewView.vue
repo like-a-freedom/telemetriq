@@ -167,13 +167,9 @@ import { preparePointsWithPower } from "../modules/telemetry/powerEstimator";
 import type { ExtendedOverlayConfig, TelemetryFrame } from "../core/types";
 import type { MetricType } from "../modules/templates";
 import { useSeo } from "../composables/useSeo";
-// @ts-ignore Vue SFC default export typing handled by current tooling setup
 import VideoPlayer from "../components/VideoPlayer.vue";
-// @ts-ignore Vue SFC default export typing handled by current tooling setup
 import SyncSlider from "../components/SyncSlider.vue";
-// @ts-ignore Vue SFC default export typing handled by current tooling setup
 import TemplateSelector from "../components/TemplateSelector.vue";
-// @ts-ignore Vue SFC default export typing handled by current tooling setup
 import DateTimePicker from "../components/DateTimePicker.vue";
 
 type MetricToggleKey =
