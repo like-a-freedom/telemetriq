@@ -37,6 +37,7 @@ import {
     trailRunTemplate,
     cyclingProTemplate,
     customTemplate,
+    TEMPLATE_IDS,
     isMetricAvailable,
     isMetricRequired,
     getMetricUnavailableReason,
@@ -45,22 +46,12 @@ import type { TemplateId } from '../core/types';
 import type { TemplateCapabilities } from '../modules/templates/types';
 
 describe('templates registry', () => {
-    const allTemplateIds: TemplateId[] = [
-        'horizon', 'margin', 'l-frame', 'classic',
-        'arc-gauge', 'hero-number', 'cinematic-bar',
-        'editorial', 'ticker-tape', 'whisper', 'two-tone',
-        'condensed-strip', 'soft-rounded', 'thin-line', 'swiss-grid',
-        'garmin-style', 'sports-broadcast', 'cockpit-hud',
-        'terminal', 'night-runner', 'data-block', 'race-tag',
-        'glass-panel', 'minimal-ring',
-        'focus-type',
-        'trail-run', 'cycling-pro',
-        'custom',
-    ];
+    const allTemplateIds: TemplateId[] = TEMPLATE_IDS;
+    const selectableTemplateIds: TemplateId[] = TEMPLATE_IDS.filter(id => id !== 'custom');
 
     describe('TEMPLATES array', () => {
         it('should contain all templates', () => {
-            expect(TEMPLATES.length).toBe(allTemplateIds.length);
+            expect(TEMPLATES.map(t => t.id).sort()).toEqual([...allTemplateIds].sort());
             allTemplateIds.forEach((id) => {
                 expect(TEMPLATES.map(t => t.id)).toContain(id);
             });
@@ -206,6 +197,11 @@ describe('templates registry', () => {
             allTemplateIds.forEach((id) => {
                 expect(templates).toContain(id);
             });
+        });
+
+        // 'custom' is a registered template but is excluded from the selector dropdown.
+        it('the UI selector list should exclude custom', () => {
+            expect(selectableTemplateIds).not.toContain('custom');
         });
     });
 

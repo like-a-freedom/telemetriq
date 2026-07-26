@@ -2,32 +2,11 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { TEMPLATE_IDS as ALL_TEMPLATE_IDS } from '../src/modules/templates';
 
-const TEMPLATE_IDS = [
-    'arc-gauge',
-    'hero-number',
-    'cinematic-bar',
-    'editorial',
-    'ticker-tape',
-    'whisper',
-    'two-tone',
-    'condensed-strip',
-    'soft-rounded',
-    'thin-line',
-    'swiss-grid',
-    'garmin-style',
-    'sports-broadcast',
-    'cockpit-hud',
-    'terminal',
-    'night-runner',
-    'data-block',
-    'race-tag',
-    'glass-panel',
-    'minimal-ring',
-    'focus-type',
-    'trail-run',
-    'cycling-pro',
-] as const;
+// The selector dropdown excludes 'custom', so iterate over every registered
+// template except 'custom'.
+const TEMPLATE_IDS: readonly string[] = ALL_TEMPLATE_IDS.filter((id) => id !== 'custom');
 
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SNAPSHOT_DIR = path.resolve(THIS_DIR, 'templates-visual.spec.ts-snapshots');
