@@ -2,7 +2,7 @@
  * Unit tests for minimal-ring template module.
  */
 import { describe, it, expect } from 'vitest';
-import { minimalRingTemplate, renderMinimalRing } from '../modules/templates/minimalRing';
+import { minimalRingTemplate, drawMinimalRing } from '../modules/templates/minimalRing';
 
 describe('minimal-ring template module', () => {
     describe('template definition', () => {
@@ -31,15 +31,16 @@ describe('minimal-ring template module', () => {
     });
 
     describe('renderer export', () => {
-        it('should export renderMinimalRing function', () => {
-            expect(renderMinimalRing).toBeDefined();
-            expect(typeof renderMinimalRing).toBe('function');
+        it('should export drawMinimalRing function with the standard layout contract', () => {
+            expect(drawMinimalRing).toBeDefined();
+            expect(typeof drawMinimalRing).toBe('function');
+            // Standard draw* signature: (ctx, data, w, h, config, orientation, tuning)
+            expect(drawMinimalRing.length).toBe(7);
         });
 
         it('should be self-contained module with both template and renderer', () => {
-            // Verify the module exports both definition and renderer
             expect(minimalRingTemplate).toBeDefined();
-            expect(renderMinimalRing).toBeDefined();
+            expect(drawMinimalRing).toBeDefined();
             expect(minimalRingTemplate.config.layoutMode).toBe('minimal-ring');
         });
     });
@@ -58,11 +59,9 @@ describe('minimal-ring template module', () => {
         });
 
         it('template config should match capabilities', () => {
-            // Capabilities say pace is required, config should have it enabled
             expect(minimalRingTemplate.capabilities.requiredMetrics).toContain('pace');
             expect(minimalRingTemplate.config.showPace).toBe(true);
-            
-            // Capabilities say time is not supported, config should have it disabled
+
             expect(minimalRingTemplate.capabilities.supportedMetrics).not.toContain('time');
             expect(minimalRingTemplate.config.showTime).toBe(false);
         });

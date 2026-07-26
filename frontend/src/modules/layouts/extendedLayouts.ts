@@ -25,6 +25,7 @@ import { drawDataBlock } from './dataBlockLayout';
 import { drawRaceTag } from './raceTagLayout';
 import { drawGlassPanel } from './glassPanelLayout';
 import { drawFocusType } from './focusTypeLayout';
+import { drawMinimalRing } from '../templates/minimalRing';
 
 export function renderExtendedLayout(
     ctx: OverlayContext2D,
@@ -100,6 +101,7 @@ export function renderExtendedLayout(
             drawGlassPanel(ctx, data, w, h, config, orientation, tuning);
             break;
         case 'minimal-ring':
+            drawMinimalRing(ctx, data, w, h, config, orientation, tuning);
             break;
         case 'focus-type':
             drawFocusType(ctx, data, w, h, config, orientation, tuning);
