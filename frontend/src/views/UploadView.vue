@@ -198,7 +198,6 @@ import { checkBrowserCapabilities } from "../modules/fileValidation";
 import { hasNativePowerData } from "../modules/telemetry/powerEstimator";
 import { useSeo } from "../composables/useSeo";
 import { useFormatters } from "../composables/useFormatters";
-// @ts-ignore Vue SFC default export typing handled by current tooling setup
 import UploadZone from "../components/UploadZone.vue";
 
 useSeo({
