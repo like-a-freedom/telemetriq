@@ -1,8 +1,9 @@
-import type { MetricItem } from '../../core/types';
 import type { ExtendedOverlayConfig } from '../../core/types';
-import type { OverlayContext2D } from '../overlayUtils';
 import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
-import { getResolutionTuning } from '../overlayUtils';
+import type { ResolutionTuning } from '../overlayUtils';
+import type { OverlayContext2D } from '../overlayUtils';
+import { parsePace } from '../layouts/shared';
+import type { MetricMap, Orientation } from '../layouts/shared';
 
 export const minimalRingTemplate = defineTemplate({
     id: 'minimal-ring',
@@ -16,25 +17,12 @@ export const minimalRingTemplate = defineTemplate({
         position: 'bottom-right',
         backgroundOpacity: 0,
         fontSizePercent: 2.0,
-        showHr: true,
-        showPace: true,
-        showDistance: true,
         showTime: false,
         fontFamily: '"Outfit", Inter, -apple-system, sans-serif',
         textColor: '#FFFFFF',
         backgroundColor: 'transparent',
-        borderWidth: 0,
-        borderColor: 'transparent',
-        cornerRadius: 0,
-        textShadow: false,
-        textShadowColor: 'rgba(0,0,0,0.3)',
-        textShadowBlur: 0,
         lineSpacing: 1.0,
         layout: 'vertical',
-        iconStyle: 'none',
-        gradientBackground: false,
-        gradientStartColor: '#000000',
-        gradientEndColor: '#000000',
         labelStyle: 'uppercase',
         valueFontWeight: 'light',
         valueSizeMultiplier: 1.6,
@@ -64,91 +52,30 @@ export const minimalRingTemplate = defineTemplate({
         typography: {
             fontFamily: '"Outfit", Inter, -apple-system, sans-serif',
             valueFontWeight: 'light',
-            labelFontWeight: 'normal',
             valueSizeMultiplier: 1.6,
             labelSizeMultiplier: 0.32,
             labelLetterSpacing: 0.25,
         },
-        spacing: {
-            basePaddingPercent: 0.02,
-            metricGapPercent: 0.01,
-            lineSpacing: 1.0,
-        },
         visual: {
-            cornerRadius: 0,
-            borderWidth: 0,
-            textShadow: false,
-            textShadowBlur: 0,
-            iconStyle: 'none',
             labelStyle: 'uppercase',
         },
     },
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Renderer implementation
-// ─────────────────────────────────────────────────────────────────────────────
-
-type MetricMap = {
-    pace?: string;
-    heartRate?: string;
-    distance?: string;
-    time?: string;
-};
-
-type Orientation = {
-    isPortrait: boolean;
-    shortSide: number;
-    longSide: number;
-    safePad: number;
-    compactPad: number;
-};
-
-function parsePace(pace?: string): number {
-    if (!pace) return 6;
-    const [m = Number.NaN, s = Number.NaN] = pace.split(':').map(Number);
-    if (!Number.isFinite(m) || !Number.isFinite(s)) return 6;
-    return m + s / 60;
-}
-
-function toMetricMap(metrics: MetricItem[]): MetricMap {
-    const find = (label: string): string | undefined =>
-        metrics.find((m) => m.label.toLowerCase() === label.toLowerCase())?.value;
-    return {
-        pace: find('Pace'),
-        heartRate: find('Heart Rate'),
-        distance: find('Distance'),
-        time: find('Time'),
-    };
-}
-
-function getOrientation(w: number, h: number): Orientation {
-    const isPortrait = h > w;
-    const shortSide = Math.min(w, h);
-    const longSide = Math.max(w, h);
-    return {
-        isPortrait,
-        shortSide,
-        longSide,
-        safePad: shortSide * (isPortrait ? 0.04 : 0.03),
-        compactPad: shortSide * (isPortrait ? 0.02 : 0.015),
-    };
-}
-
 /**
- * Render the Minimal Ring template.
+ * Draw the Minimal Ring template.
+ * Standard draw*(ctx, data, w, h, config, orientation, tuning) contract —
+ * matches the dispatcher in layouts/extendedLayouts.ts.
  */
-export function renderMinimalRing(
+export function drawMinimalRing(
     ctx: OverlayContext2D,
-    metrics: MetricItem[],
+    data: MetricMap,
     w: number,
     h: number,
     config: ExtendedOverlayConfig,
+    orientation: Orientation,
+    tuning: ResolutionTuning,
 ): void {
-    const data = toMetricMap(metrics);
-    const orientation = getOrientation(w, h);
-    const tuning = getResolutionTuning(w, h);
-
     if (!data.pace) return;
 
     ctx.save();

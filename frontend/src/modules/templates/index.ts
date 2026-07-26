@@ -56,7 +56,7 @@ export { nightRunnerTemplate } from './nightRunner';
 export { dataBlockTemplate } from './dataBlock';
 export { raceTagTemplate } from './raceTag';
 export { glassPanelTemplate } from './glassPanel';
-export { minimalRingTemplate, renderMinimalRing } from './minimalRing';
+export { minimalRingTemplate, drawMinimalRing } from './minimalRing';
 export { focusTypeTemplate } from './focusType';
 export { trailRunTemplate } from './trailRun';
 export { cyclingProTemplate } from './cyclingPro';
