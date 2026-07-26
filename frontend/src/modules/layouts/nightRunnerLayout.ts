@@ -1,6 +1,6 @@
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import type { MetricMap, Orientation } from './shared';
+import { toStandardMetricItems, type MetricMap, type MetricItemSpec, type Orientation } from './shared';
 
 export function drawNightRunner(
     ctx: OverlayContext2D,
@@ -36,23 +36,42 @@ export function drawNightRunner(
     ctx.fillStyle = grad;
     ctx.fillRect(0, h - stripH, w, stripH);
 
-    const metrics = [
-        data.heartRate ? { label: 'HEART RATE', value: data.heartRate, unit: 'bpm', glow: 'rgba(248,113,113,0.45)', align: 'left' as const } : null,
-        data.distance ? { label: 'DISTANCE', value: data.distance, unit: 'km', glow: 'rgba(251,191,36,0.35)', align: 'center' as const } : null,
-        data.time ? { label: 'ELAPSED', value: data.time, unit: '', glow: 'rgba(255,255,255,0.22)', align: 'right' as const } : null,
-    ].filter(Boolean) as Array<{ label: string; value: string; unit: string; glow: string; align: 'left' | 'center' | 'right' }>;
+    // Per-index presentation hints stay tied to display order; no need to
+    // duplicate them on each metric item.
+    type Align = 'left' | 'center' | 'right';
+    const PRESENTATION: Array<{ label: string; unit: string; glow: string; align: Align }> = [
+        { label: 'HEART RATE', unit: 'bpm', glow: 'rgba(248,113,113,0.45)', align: 'left' },
+        { label: 'DISTANCE', unit: 'km', glow: 'rgba(251,191,36,0.35)', align: 'center' },
+        { label: 'ELAPSED', unit: '', glow: 'rgba(255,255,255,0.22)', align: 'right' },
+    ];
+    const items = toStandardMetricItems(
+        data,
+        {
+            heartRate: { label: PRESENTATION[0]!.label, unit: PRESENTATION[0]!.unit },
+            distance: { label: PRESENTATION[1]!.label, unit: PRESENTATION[1]!.unit },
+            time: { label: PRESENTATION[2]!.label, unit: PRESENTATION[2]!.unit },
+        },
+        ['heartRate', 'distance', 'time'],
+    );
+    const presentation = new Map<MetricItemSpec['key'], { glow: string; align: Align }>(
+        [
+            ['heartRate', { glow: PRESENTATION[0]!.glow, align: PRESENTATION[0]!.align }],
+            ['distance', { glow: PRESENTATION[1]!.glow, align: PRESENTATION[1]!.align }],
+            ['time', { glow: PRESENTATION[2]!.glow, align: PRESENTATION[2]!.align }],
+        ],
+    );
 
-    if (metrics.length === 0) return;
+    if (items.length === 0) return;
 
     const valSize = Math.max(14, Math.round(orientation.shortSide * 0.05 * tuning.textScale));
     const lblSize = Math.max(7, Math.round(valSize * 0.3));
     const baseY = h - orientation.safePad;
 
-    if (metrics.length > 1) {
-        const step = (w - orientation.safePad * 2) / metrics.length;
+    if (items.length > 1) {
+        const step = (w - orientation.safePad * 2) / items.length;
         ctx.strokeStyle = 'rgba(255,255,255,0.12)';
         ctx.lineWidth = 1;
-        for (let i = 1; i < metrics.length; i++) {
+        for (let i = 1; i < items.length; i++) {
             const lx = orientation.safePad + step * i;
             ctx.beginPath();
             ctx.moveTo(lx, baseY - valSize * 1.6);
@@ -61,35 +80,36 @@ export function drawNightRunner(
         }
     }
 
-    const step = (w - orientation.safePad * 2) / (metrics.length || 1);
+    const step = (w - orientation.safePad * 2) / (items.length || 1);
     ctx.textBaseline = 'alphabetic';
-    for (let i = 0; i < metrics.length; i++) {
-        const m = metrics[i]!;
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i]!;
+        const style = presentation.get(item.key)!;
         let anchorX: number;
-        if (m.align === 'left') {
+        if (style.align === 'left') {
             anchorX = orientation.safePad + step * i + step * 0.05;
-        } else if (m.align === 'right') {
+        } else if (style.align === 'right') {
             anchorX = orientation.safePad + step * (i + 1) - step * 0.05;
         } else {
             anchorX = orientation.safePad + step * i + step * 0.5;
         }
 
-        ctx.textAlign = m.align;
+        ctx.textAlign = style.align;
         ctx.fillStyle = 'rgba(255,255,255,0.28)';
         ctx.font = `500 ${lblSize}px ${config.fontFamily}`;
-        ctx.fillText(m.label, anchorX, baseY - valSize * 1.15);
+        ctx.fillText(item.label, anchorX, baseY - valSize * 1.15);
 
-        ctx.shadowColor = m.glow;
+        ctx.shadowColor = style.glow;
         ctx.shadowBlur = Math.max(8, valSize * 0.3);
         ctx.fillStyle = config.textColor || '#FFFFFF';
         ctx.font = `300 ${valSize}px ${config.fontFamily}`;
-        ctx.fillText(m.value, anchorX, baseY);
+        ctx.fillText(item.value, anchorX, baseY);
         ctx.shadowBlur = 0;
 
-        if (m.unit) {
+        if (item.unit) {
             ctx.fillStyle = 'rgba(255,255,255,0.32)';
             ctx.font = `400 ${lblSize}px ${config.fontFamily}`;
-            ctx.fillText(m.unit, anchorX, baseY + lblSize * 1.2);
+            ctx.fillText(item.unit, anchorX, baseY + lblSize * 1.2);
         }
     }
 }

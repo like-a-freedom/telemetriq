@@ -1,6 +1,6 @@
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import { type MetricMap, type Orientation } from './shared';
+import { toStandardMetricItems, type MetricMap, type Orientation } from './shared';
 
 export function drawEditorial(
     ctx: OverlayContext2D,
@@ -32,19 +32,24 @@ export function drawEditorial(
 
     const rightX = w - orientation.safePad;
     const topY = orientation.safePad + smallValue;
-    const lines = [
-        data.heartRate ? ['HEART RATE', `${data.heartRate} bpm`] : null,
-        data.distance ? ['DISTANCE', `${data.distance} km`] : null,
-        data.time ? ['ELAPSED', data.time] : null,
-    ].filter(Boolean) as Array<[string, string]>;
+    const lines = toStandardMetricItems(
+        data,
+        {
+            heartRate: { label: 'HEART RATE', unit: 'bpm' },
+            distance: { label: 'DISTANCE', unit: 'km' },
+            time: { label: 'ELAPSED', unit: '' },
+        },
+        ['heartRate', 'distance', 'time'],
+    );
     for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]!;
         const y = topY + i * smallValue * 3.0;
         ctx.textAlign = 'right';
         ctx.fillStyle = 'rgba(255,255,255,0.55)';
         ctx.font = `500 ${Math.max(8, Math.round(labelSize * 0.85))}px Inter, sans-serif`;
-        ctx.fillText(lines[i]![0]!, rightX, y - smallValue * 1.2);
+        ctx.fillText(line.label, rightX, y - smallValue * 1.2);
         ctx.fillStyle = 'rgba(255,255,255,0.78)';
         ctx.font = `400 ${smallValue}px ${config.fontFamily}`;
-        ctx.fillText(lines[i]![1]!, rightX, y);
+        ctx.fillText(line.unit ? `${line.value} ${line.unit}` : line.value, rightX, y);
     }
 }

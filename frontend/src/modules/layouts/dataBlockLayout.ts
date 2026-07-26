@@ -1,6 +1,6 @@
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import type { MetricMap, Orientation } from './shared';
+import { toStandardMetricItems, type MetricMap, type Orientation } from './shared';
 
 export function drawDataBlock(
     ctx: OverlayContext2D,
@@ -12,11 +12,15 @@ export function drawDataBlock(
     tuning: { textScale: number },
 ): void {
     const accent = config.accentColor || '#f97316';
-    const rows = [
-        data.pace ? { label: 'PACE', unit: 'min/km', value: data.pace, big: false } : null,
-        data.distance ? { label: 'DIST', unit: 'km', value: data.distance, big: false } : null,
-        data.heartRate ? { label: 'HR', unit: 'bpm', value: data.heartRate, big: true } : null,
-    ].filter(Boolean) as Array<{ label: string; unit: string; value: string; big: boolean }>;
+    const rows = toStandardMetricItems(
+        data,
+        {
+            pace: { label: 'PACE', unit: 'min/km' },
+            distance: { label: 'DIST', unit: 'km' },
+            heartRate: { label: 'HR', unit: 'bpm', emphasis: 'big' },
+        },
+        ['pace', 'distance', 'heartRate'],
+    );
     if (rows.length === 0) return;
 
     const normalValSize = Math.max(16, Math.round(orientation.shortSide * 0.05 * tuning.textScale));
@@ -27,7 +31,7 @@ export function drawDataBlock(
 
     let totalH = 0;
     for (const row of rows) {
-        totalH += row.big ? bigRowH : rowH;
+        totalH += row.emphasis === 'big' ? bigRowH : rowH;
     }
     const gap = lblSize;
     let curY = h - orientation.safePad - totalH - gap;
@@ -37,8 +41,9 @@ export function drawDataBlock(
     ctx.textAlign = 'right';
 
     for (const row of rows) {
-        const vs = row.big ? bigValSize : normalValSize;
-        const rh = row.big ? bigRowH : rowH;
+        const isBig = row.emphasis === 'big';
+        const vs = isBig ? bigValSize : normalValSize;
+        const rh = isBig ? bigRowH : rowH;
 
         ctx.textAlign = 'left';
         ctx.fillStyle = 'rgba(255,255,255,0.5)';

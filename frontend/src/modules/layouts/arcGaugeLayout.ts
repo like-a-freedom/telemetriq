@@ -1,6 +1,6 @@
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import { drawMetricBlock, parsePace, type MetricMap, type Orientation } from './shared';
+import { drawMetricBlock, parsePace, toStandardMetricItems, type MetricMap, type Orientation } from './shared';
 
 export function drawArcGauge(
     ctx: OverlayContext2D,
@@ -56,10 +56,14 @@ export function drawArcGauge(
     const sideLabelSize = Math.max(9, Math.round(radius * 0.18));
     const leftX = orientation.safePad;
     const topY = orientation.isPortrait ? h * 0.42 : h * 0.34;
-    const leftItems = [
-        data.heartRate ? { label: 'HR', value: data.heartRate, unit: 'bpm' } : null,
-        data.distance ? { label: 'DIST', value: data.distance, unit: 'km' } : null,
-    ].filter(Boolean) as Array<{ label: string; value: string; unit: string }>;
+    const leftItems = toStandardMetricItems(
+        data,
+        {
+            heartRate: { label: 'HR', unit: 'bpm' },
+            distance: { label: 'DIST', unit: 'km' },
+        },
+        ['heartRate', 'distance'],
+    );
     leftItems.forEach((item, idx) => {
         drawMetricBlock(
             ctx,
@@ -67,7 +71,7 @@ export function drawArcGauge(
             topY + idx * sideValueSize * 2.5,
             item.label,
             item.value,
-            item.unit,
+            item.unit ?? '',
             sideLabelSize,
             sideValueSize,
             config,

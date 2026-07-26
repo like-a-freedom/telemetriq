@@ -1,6 +1,6 @@
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import type { MetricMap, Orientation } from './shared';
+import { toStandardMetricItems, type MetricMap, type Orientation } from './shared';
 
 export function drawRaceTag(
     ctx: OverlayContext2D,
@@ -57,11 +57,15 @@ export function drawRaceTag(
     ctx.fillStyle = 'rgba(0,0,0,0.76)';
     ctx.fillRect(0, stripY, w, stripH);
 
-    const stripItems = [
-        data.heartRate ? { label: 'HR', value: data.heartRate, unit: 'BPM' } : null,
-        data.distance ? { label: 'DIST', value: data.distance, unit: 'KM' } : null,
-        data.time ? { label: 'TIME', value: data.time, unit: '' } : null,
-    ].filter(Boolean) as Array<{ label: string; value: string; unit: string }>;
+    const stripItems = toStandardMetricItems(
+        data,
+        {
+            heartRate: { label: 'HR', unit: 'BPM' },
+            distance: { label: 'DIST', unit: 'KM' },
+            time: { label: 'TIME', unit: '' },
+        },
+        ['heartRate', 'distance', 'time'],
+    );
     if (stripItems.length === 0) return;
 
     const colW = w / stripItems.length;

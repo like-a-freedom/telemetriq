@@ -1,6 +1,6 @@
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import { type MetricMap, type Orientation } from './shared';
+import { toStandardMetricItems, type MetricMap, type Orientation } from './shared';
 
 export function drawTwoTone(
     ctx: OverlayContext2D,
@@ -27,23 +27,28 @@ export function drawTwoTone(
     const rightX = w - orientation.safePad;
     const valSize = Math.max(14, Math.round(heroSize * 0.35));
     const lblSize = Math.max(8, Math.round(valSize * 0.35));
-    const rows = [
-        data.heartRate ? ['HEART RATE', `${data.heartRate} bpm`] : null,
-        data.distance ? ['DISTANCE', `${data.distance} km`] : null,
-        data.time ? ['TIME', data.time] : null,
-    ].filter(Boolean) as Array<[string, string]>;
+    const rows = toStandardMetricItems(
+        data,
+        {
+            heartRate: { label: 'HEART RATE', unit: 'bpm' },
+            distance: { label: 'DISTANCE', unit: 'km' },
+            time: { label: 'TIME', unit: '' },
+        },
+        ['heartRate', 'distance', 'time'],
+    );
     if (rows.length === 0) return;
     const rowH = valSize * 1.35 + lblSize * 1.15;
     const startY = bottomY - rowH * rows.length;
     ctx.textBaseline = 'top';
     for (let i = 0; i < rows.length; i++) {
+        const row = rows[i]!;
         const y = startY + i * rowH;
         ctx.textAlign = 'right';
         ctx.fillStyle = 'rgba(255,255,255,0.32)';
         ctx.font = `500 ${lblSize}px ${config.fontFamily}`;
-        ctx.fillText(rows[i]![0]!, rightX, y);
+        ctx.fillText(row.label, rightX, y);
         ctx.fillStyle = config.textColor || '#FFFFFF';
         ctx.font = `300 ${valSize}px ${config.fontFamily}`;
-        ctx.fillText(rows[i]![1]!, rightX, y + lblSize + Math.max(2, valSize * 0.16));
+        ctx.fillText(row.unit ? `${row.value} ${row.unit}` : row.value, rightX, y + lblSize + Math.max(2, valSize * 0.16));
     }
 }
