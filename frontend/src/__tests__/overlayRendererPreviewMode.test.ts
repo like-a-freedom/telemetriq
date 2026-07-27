@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const compositeOverlayMock = vi.fn(async () => true);
 const isEnabledMock = vi.fn(() => true);

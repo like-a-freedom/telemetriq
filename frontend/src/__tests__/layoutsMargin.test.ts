@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderMarginLayout } from '../modules/layouts/marginLayout';
+import { DEFAULT_OVERLAY_CONFIG } from '../modules/overlayRenderer';
 import type { MetricItem } from '../core/types';
 import type { ExtendedOverlayConfig } from '../core/types';
 
@@ -45,6 +46,7 @@ describe('Margin Layout', () => {
     });
 
     const baseConfig: ExtendedOverlayConfig = {
+        ...DEFAULT_OVERLAY_CONFIG,
         templateId: 'margin',
         position: 'bottom-left',
         fontSizePercent: 2,

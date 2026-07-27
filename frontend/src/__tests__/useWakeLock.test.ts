@@ -55,7 +55,7 @@ describe('useWakeLock', () => {
     }
 
     function setWakeLockUnsupported(): void {
-        delete (navigator as Record<string, unknown>).wakeLock;
+        delete (navigator as unknown as Record<string, unknown>).wakeLock;
     }
 
     function simulateBrowserRelease(): void {

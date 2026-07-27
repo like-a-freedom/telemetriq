@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderLFrameLayout } from '../modules/layouts/lframeLayout';
+import { DEFAULT_OVERLAY_CONFIG } from '../modules/overlayRenderer';
 import type { MetricItem } from '../core/types';
 import type { ExtendedOverlayConfig, TelemetryFrame } from '../core/types';
 
@@ -48,6 +49,7 @@ describe('LFrame Layout', () => {
     };
 
     const baseConfig: ExtendedOverlayConfig = {
+        ...DEFAULT_OVERLAY_CONFIG,
         templateId: 'lframe',
         position: 'bottom-left',
         fontSizePercent: 2,

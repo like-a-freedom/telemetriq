@@ -6,13 +6,10 @@ import {
     discoverVideoProcessingFixtures,
     runMeasuredPhase,
 } from './helpers/videoProcessingPerfHarness';
-import {
-    createVideoProcessingProfiler,
-    type VideoProcessingProfile,
-} from '../modules/videoProcessing/profiler';
+import { createVideoProcessingProfiler } from '../modules/videoProcessing/profiler';
 import { createDemuxer } from '../modules/demuxer';
 import { renderOverlay, DEFAULT_OVERLAY_CONFIG } from '../modules/overlayRenderer';
-import type { TelemetryFrame } from '../core/types';
+import type { TelemetryFrame, VideoProcessingProfile } from '../core/types';
 
 type StubContext = {
     canvas: unknown;

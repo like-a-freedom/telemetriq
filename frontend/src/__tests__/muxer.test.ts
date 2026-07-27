@@ -42,11 +42,11 @@ const { createMuxer } = await import('../modules/muxer');
 
 class MockEncodedVideoChunk {
     data: Uint8Array | ArrayBuffer;
-    type: string;
+    type: EncodedVideoChunkType;
     timestamp: number;
     duration: number;
 
-    constructor(init: { type?: string; timestamp?: number; duration?: number; data?: Uint8Array }) {
+    constructor(init: { type?: EncodedVideoChunkType; timestamp?: number; duration?: number; data?: Uint8Array }) {
         this.data = init.data ?? new Uint8Array();
         this.type = init.type ?? 'key';
         this.timestamp = init.timestamp ?? 0;
