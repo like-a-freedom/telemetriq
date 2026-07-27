@@ -23,7 +23,7 @@ export interface RenderFrameParams {
     encodedFrameCount: number;
 }
 
-export function renderAndEncodeFrame(params: RenderFrameParams): void {
+export async function renderAndEncodeFrame(params: RenderFrameParams): Promise<void> {
     const {
         frame, canvas, ctx, videoMeta, videoRotation, telemetryFrames,
         safeSyncOffsetSeconds, config, encoder, gopFrames, encodedFrameCount,
@@ -55,7 +55,7 @@ export function renderAndEncodeFrame(params: RenderFrameParams): void {
 
     drawVideoFrameWithRotation(ctx, frame, videoMeta.width, videoMeta.height, videoRotation);
     if (telemetry) {
-        renderOverlay(ctx, telemetry, videoMeta.width, videoMeta.height, config, {
+        await renderOverlay(ctx, telemetry, videoMeta.width, videoMeta.height, config, {
             hrHistory,
             elevationHistory,
             destinationHasBaseFrame: true,

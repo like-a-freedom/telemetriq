@@ -484,7 +484,7 @@ export class VideoProcessor {
                     return;
                 }
 
-                renderAndEncodeFrame({
+                await renderAndEncodeFrame({
                     frame,
                     canvas,
                     ctx,
