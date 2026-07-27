@@ -152,3 +152,4 @@ Thumbs.db
 tmp/
 temp/
 frontend/playwright-report/index.html
+.commandcode/
