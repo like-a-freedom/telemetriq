@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderOverlay, buildMetrics, DEFAULT_OVERLAY_CONFIG } from '../modules/overlayRenderer';
-import type { TelemetryFrame } from '../core/types';
+import type { TelemetryFrame, ExtendedOverlayConfig } from '../core/types';
 
 type StubContext = {
     canvas: unknown;
@@ -215,7 +215,7 @@ describe('Overlay Renderer', () => {
             movingTimeSeconds: 60,
         };
 
-        const config = {
+        const config: ExtendedOverlayConfig = {
             ...DEFAULT_OVERLAY_CONFIG,
             templateId: 'trail-run',
             layoutMode: 'trail-run',

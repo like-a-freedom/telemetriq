@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHorizonLayout } from '../modules/layouts/horizonLayout';
+import { DEFAULT_OVERLAY_CONFIG } from '../modules/overlayRenderer';
 import type { MetricItem } from '../core/types';
 import type { ExtendedOverlayConfig } from '../core/types';
 
@@ -39,6 +40,7 @@ describe('Horizon Layout', () => {
     const height = 1080;
 
     const baseConfig: ExtendedOverlayConfig = {
+        ...DEFAULT_OVERLAY_CONFIG,
         templateId: 'horizon',
         position: 'bottom-left',
         fontSizePercent: 2.4,

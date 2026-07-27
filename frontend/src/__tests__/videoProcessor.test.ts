@@ -254,7 +254,7 @@ describe('VideoProcessor', () => {
         const codecModule = await import('../modules/videoProcessing/codecManager');
         let createDecoderCall = 0;
         vi.mocked(codecModule.createVideoCodecManager).mockImplementation(() => ({
-            createDecoder: (codec: string, description: any, onFrame: any, onError: any) => {
+            createDecoder: (_codec: string, _description: any, _onFrame: any, onError: any) => {
                 createDecoderCall++;
                 if (createDecoderCall === 1) {
                     return {

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderClassicLayout } from '../modules/layouts/classicLayout';
+import { DEFAULT_OVERLAY_CONFIG } from '../modules/overlayRenderer';
 import type { MetricItem } from '../core/types';
 import type { ExtendedOverlayConfig } from '../core/types';
 
@@ -19,6 +20,9 @@ function createMockContext() {
         stroke: vi.fn(),
         measureText: vi.fn((text: string) => ({ width: text.length * 10 })),
         roundRect: vi.fn(),
+        createLinearGradient: vi.fn(() => ({
+            addColorStop: vi.fn(),
+        })),
         font: '',
         fillStyle: '',
         strokeStyle: '',
@@ -42,6 +46,7 @@ describe('Classic Layout', () => {
     });
 
     const baseConfig: ExtendedOverlayConfig = {
+        ...DEFAULT_OVERLAY_CONFIG,
         templateId: 'classic',
         position: 'bottom-left',
         fontSizePercent: 2,
