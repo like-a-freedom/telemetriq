@@ -103,10 +103,14 @@ export interface TemplateMetadata {
     accent: string;
     text: string;
   };
-  /** Template capabilities - what features and metrics are supported (optional for backward compatibility) */
-  capabilities?: TemplateCapabilities;
-  /** Template styles - typography, spacing, and visual presets (optional for backward compatibility) */
-  styles?: TemplateStyles;
+  /**
+   * Template capabilities - what features and metrics are supported.
+   * Always populated through {@link defineTemplate}; the optional flag
+   * stays on the input side and legacy migration paths for back-compat.
+   */
+  capabilities: TemplateCapabilities;
+  /** Template styles - typography, spacing, and visual presets. */
+  styles: TemplateStyles;
 }
 
 /** Template definition combining metadata, configuration, and capabilities */
@@ -114,11 +118,14 @@ export interface TemplateDefinition {
   id: TemplateId;
   metadata: TemplateMetadata;
   config: ExtendedOverlayConfig;
-  capabilities?: TemplateCapabilities;
-  styles?: TemplateStyles;
+  /** Always populated for templates produced through {@link defineTemplate}. */
+  capabilities: TemplateCapabilities;
+  /** Always populated for templates produced through {@link defineTemplate}. */
+  styles: TemplateStyles;
 }
 
-export type TemplateMetadataInput = Omit<TemplateMetadata, 'id'> & Partial<Pick<TemplateMetadata, 'id'>>;
+export type TemplateMetadataInput = Omit<TemplateMetadata, 'id' | 'capabilities' | 'styles'>
+  & Partial<Pick<TemplateMetadata, 'id' | 'capabilities' | 'styles'>>;
 
 export type TemplateConfigInput = Partial<Omit<ExtendedOverlayConfig, 'templateId'>>
   & Partial<Pick<ExtendedOverlayConfig, 'templateId'>>;
