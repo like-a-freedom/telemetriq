@@ -44,15 +44,11 @@ export function useTemplateCapabilities(): TemplateCapabilitiesComposable {
     });
 
     const currentCapabilities = computed((): TemplateCapabilities => {
-        const template = currentTemplate.value as { metadata?: { capabilities?: TemplateCapabilities }; capabilities?: TemplateCapabilities } | undefined;
-        // Try metadata.capabilities first (new structure), then top-level capabilities, then defaults
-        return template?.metadata?.capabilities ?? template?.capabilities ?? DEFAULT_CAPABILITIES;
+        return currentTemplate.value?.capabilities ?? DEFAULT_CAPABILITIES;
     });
 
     const currentStyles = computed((): TemplateStyles => {
-        const template = currentTemplate.value as { metadata?: { styles?: TemplateStyles }; styles?: TemplateStyles } | undefined;
-        // Try metadata.styles first (new structure), then top-level styles, then defaults
-        return template?.metadata?.styles ?? template?.styles ?? DEFAULT_STYLES;
+        return currentTemplate.value?.styles ?? DEFAULT_STYLES;
     });
 
     /**
@@ -84,10 +80,14 @@ export function useTemplateCapabilities(): TemplateCapabilitiesComposable {
     }
 
     /**
-     * Check if a feature is supported by the current template
+     * Check if a feature is supported by the current template.
+     *
+     * Reads through the keys of {@link TemplateCapabilities} (plus a few
+     * `supports*` shortcuts) so unknown feature names always return `false`
+     * without unsafe casts.
      */
     function supportsFeature(feature: string): boolean {
-        const caps = currentCapabilities.value as unknown as Record<string, unknown>;
+        const caps: Record<string, unknown> = { ...currentCapabilities.value };
         return feature in caps && caps[feature] === true;
     }
 

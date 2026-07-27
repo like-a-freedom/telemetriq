@@ -21,16 +21,23 @@ const METRIC_FLAG_BY_TYPE: Record<MetricType, MetricFlagKey> = {
 
 const METRIC_FLAG_KEYS = Object.values(METRIC_FLAG_BY_TYPE);
 
+/**
+ * Resolve the canonical capabilities for a template id. Templates produced by
+ * {@link defineTemplate} always carry {@link TemplateCapabilities}, so the
+ * only `undefined` branch is "unknown template id", which we drop to the
+ * horizon defaults to preserve prior behavior.
+ */
+function getCapabilitiesFor(templateId: TemplateId) {
+    return getTemplateDefinition(templateId)?.capabilities ?? getTemplateDefinition('horizon')?.capabilities;
+}
+
 function templateSupportsPosition(templateId: TemplateId): boolean {
-    const template = getTemplateDefinition(templateId);
-    return template?.metadata.capabilities?.supportsPosition
-        ?? template?.capabilities?.supportsPosition
-        ?? false;
+    return getCapabilitiesFor(templateId)?.supportsPosition ?? false;
 }
 
 function applyTemplateMetricConstraints(config: ExtendedOverlayConfig): ExtendedOverlayConfig {
     const template = getTemplateDefinition(config.templateId);
-    const capabilities = template?.metadata.capabilities ?? template?.capabilities;
+    const capabilities = template?.capabilities;
 
     if (!capabilities) {
         return config;
