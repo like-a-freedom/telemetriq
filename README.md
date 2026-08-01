@@ -33,7 +33,7 @@ Clone and run locally:
 
 ```bash
 git clone <repo-url>
-cd sports_telemetry_overlay/frontend
+cd telemetriq/frontend
 bun install
 bun run dev      # dev server (Vite) — http://localhost:5173
 ```
@@ -41,9 +41,9 @@ bun run dev      # dev server (Vite) — http://localhost:5173
 Import a GPX file + video via the UI → choose an overlay template → Export.
 
 ## Features ✨
-- WebGPU / WebGL overlay rendering
-- GPX and other telemetry formats support
-- Video export via browser `@ffmpeg/ffmpeg` and/or native FFmpeg
+- WebGPU overlay rendering (with Canvas 2D fallback)
+- GPX telemetry support
+- Video export via browser `@ffmpeg/ffmpeg` (WebAssembly)
 - Template-driven, customizable overlay layouts
 - Responsive telemetry metrics with sparse-gap handling and isolated spike filtering
 - Unit + E2E tests (Vitest + Playwright)
@@ -76,7 +76,7 @@ All JS/TS commands use `bun` (see `frontend/package.json`).
 
 ### Notable scripts
 - `bun run fetch-ffmpeg-core` — download wasm ffmpeg to `public/vendor/ffmpeg`
-- `bun run benchmark:webgpu` — run WebGPU benchmark (Vitest)
+- `bun run test:performance` — run video-processing performance tests (Vitest)
 
 ---
 
@@ -120,7 +120,7 @@ docker pull ghcr.io/like-a-freedom/telemetriq:<commit-sha>
 - UI: Vue 3 + Pinia
 - Bundler: Vite (commands executed with Bun)
 - Tests: Vitest (unit), Playwright (e2e)
-- Media: `@ffmpeg/ffmpeg` (web) + native FFmpeg for offline export
+- Media: `@ffmpeg/ffmpeg` (WebAssembly) for video export
 - Code layout: `frontend/src` for UI, `modules/` for telemetry processing
 
 ### Adding overlay templates
@@ -246,7 +246,7 @@ robots/sitemap are generated at runtime by the server from `SITE_URL` (Caddy in 
 Coding standards: ESLint + Prettier.
 
 ## License
-This project is licensed under the MIT License — see `LICENSE` in the repository root.
+This project is licensed under the MIT License.
 
 ---
 
