@@ -98,3 +98,17 @@ WORKFLOW for any task:
 - Performance/fixture tests must tolerate optional local media assets. Assert required fixture labels only for files that actually exist in `test_data/` instead of assuming every workspace has the same baseline sample set.
 - Telemetry tests should be behavior-driven: cover exact-second lookups, in-between-frame lookups, pauses, sparse gaps, isolated spikes, sustained speed changes, preview/export parity, and auto-sync edge cases (weak GPS, loops, fallback paths). Avoid brittle assertions against arbitrary internal floating-point intermediates.
 - The main environment variable is `SITE_URL`, used for canonical URLs, robots, and sitemap behavior. Check the [root README environment section](../README.md#environment-variables) before changing site metadata behavior.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs live as GitHub issues, managed with the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
