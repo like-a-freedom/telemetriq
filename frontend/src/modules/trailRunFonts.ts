@@ -1,5 +1,8 @@
-import mediumUrl from '../assets/fonts/BarlowSemiCondensed-Medium.woff2?url';
-import semiboldUrl from '../assets/fonts/BarlowSemiCondensed-SemiBold.woff2?url';
+// Keep these as URL expressions instead of static `?url` imports. The browser
+// build still turns them into hashed asset URLs, while Playwright's Node-side
+// E2E loader can import the template registry without trying to parse WOFF2.
+const mediumUrl = new URL('../assets/fonts/BarlowSemiCondensed-Medium.woff2', import.meta.url).href;
+const semiboldUrl = new URL('../assets/fonts/BarlowSemiCondensed-SemiBold.woff2', import.meta.url).href;
 
 export const TRAIL_RUN_FONT_FAMILY = '"Barlow Semi Condensed", sans-serif';
 
