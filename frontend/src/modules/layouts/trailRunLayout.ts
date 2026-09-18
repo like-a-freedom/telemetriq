@@ -91,26 +91,10 @@ export function renderTrailRunLayout(
     const graphLeft = Math.round(w * 0.04);
     const graphWidth = Math.round(w * 0.82);
     const graphHeight = Math.round(h * 0.062);
-    const metricTop = topInset + graphHeight + Math.round(h * 0.028 * tuning.spacingScale);
-
-    const allColumns = buildTrailColumns(frame, config);
-
-    const columns = allColumns;
-
-    // Pre-compute metric band height
-    const metricBandBottom = metricTop + Math.round(h * (compact ? 0.082 : 0.07));
+    const columns = buildTrailColumns(frame, config);
 
     ctx.save();
     applyTextShadow(ctx, config);
-
-    drawTopFade(ctx, w, topInset + graphHeight + Math.round(h * 0.018));
-    drawMetricSupport(ctx, 0, topInset - Math.round(h * 0.012), w, metricBandBottom - topInset + Math.round(h * 0.03));
-
-    if (history.length >= 2) {
-        drawElevationTrace(ctx, history, graphLeft, topInset, graphWidth, graphHeight, config.accentColor || '#36b37e');
-    }
-
-    drawGraphLabel(ctx, 'Elevation', graphLeft, topInset + Math.round(h * 0.014), config);
 
     // Measure widest value + widest unit at base size to compute a single
     // consistent font size for all columns.  Units are always inline.
@@ -118,13 +102,19 @@ export function renderTrailRunLayout(
         ? Math.max(25, Math.round(h * 0.036 * tuning.textScale))
         : Math.max(38, Math.round(h * 0.05 * tuning.textScale));
     const minValueSize = Math.max(12, Math.round(h * 0.016 * tuning.textScale));
-    const baseUnitSize = Math.max(9, Math.round(baseValueSize * 0.22));
-    const baseGap = Math.round(baseValueSize * 0.08);
+    const labelSize = Math.max(9, Math.round(shortSide * 0.022));
+    const baseUnitSize = labelSize;
+    const baseGap = Math.max(4, Math.round(labelSize * 0.4));
 
-    ctx.font = `300 ${baseValueSize}px ${config.fontFamily}`;
+    const valueReserves: Record<string, string> = {
+        PACE: '00:00', HR: '000', DISTANCE: '000.00', TIME: '00:00:00',
+        GRADE: '-00', ELEVATION: '0000', POWER: '0000',
+    };
+    ctx.font = `600 ${baseValueSize}px ${config.fontFamily}`;
     let maxValWidth = 0;
     for (const metric of columns) {
-        const tw = ctx.measureText(metric.value).width;
+        const tw = Math.max(ctx.measureText(metric.value).width,
+            ctx.measureText(valueReserves[metric.label] ?? metric.value).width);
         if (tw > maxValWidth) maxValWidth = tw;
     }
 
@@ -139,16 +129,35 @@ export function renderTrailRunLayout(
     }
 
     // Total width of value + gap + unit at base size
-    const totalBaseWidth = maxValWidth + baseGap + maxUnitWidth;
+    const fixedWidth = baseGap + maxUnitWidth;
 
     // Evenly distribute columns across the full frame width
     const colWidth = w / columns.length;
-    const scale = Math.min(1, (colWidth * 0.88) / Math.max(1, totalBaseWidth));
+    const scale = Math.min(1, (colWidth * 0.88 - fixedWidth) / Math.max(1, maxValWidth));
     const valueSize = Math.max(minValueSize, Math.round(baseValueSize * scale));
+
+    // Use one type scale for every label and unit, independent of placement.
+    const graphLabelBaseline = topInset + labelSize;
+    const tracePadding = Math.max(5, graphWidth * 0.0065) + 2;
+    const graphTop = graphLabelBaseline + Math.max(8, labelSize * 0.75) + tracePadding;
+    const metricTop = graphTop + graphHeight + tracePadding + labelSize
+        + Math.round(h * 0.014 * tuning.spacingScale);
+    const metricBandBottom = metricTop + valueSize + Math.round(labelSize * 1.15);
+
+    drawTopFade(ctx, w, graphTop + graphHeight + Math.round(h * 0.018));
+    drawMetricSupport(ctx, 0, topInset - Math.round(h * 0.012), w,
+        metricBandBottom - topInset + Math.round(h * 0.03));
+
+    if (history.length >= 2) {
+        drawElevationTrace(ctx, history, graphLeft, graphTop, graphWidth, graphHeight,
+            config.accentColor || '#36b37e');
+    }
+    applyTextShadow(ctx, config);
+    drawGraphLabel(ctx, 'ELEVATION', graphLeft, graphLabelBaseline, labelSize, config);
 
     columns.forEach((metric, index) => {
         const colCenter = index * colWidth + colWidth / 2;
-        drawTrailMetric(ctx, colCenter, metricTop, valueSize, config, metric);
+        drawTrailMetric(ctx, colCenter, metricTop, valueSize, labelSize, config, metric);
         if (index < columns.length - 1 && columns.length <= 3) {
             const sepX = (index + 1) * colWidth - Math.round(w * 0.014);
             drawColumnSeparator(ctx, sepX, metricTop - Math.round(h * 0.004), h);
@@ -259,9 +268,9 @@ function drawElevationTrace(
     height: number,
     accentColor: string,
 ): void {
-    const minHr = Math.min(...history);
-    const maxHr = Math.max(...history);
-    const range = Math.max(1, maxHr - minHr);
+    const minElevation = Math.min(...history);
+    const maxElevation = Math.max(...history);
+    const range = Math.max(1, maxElevation - minElevation);
 
     ctx.strokeStyle = 'rgba(255,255,255,0.18)';
     ctx.lineWidth = 1;
@@ -272,13 +281,15 @@ function drawElevationTrace(
 
     // Build a dense Catmull‑Rom spline and render it as cubic Bézier
     // segments. This keeps the trace fluid instead of looking like a
-    // stepped polyline when the HR history is short or sparse.
+    // stepped polyline when the elevation history is short or sparse.
     const rawPoints = history.map((value, index) => ({
         x: left + (index / Math.max(1, history.length - 1)) * width,
-        y: top + height - ((value - minHr) / range) * height,
+        y: top + height - ((value - minElevation) / range) * height,
     }));
     const samples = Math.max(96, history.length * 16);
     const bezierSegments = buildSmoothBezierSegments(rawPoints, samples);
+
+    const clampY = (y: number) => Math.max(top, Math.min(top + height, y));
 
     ctx.strokeStyle = accentColor;
     ctx.lineWidth = Math.max(3.6, width * 0.0044);
@@ -290,16 +301,16 @@ function drawElevationTrace(
 
     if (bezierSegments.length > 0) {
         const first = bezierSegments[0]!;
-        ctx.moveTo(first.start.x, first.start.y);
+        ctx.moveTo(first.start.x, clampY(first.start.y));
 
         for (const segment of bezierSegments) {
             ctx.bezierCurveTo(
                 segment.cp1.x,
-                segment.cp1.y,
+                clampY(segment.cp1.y),
                 segment.cp2.x,
-                segment.cp2.y,
+                clampY(segment.cp2.y),
                 segment.end.x,
-                segment.end.y,
+                clampY(segment.end.y),
             );
         }
     }
@@ -308,7 +319,7 @@ function drawElevationTrace(
     ctx.shadowBlur = 0;
 
     const lastValue = history[history.length - 1]!;
-    const lastY = top + height - (((lastValue - minHr) / range) * height);
+    const lastY = top + height - (((lastValue - minElevation) / range) * height);
     const dotX = left + width;
     const dotRadius = Math.max(5, width * 0.0065);
 
@@ -328,14 +339,16 @@ function drawGraphLabel(
     label: string,
     left: number,
     top: number,
+    fontSize: number,
     config: ExtendedOverlayConfig,
 ): void {
-    const fontSize = Math.max(9, Math.round(top * 0.35));
-    ctx.fillStyle = 'rgba(255,255,255,0.58)';
-    ctx.font = `500 ${fontSize}px ${config.fontFamily}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.74)';
+    ctx.font = `600 ${fontSize}px ${config.fontFamily}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
+    ctx.letterSpacing = `${fontSize * 0.06}px`;
     ctx.fillText(label, left, top);
+    ctx.letterSpacing = '0px';
 }
 
 function drawTopFade(ctx: OverlayContext2D, width: number, fadeBottom: number): void {
@@ -385,12 +398,12 @@ function drawTrailMetric(
     colCenter: number,
     top: number,
     valueSize: number,
+    labelSize: number,
     config: ExtendedOverlayConfig,
     metric: TrailMetric,
 ): void {
-    const labelSize = Math.max(8, Math.round(valueSize * 0.28));
-    const unitSize = Math.max(9, Math.round(valueSize * 0.22));
-    const gap = Math.round(valueSize * 0.08);
+    const unitSize = labelSize;
+    const gap = Math.max(4, Math.round(labelSize * 0.4));
     const valueBaseline = top + valueSize + Math.round(labelSize * 1.15);
 
     ctx.textAlign = 'center';
@@ -398,11 +411,13 @@ function drawTrailMetric(
 
     // Label — centered above value
     ctx.fillStyle = 'rgba(255,255,255,0.74)';
-    ctx.font = `500 ${labelSize}px ${config.fontFamily}`;
+    ctx.font = `600 ${labelSize}px ${config.fontFamily}`;
+    ctx.letterSpacing = `${labelSize * 0.06}px`;
     ctx.fillText(metric.label, colCenter, top);
+    ctx.letterSpacing = '0px';
 
     // Measure value and unit widths for centering the group
-    ctx.font = `300 ${valueSize}px ${config.fontFamily}`;
+    ctx.font = `600 ${valueSize}px ${config.fontFamily}`;
     const valWidth = ctx.measureText(metric.value).width;
 
     let unitWidth = 0;
@@ -411,21 +426,20 @@ function drawTrailMetric(
         unitWidth = ctx.measureText(metric.unit).width;
     }
 
-    const groupWidth = valWidth + gap + unitWidth;
+    const groupWidth = valWidth + (metric.unit ? gap + unitWidth : 0);
     const groupLeft = colCenter - groupWidth / 2;
 
     // Value — left-aligned within centered group
     ctx.textAlign = 'left';
     ctx.fillStyle = config.textColor || '#FFFFFF';
-    ctx.font = `300 ${valueSize}px ${config.fontFamily}`;
+    ctx.font = `600 ${valueSize}px ${config.fontFamily}`;
     ctx.fillText(metric.value, groupLeft, valueBaseline);
 
     // Unit — inline, to the right of value
     if (metric.unit.length > 0) {
-        const unitVerticalOffset = Math.round(unitSize * 0.35);
         ctx.fillStyle = metric.value === 'N/A' ? 'rgba(255,255,255,0.58)' : 'rgba(255,255,255,0.8)';
         ctx.font = `500 ${unitSize}px ${config.fontFamily}`;
-        ctx.fillText(metric.unit, groupLeft + valWidth + gap, valueBaseline - unitVerticalOffset);
+        ctx.fillText(metric.unit, groupLeft + valWidth + gap, valueBaseline);
     }
 }
 

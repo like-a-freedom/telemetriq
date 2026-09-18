@@ -1,3 +1,4 @@
+import { TRAIL_RUN_FONT_FAMILY } from '../trailRunFonts';
 import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
 
 export const trailRunTemplate = defineTemplate({
@@ -18,7 +19,7 @@ export const trailRunTemplate = defineTemplate({
         showTime: true,
         showGrade: true,
         showElevation: true,
-        fontFamily: '"SFMono-Regular", "Roboto Mono", Menlo, monospace',
+        fontFamily: TRAIL_RUN_FONT_FAMILY,
         textColor: '#FFFFFF',
         backgroundColor: 'transparent',
         textShadow: true,
@@ -29,7 +30,7 @@ export const trailRunTemplate = defineTemplate({
         gradientStartColor: 'transparent',
         gradientEndColor: 'transparent',
         labelStyle: 'uppercase',
-        valueFontWeight: 'light',
+        valueFontWeight: 'bold',
         valueSizeMultiplier: 2.6,
         labelSizeMultiplier: 0.32,
         labelLetterSpacing: 0.12,

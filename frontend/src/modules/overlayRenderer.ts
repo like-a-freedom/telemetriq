@@ -1,3 +1,4 @@
+import { ensureTrailRunFonts } from './trailRunFonts';
 import type { TelemetryFrame, ExtendedOverlayConfig, MetricItem } from '../core/types';
 import { formatPace } from './telemetryCore';
 import { getTemplateConfig } from './templates';
@@ -91,6 +92,7 @@ export async function renderOverlay(
     renderContext: OverlayRenderContext = {},
 ): Promise<void> {
     const effectiveConfig = getEffectiveConfig(config);
+    if (effectiveConfig.layoutMode === 'trail-run') await ensureTrailRunFonts();
     const metrics = buildMetrics(frame, effectiveConfig);
     const shouldRenderFixedTemplate = shouldRenderWithoutMetrics(effectiveConfig);
 
@@ -387,6 +389,7 @@ export async function renderOverlayOnFrame(
     const height = videoFrame.displayHeight;
 
     const effectiveConfig = getEffectiveConfig(config);
+    if (effectiveConfig.layoutMode === 'trail-run') await ensureTrailRunFonts();
     const metrics = buildMetrics(telemetryFrame, effectiveConfig);
     const shouldRenderFixedTemplate = shouldRenderWithoutMetrics(effectiveConfig);
 

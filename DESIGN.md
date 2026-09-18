@@ -51,6 +51,11 @@ typography:
     fontWeight: 500
     letterSpacing: "0.08em"
     textTransform: uppercase
+  overlay-trail:
+    fontFamily: '"Barlow Semi Condensed", sans-serif'
+    fontSize: 1rem
+    fontWeight: 600
+    lineHeight: 1.1
   overlay-mono:
     fontFamily: '"SFMono-Regular", "Roboto Mono", Menlo, monospace'
     fontSize: 1rem
@@ -160,7 +165,7 @@ components:
   trail-run-overlay:
     backgroundColor: "{colors.overlay-scrim}"
     textColor: "{colors.trail-accent}"
-    typography: "{typography.overlay-mono}"
+    typography: "{typography.overlay-trail}"
     rounded: "{rounded.sm}"
     padding: 12px
   cycling-pro-overlay:
@@ -277,14 +282,14 @@ Each template defines its own `fontFamily` via Canvas 2D `fillText()`. Common ch
 
 | Token | Stack | Usage |
 |-------|-------|-------|
-| `overlay-mono` | `"SFMono-Regular", "Roboto Mono", Menlo, monospace` | Trail Run trace labels, precision text |
+| `overlay-trail` | `"Barlow Semi Condensed", sans-serif` | Trail Run values (600), labels (600), units (500); bundled WOFF2 |
 | `overlay-sans` | `Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif` | Cycling Pro metrics, clean dashboard text |
 | `overlay-number` | `Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif` | Large metric values (3rem, weight 300) |
 
 **Typography rules:**
 - No custom web fonts are imported globally — the system font stack is sufficient for app chrome.
 - Monospace is reserved for timing/tabular data only. Never use monospace for body text or headings.
-- Overlay fonts must include fallback stacks — the Canvas 2D renderer relies exclusively on locally installed fonts.
+- Overlay fonts must include fallback stacks — Trail Run loads its bundled fonts before Canvas 2D measurement in both preview and export; other templates use local fonts.
 - Use tabular or optically stable numerals wherever rapidly changing metrics appear.
 - Large metric values can be bold in scale, but supporting labels and units must remain readable at a glance.
 
@@ -436,7 +441,7 @@ Required ≠ disabled. Locked is a supported state — do not borrow the same tr
 
 - **Aesthetic**: Editorial, minimal, alpine, top-weighted.
 - **Color**: `trail-accent` (`#ff3b30`) — trace, labels, stat bands.
-- **Typography**: `overlay-mono` for precision, map-like character.
+- **Typography**: `overlay-trail`, a single condensed sans family with semibold values and labels, medium units, and stable label sizing.
 - **Layout**: Top trace + three-column stat band.
 - **Guardrails**: Trace, labels, and units must remain readable over bright footage. Use localized contrast support instead of turning the template into a thick opaque bar. Keep the template fast and clean — avoid ornamental UI paneling.
 
