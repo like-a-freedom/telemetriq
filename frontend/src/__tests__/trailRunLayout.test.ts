@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { getTemplateConfig } from '../modules/templateConfigs';
 import { renderTrailRunLayout } from '../modules/layouts/trailRunLayout';
 import type { ExtendedOverlayConfig, TelemetryFrame } from '../core/types';
 
@@ -85,9 +86,45 @@ describe('trailRun layout', () => {
 
         expect(ctx.bezierCurveTo).toHaveBeenCalled();
         expect(ctx.arc).toHaveBeenCalled();
-        expect(ctx.fillText).toHaveBeenCalledWith('Elevation', expect.any(Number), expect.any(Number));
+        expect(ctx.fillText).toHaveBeenCalledWith('ELEVATION', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).toHaveBeenCalledWith('HR', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).toHaveBeenCalledWith('GRADE', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).toHaveBeenCalledWith('ELEVATION', expect.any(Number), expect.any(Number));
     });
+    it.each([[1920, 1080], [1080, 1920], [640, 360], [360, 640]])(
+        'keeps labels separate from sharp elevation peaks at %ix%i', (width, height) => {
+            const ctx = createMockContext();
+            const text: { value: string; y: number; font: string }[] = [];
+            ctx.fillText.mockImplementation((value: string, _x: number, y: number) => {
+                text.push({ value, y, font: ctx.font });
+            });
+            const frame: TelemetryFrame = {
+                timeOffset: 60, hr: 159, paceSecondsPerKm: 321,
+                gradePercent: 27, elevationM: 2921, distanceKm: 12.34,
+                elapsedTime: '01:21:00', movingTimeSeconds: 60,
+            };
+            renderTrailRunLayout(ctx as any, frame, width, height, getTemplateConfig('trail-run'), {
+                elevationHistory: [3000, 3000, 1000, 3000, 1000, 1000, 3000],
+            });
+            const title = text[0]!;
+            const labels = text.filter(entry => ['PACE', 'HR', 'DISTANCE', 'TIME', 'GRADE', 'ELEVATION'].includes(entry.value));
+            expect(title.value).toBe('ELEVATION');
+            expect(new Set(labels.map(entry => entry.font)).size).toBe(1);
+            const labelSize = Number(title.font.match(/([\d.]+)px/)![1]);
+            const metricLabelTop = labels[1]!.y - labelSize;
+            for (const [, y1, , y2, , y3] of ctx.bezierCurveTo.mock.calls) {
+                for (const y of [y1, y2, y3]) {
+                    expect(y).toBeGreaterThan(title.y + labelSize * 0.5);
+                    expect(y).toBeLessThan(metricLabelTop);
+                }
+            }
+            for (const [, y, radius] of ctx.arc.mock.calls) {
+                expect(y - radius).toBeGreaterThan(title.y);
+                expect(y + radius).toBeLessThan(metricLabelTop);
+            }
+            const heartRate = text.find(entry => entry.value === '159')!;
+            expect(text.find(entry => entry.value === 'bpm')!.y).toBe(heartRate.y);
+        },
+    );
+
 });
