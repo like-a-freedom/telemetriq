@@ -1,23 +1,24 @@
 import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
+import { TRAIL_RUN_FONT_FAMILY } from '../trailRunFonts';
 
 export const heroNumberTemplate = defineTemplate({
   id: 'hero-number',
   metadata: {
     name: 'Hero Number',
     description: 'Large pace number with compact secondary metrics',
-    previewColors: { bg: '#111827', accent: '#f8fafc', text: '#ffffff' },
+    previewColors: { bg: '#111827', accent: '#00e676', text: '#ffffff' },
   },
   config: {
     layoutMode: 'hero-number',
     position: 'top-left',
     backgroundOpacity: 0,
     fontSizePercent: 2.3,
-    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    fontFamily: TRAIL_RUN_FONT_FAMILY,
     textColor: '#FFFFFF',
     backgroundColor: 'transparent',
     textShadow: true,
     textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowBlur: 14,
+    textShadowBlur: 6,
     lineSpacing: 1.1,
     layout: 'horizontal',
     labelStyle: 'uppercase',
@@ -25,11 +26,11 @@ export const heroNumberTemplate = defineTemplate({
     valueSizeMultiplier: 2.8,
     labelSizeMultiplier: 0.5,
     labelLetterSpacing: 0.25,
-    accentColor: '#FFFFFF',
+    accentColor: '#00E676',
   },
   capabilities: {
     ...DEFAULT_CAPABILITIES,
-    supportedMetrics: ['pace', 'hr', 'distance', 'time', 'power'],
+    supportedMetrics: ['pace', 'hr', 'distance', 'time'],
     supportsPosition: false,
     supportsGradient: false,
     supportsBorder: false,

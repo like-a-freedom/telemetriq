@@ -92,7 +92,7 @@ export async function renderOverlay(
     renderContext: OverlayRenderContext = {},
 ): Promise<void> {
     const effectiveConfig = getEffectiveConfig(config);
-    if (effectiveConfig.templateId === 'classic' || ['trail-run', 'cycling-pro', 'bottom-bar', 'side-margins', 'corner-frame'].includes(effectiveConfig.layoutMode || '')) await ensureTrailRunFonts();
+    if (effectiveConfig.templateId === 'classic' || ['trail-run', 'cycling-pro', 'arc-gauge', 'hero-number', 'bottom-bar', 'side-margins', 'corner-frame'].includes(effectiveConfig.layoutMode || '')) await ensureTrailRunFonts();
     const metrics = buildMetrics(frame, effectiveConfig);
     const shouldRenderFixedTemplate = shouldRenderWithoutMetrics(effectiveConfig);
 
@@ -389,7 +389,7 @@ export async function renderOverlayOnFrame(
     const height = videoFrame.displayHeight;
 
     const effectiveConfig = getEffectiveConfig(config);
-    if (effectiveConfig.templateId === 'classic' || ['trail-run', 'cycling-pro', 'bottom-bar', 'side-margins', 'corner-frame'].includes(effectiveConfig.layoutMode || '')) await ensureTrailRunFonts();
+    if (effectiveConfig.templateId === 'classic' || ['trail-run', 'cycling-pro', 'arc-gauge', 'hero-number', 'bottom-bar', 'side-margins', 'corner-frame'].includes(effectiveConfig.layoutMode || '')) await ensureTrailRunFonts();
     const metrics = buildMetrics(telemetryFrame, effectiveConfig);
     const shouldRenderFixedTemplate = shouldRenderWithoutMetrics(effectiveConfig);
 

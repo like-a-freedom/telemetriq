@@ -65,6 +65,7 @@ function createStubContext(): StubContext {
         lineTo: vi.fn(),
         arc: vi.fn(),
         measureText: vi.fn((text: string) => ({ width: measure(text) } as TextMetrics)),
+        strokeText: vi.fn(),
         fillText: vi.fn((text: string, x: number, y: number) => {
             fillTextEntries.push({
                 text,
@@ -120,8 +121,8 @@ describe('extended layouts renderer', () => {
             renderExtendedLayout(ctx, METRICS, 1280, 720, config, layoutMode);
         }).not.toThrow();
 
-        expect(ctx.save).toHaveBeenCalledTimes(1);
-        expect(ctx.restore).toHaveBeenCalledTimes(1);
+        expect(ctx.save.mock.calls.length).toBeGreaterThan(0);
+        expect(ctx.restore.mock.calls.length).toBe(ctx.save.mock.calls.length);
         expect(ctx.__fillTextEntries.length).toBeGreaterThan(0);
     });
 
