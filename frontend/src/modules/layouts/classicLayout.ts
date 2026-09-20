@@ -37,12 +37,29 @@ export function renderClassicLayout(
     ctx.textAlign = 'left';
     ctx.font = `600 ${fontSize}px ${fontFamily}`;
 
-    const measuredWidth = calculateMaxLineWidth(ctx, [...stableLines, ...lines]);
+    const textLines = [...stableLines, ...lines];
+    const measuredWidth = calculateMaxLineWidth(ctx, textLines);
     const margin = Math.min(w, h) * 0.04 + Math.max(0, config.borderWidth || 0) / 2;
-    const fit = Math.min(1, (w - margin * 2) / (measuredWidth + fontSize * 1.2),
+    const availableWidth = Math.max(1, w - margin * 2);
+    const fit = Math.min(1, availableWidth / (measuredWidth + fontSize * 1.2),
         (h - margin * 2) / (fontSize * (lines.length * spacing + 1.2)));
     fontSize *= Math.max(0.01, fit);
-    const maxWidth = measuredWidth * fit;
+
+    // Canvas font metrics are not perfectly linear across fractional font sizes
+    // on every platform. Remeasure at the actual draw size so narrow frames do
+    // not clip long horizontal rows on Linux.
+    for (let attempt = 0; attempt < 8; attempt++) {
+        ctx.font = `600 ${fontSize}px ${fontFamily}`;
+        const currentWidth = calculateMaxLineWidth(ctx, textLines);
+        const requiredWidth = currentWidth + fontSize * 1.2;
+        if (requiredWidth <= availableWidth) break;
+
+        const correction = (availableWidth / requiredWidth) * 0.98;
+        fontSize *= Math.max(0.01, Math.min(0.98, correction));
+    }
+    ctx.font = `600 ${fontSize}px ${fontFamily}`;
+    const maxWidth = calculateMaxLineWidth(ctx, textLines);
+
     const lineHeight = fontSize * spacing;
     const padding = fontSize * 0.6;
     const bgWidth = maxWidth + padding * 2;
