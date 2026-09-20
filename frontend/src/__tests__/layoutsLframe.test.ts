@@ -9,6 +9,7 @@ function createMockContext() {
         save: vi.fn(),
         restore: vi.fn(),
         fillText: vi.fn(),
+        strokeText: vi.fn(),
         fillRect: vi.fn(),
         strokeRect: vi.fn(),
         beginPath: vi.fn(),
@@ -79,12 +80,16 @@ describe('LFrame Layout', () => {
         expect(mockCtx.restore).toHaveBeenCalled();
     });
 
-    it('should render bottom gradient', () => {
+    it('draws a corner frame without a backdrop or fake progress fill', () => {
         const metrics: MetricItem[] = [{ label: 'Test', value: '10', unit: '' }];
 
         renderLFrameLayout(mockCtx as any, metrics, mockFrame, width, height, baseConfig);
 
-        expect(mockCtx.createLinearGradient).toHaveBeenCalled();
+        expect(mockCtx.createLinearGradient).not.toHaveBeenCalled();
+        expect(mockCtx.fillRect).not.toHaveBeenCalled();
+        expect(mockCtx.moveTo).toHaveBeenCalledTimes(1);
+        expect(mockCtx.lineTo).toHaveBeenCalledTimes(2);
+        expect(mockCtx.stroke).toHaveBeenCalled();
     });
 
     it('should handle different screen sizes', () => {

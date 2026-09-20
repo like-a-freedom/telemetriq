@@ -3,6 +3,7 @@
  */
 
 import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
+import { TRAIL_RUN_FONT_FAMILY } from '../trailRunFonts';
 
 export const lframeTemplate = defineTemplate({
   id: 'l-frame',
@@ -16,11 +17,11 @@ export const lframeTemplate = defineTemplate({
     position: 'bottom-left',
     backgroundOpacity: 0.0,
     fontSizePercent: 2.0,
-    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    fontFamily: TRAIL_RUN_FONT_FAMILY,
     textColor: '#FFFFFF',
     backgroundColor: 'transparent',
     textShadow: true,
-    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowColor: 'rgba(0,0,0,0.85)',
     textShadowBlur: 6,
     lineSpacing: 1.0,
     layout: 'horizontal',
@@ -35,6 +36,7 @@ export const lframeTemplate = defineTemplate({
     ...DEFAULT_CAPABILITIES,
     supportedMetrics: ['pace', 'hr', 'distance', 'time', 'power'],
     supportsPosition: false,
+    supportsBackgroundOpacity: false,
     supportsGradient: false,
     supportsBorder: false,
     supportsTextShadow: true,

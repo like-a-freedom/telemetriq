@@ -34,14 +34,14 @@ function getMetricTypography(textScale: number, compact: boolean): MetricTypogra
             ? Math.max(26, Math.round(42 * textScale))
             : Math.max(34, Math.round(56 * textScale)),
         unitSize: compact
-            ? Math.max(26, Math.round(42 * textScale))
-            : Math.max(34, Math.round(56 * textScale)),
+            ? Math.max(11, Math.round(18 * textScale))
+            : Math.max(13, Math.round(22 * textScale)),
         labelSize: compact
-            ? Math.max(16, Math.round(26 * textScale))
-            : Math.max(20, Math.round(32 * textScale)),
-        barHeight: Math.max(4, Math.round((compact ? 4 : 5) * textScale)),
-        gapValueToLabel: Math.round((compact ? 28 : 38) * textScale),
-        gapLabelToBar: Math.round((compact ? 14 : 20) * textScale),
+            ? Math.max(11, Math.round(18 * textScale))
+            : Math.max(13, Math.round(22 * textScale)),
+        barHeight: Math.max(2, Math.round(3 * textScale)),
+        gapValueToLabel: Math.max(16, Math.round(26 * textScale)),
+        gapLabelToBar: Math.max(7, Math.round(10 * textScale)),
         gapBetweenBlocks: Math.round((compact ? 22 : 32) * textScale),
     };
 }
@@ -65,8 +65,8 @@ export function renderCyclingProLayout(
     const left = Math.round(w * (portrait ? 0.038 : 0.028));
     const top = Math.round(h * (portrait ? 0.068 : 0.07));
     const sidebarWidth = portrait
-        ? Math.max(156, Math.round(shortSide * 0.255))
-        : Math.max(188, Math.round(shortSide * 0.28));
+        ? Math.max(112, Math.round(shortSide * 0.255))
+        : Math.max(130, Math.round(shortSide * 0.28));
     const typ = getMetricTypography(tuning.textScale, compact);
     const metricBlockHeight = sidebarContentHeight(typ) + typ.gapBetweenBlocks;
     const gaugeDiameter = portrait
@@ -180,11 +180,11 @@ function drawUnit(
     fontFamily: string,
 ): void {
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = `700 ${unitSize}px ${fontFamily}`;
+    ctx.font = `500 ${unitSize}px ${fontFamily}`;
     ctx.fillText(
         unit,
-        x + valueWidth + 16,
-        valueBaseline - Math.round(0.4 * (valueSize - unitSize)),
+        x + valueWidth + Math.max(4, valueSize * 0.12),
+        valueBaseline,
     );
 }
 
@@ -213,7 +213,7 @@ function drawSidebarMetric(
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = params.placeholder ? 'rgba(255,255,255,0.82)' : '#FFFFFF';
-    ctx.font = `${params.placeholder ? 500 : 300} ${t.valueSize}px ${params.fontFamily}`;
+    ctx.font = `600 ${t.valueSize}px ${params.fontFamily}`;
     ctx.fillText(params.value, params.x, valueBaseline);
 
     if (params.unit) {
@@ -222,8 +222,10 @@ function drawSidebarMetric(
     }
 
     ctx.fillStyle = params.placeholder ? 'rgba(255,255,255,0.56)' : '#FFFFFF';
-    ctx.font = `500 ${t.labelSize}px ${params.fontFamily}`;
-    ctx.fillText(params.label, params.x, labelBaseline);
+    ctx.font = `600 ${t.labelSize}px ${params.fontFamily}`;
+    ctx.letterSpacing = `${t.labelSize * 0.06}px`;
+    ctx.fillText(params.label.toUpperCase(), params.x, labelBaseline);
+    ctx.letterSpacing = '0px';
 
     ctx.fillStyle = 'rgba(255,255,255,0.12)';
     ctx.fillRect(params.x, barTop, Math.round(params.width * 0.78), t.barHeight);
@@ -255,13 +257,15 @@ function drawDistanceCallout(
     ctx.textBaseline = 'alphabetic';
 
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = `300 ${t.valueSize}px ${params.fontFamily}`;
+    ctx.font = `600 ${t.valueSize}px ${params.fontFamily}`;
     ctx.fillText(params.distanceValue, params.x, params.valueBaselineY);
 
     const distValueWidth = ctx.measureText(params.distanceValue).width;
     drawUnit(ctx, 'KM', params.x, distValueWidth, params.valueBaselineY, t.valueSize, t.unitSize, params.fontFamily);
 
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = `500 ${t.labelSize}px ${params.fontFamily}`;
-    ctx.fillText('Distance', params.x, params.valueBaselineY + t.gapValueToLabel);
+    ctx.font = `600 ${t.labelSize}px ${params.fontFamily}`;
+    ctx.letterSpacing = `${t.labelSize * 0.06}px`;
+    ctx.fillText('DISTANCE', params.x, params.valueBaselineY + t.gapValueToLabel);
+    ctx.letterSpacing = '0px';
 }

@@ -104,11 +104,11 @@ export function drawSpeedometerGauge(
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = textColor;
-    ctx.font = `300 ${valueFontSize}px ${fontFamily}`;
+    ctx.font = `600 ${valueFontSize}px ${fontFamily}`;
     ctx.fillText(paddedSpeed, cx, cy);
 
     ctx.fillStyle = unitColor;
-    ctx.font = `600 ${unitFontSize}px ${fontFamily}`;
+    ctx.font = `500 ${unitFontSize}px ${fontFamily}`;
     ctx.fillText('km/h', cx, cy + valueFontSize * 0.72);
 
     ctx.restore();

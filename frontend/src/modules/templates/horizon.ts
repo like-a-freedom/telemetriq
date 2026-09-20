@@ -3,6 +3,7 @@
  */
 
 import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
+import { TRAIL_RUN_FONT_FAMILY } from '../trailRunFonts';
 
 export const horizonTemplate = defineTemplate({
   id: 'horizon',
@@ -16,7 +17,7 @@ export const horizonTemplate = defineTemplate({
     position: 'bottom-left',
     backgroundOpacity: 0.85,
     fontSizePercent: 2.4,
-    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    fontFamily: TRAIL_RUN_FONT_FAMILY,
     textColor: '#FFFFFF',
     backgroundColor: '#000000',
     textShadowColor: '#000000',
@@ -42,7 +43,7 @@ export const horizonTemplate = defineTemplate({
   },
   styles: {
     typography: {
-      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      fontFamily: TRAIL_RUN_FONT_FAMILY,
       valueFontWeight: 'bold',
       valueSizeMultiplier: 2.5,
       labelSizeMultiplier: 0.4,

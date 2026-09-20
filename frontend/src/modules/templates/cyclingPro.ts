@@ -1,4 +1,5 @@
 import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
+import { TRAIL_RUN_FONT_FAMILY } from '../trailRunFonts';
 
 export const cyclingProTemplate = defineTemplate({
     id: 'cycling-pro',
@@ -18,7 +19,7 @@ export const cyclingProTemplate = defineTemplate({
         showTime: false,
         showSpeed: true,
         showPower: true,
-        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        fontFamily: TRAIL_RUN_FONT_FAMILY,
         textColor: '#FFFFFF',
         backgroundColor: 'transparent',
         textShadow: true,
