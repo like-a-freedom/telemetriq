@@ -282,14 +282,14 @@ Each template defines its own `fontFamily` via Canvas 2D `fillText()`. Common ch
 
 | Token | Stack | Usage |
 |-------|-------|-------|
-| `overlay-trail` | `"Barlow Semi Condensed", sans-serif` | Trail Run values (600), labels (600), units (500); bundled WOFF2 |
-| `overlay-sans` | `Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif` | Cycling Pro metrics, clean dashboard text |
+| `overlay-trail` | `"Barlow Semi Condensed", sans-serif` | Trail Run, Cycling Pro and Horizon values (600), labels (600), units (500); bundled WOFF2 |
+| `overlay-sans` | `Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif` | Clean dashboard text |
 | `overlay-number` | `Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif` | Large metric values (3rem, weight 300) |
 
 **Typography rules:**
 - No custom web fonts are imported globally — the system font stack is sufficient for app chrome.
 - Monospace is reserved for timing/tabular data only. Never use monospace for body text or headings.
-- Overlay fonts must include fallback stacks — Trail Run loads its bundled fonts before Canvas 2D measurement in both preview and export; other templates use local fonts.
+- Overlay fonts must include fallback stacks — Trail Run, Cycling Pro and Horizon load their bundled fonts before Canvas 2D measurement in both preview and export; other templates use local fonts.
 - Use tabular or optically stable numerals wherever rapidly changing metrics appear.
 - Large metric values can be bold in scale, but supporting labels and units must remain readable at a glance.
 
@@ -445,11 +445,35 @@ Required ≠ disabled. Locked is a supported state — do not borrow the same tr
 - **Layout**: Top trace + three-column stat band.
 - **Guardrails**: Trace, labels, and units must remain readable over bright footage. Use localized contrast support instead of turning the template into a thick opaque bar. Keep the template fast and clean — avoid ornamental UI paneling.
 
+### Classic
+
+- **Typography**: Bundled Barlow Semi Condensed at weight 600, with explicit text labels for every metric instead of platform-dependent emoji. Compact lines retain the simple corner-overlay identity.
+- **Layout**: All four corners and both layout directions are supported. Real and reserved string widths plus total content height determine a common fit scale; the border is included in safe margins.
+- **Background**: Transparent by default. Optional solid and gradient backgrounds respect the opacity control, including zero. Text color, border and corner-radius settings remain available.
+
+### L-Frame
+
+- **Typography**: Bundled Barlow Semi Condensed, medium values and units with semibold labels. Every role is measured against actual and reserved content widths.
+- **Layout**: Bottom-aligned metrics inside a thin L-shaped rule, with safe padding. Dense portrait and square frames use balanced rows. The rule is decorative and never represents elapsed progress.
+- **Readability**: Transparent canvas, no background fills. The optional text treatment uses a thin glyph contour rather than a blurred halo. Text and accent colors are respected.
+
+### Margin
+
+- **Typography**: Bundled Barlow Semi Condensed, medium values and units, semibold vertical labels on both sides. A shared value size fits actual content and stable numeric reservations.
+- **Layout**: Two edge rails with matching row positions, a reserved clear center, and safe frame padding. Labels rotate outward; every metric remains identified when toggles change the grouping.
+- **Readability**: No background fills or dark halos. A thin glyph contour, drawn before the foreground, protects text on bright footage; the text-shadow toggle controls this treatment. Background-opacity controls are unavailable.
+
+### Horizon
+
+- **Typography**: Bundled `overlay-trail` family, values and labels at 600, units at 500. All same-role text shares a size; fitting includes actual values, stable numeric reservations, labels and units.
+- **Layout**: Bottom strip with up to six columns in landscape and three in portrait or square frames. Additional metrics wrap into balanced rows, with the final row centered and safe padding on every side.
+- **Readability**: Solid foreground labels and units over a fading backdrop. Background opacity, gradient colors and solid-background mode are respected.
+
 ### Cycling Pro
 
 - **Aesthetic**: Technical, performance-oriented, dashboard-like.
 - **Color**: `cycling-accent` (`#00e676`) for primary metrics, `cycling-accent-strong` (`#00c853`) for emphasis.
-- **Typography**: `overlay-sans` for clean metrics, `overlay-number` for large values (3rem, weight 300).
+- **Typography**: Bundled `overlay-trail` family shared with Trail Run. Values and uppercase labels use weight 600; smaller baseline-aligned units use 500. The speed dial follows the same hierarchy.
 - **Layout**: Left telemetry stack + distance + speed dial.
 - **Guardrails**: One green accent family only unless a true alert state exists. The left rail should frame information, not dominate the composition. Missing telemetry expressed as `N/A` or `NO DATA` — never a broken metric or long-lived `--`. The speed dial must account for preview-safe positioning (raise dial and/or add preview-only padding to avoid collision with native player controls).
 

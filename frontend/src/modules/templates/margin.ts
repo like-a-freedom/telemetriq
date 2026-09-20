@@ -3,6 +3,7 @@
  */
 
 import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
+import { TRAIL_RUN_FONT_FAMILY } from '../trailRunFonts';
 
 export const marginTemplate = defineTemplate({
   id: 'margin',
@@ -14,13 +15,13 @@ export const marginTemplate = defineTemplate({
   config: {
     layoutMode: 'side-margins',
     position: 'bottom-left',
-    backgroundOpacity: 0.6,
+    backgroundOpacity: 0,
     fontSizePercent: 2.0,
-    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    fontFamily: TRAIL_RUN_FONT_FAMILY,
     textColor: '#FFFFFF',
     backgroundColor: '#000000',
     textShadow: true,
-    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowColor: 'rgba(0,0,0,0.85)',
     textShadowBlur: 8,
     lineSpacing: 1.2,
     layout: 'vertical',
@@ -35,6 +36,7 @@ export const marginTemplate = defineTemplate({
     ...DEFAULT_CAPABILITIES,
     supportedMetrics: ['pace', 'hr', 'distance', 'time', 'power'],
     supportsPosition: false,
+    supportsBackgroundOpacity: false,
     supportsGradient: false,
     supportsBorder: false,
     supportsTextShadow: true,

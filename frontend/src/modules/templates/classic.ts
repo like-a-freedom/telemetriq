@@ -3,6 +3,7 @@
  */
 
 import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
+import { TRAIL_RUN_FONT_FAMILY } from '../trailRunFonts';
 
 export const classicTemplate = defineTemplate({
   id: 'classic',
@@ -15,14 +16,16 @@ export const classicTemplate = defineTemplate({
     layoutMode: 'box',
     position: 'top-right',
     backgroundOpacity: 0,
-    fontSizePercent: 2.0,
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    fontSizePercent: 3.0,
+    fontFamily: TRAIL_RUN_FONT_FAMILY,
     textColor: '#FFFFFF',
     backgroundColor: 'transparent',
     borderColor: '#FFFFFF',
     cornerRadius: 4,
     textShadowBlur: 2,
-    lineSpacing: 1.2,
+    textShadow: true,
+    textShadowColor: 'rgba(0,0,0,0.85)',
+    lineSpacing: 1.5,
     layout: 'vertical',
     iconStyle: 'outline',
     gradientBackground: false,
@@ -38,13 +41,13 @@ export const classicTemplate = defineTemplate({
   },
   styles: {
     typography: {
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontFamily: TRAIL_RUN_FONT_FAMILY,
       valueFontWeight: 'bold',
     },
     spacing: {
       basePaddingPercent: 0.02,
       metricGapPercent: 0.01,
-      lineSpacing: 1.2,
+      lineSpacing: 1.5,
     },
     visual: {
       cornerRadius: 4,

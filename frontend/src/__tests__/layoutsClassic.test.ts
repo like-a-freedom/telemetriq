@@ -83,6 +83,21 @@ describe('Classic Layout', () => {
         expect(mockCtx.fillText).not.toHaveBeenCalled();
     });
 
+    it('keeps a zero-opacity background transparent even with an opaque color', () => {
+        renderClassicLayout(mockCtx as any, [{ label: 'Power', value: '999', unit: 'W' }], width, height,
+            { ...baseConfig, backgroundColor: '#000000', backgroundOpacity: 0 });
+        expect(mockCtx.fill).not.toHaveBeenCalled();
+    });
+
+    it('applies background opacity without dimming the text', () => {
+        let opacityAtFill = 0;
+        mockCtx.fill.mockImplementation(() => { opacityAtFill = mockCtx.globalAlpha; });
+        renderClassicLayout(mockCtx as any, [{ label: 'Power', value: '999', unit: 'W' }], width, height,
+            { ...baseConfig, backgroundColor: '#000000', backgroundOpacity: 0.4 });
+        expect(opacityAtFill).toBe(0.4);
+        expect(mockCtx.save).toHaveBeenCalledTimes(mockCtx.restore.mock.calls.length);
+    });
+
     it('should calculate correct font size based on height', () => {
         const metrics: MetricItem[] = [{ label: 'Test', value: '10', unit: '' }];
 

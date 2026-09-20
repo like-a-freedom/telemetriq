@@ -84,8 +84,8 @@ describe('cyclingPro layout', () => {
         renderCyclingProLayout(ctx as any, frame, 1080, 1920, config);
 
         expect(ctx.fillText).not.toHaveBeenCalledWith('Cadence', expect.any(Number), expect.any(Number));
-        expect(ctx.fillText).toHaveBeenCalledWith('Power', expect.any(Number), expect.any(Number));
-        expect(ctx.fillText).toHaveBeenCalledWith('Heart rate', expect.any(Number), expect.any(Number));
+        expect(ctx.fillText).toHaveBeenCalledWith('POWER', expect.any(Number), expect.any(Number));
+        expect(ctx.fillText).toHaveBeenCalledWith('HEART RATE', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).toHaveBeenCalledWith('054', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).toHaveBeenCalledWith('km/h', expect.any(Number), expect.any(Number));
     });
@@ -140,9 +140,9 @@ describe('cyclingPro layout', () => {
 
         renderCyclingProLayout(ctx as any, frame, 1080, 1920, config);
 
-        expect(ctx.fillText).toHaveBeenCalledWith('Heart rate', expect.any(Number), expect.any(Number));
+        expect(ctx.fillText).toHaveBeenCalledWith('HEART RATE', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).not.toHaveBeenCalledWith('Cadence', expect.any(Number), expect.any(Number));
-        expect(ctx.fillText).not.toHaveBeenCalledWith('Power', expect.any(Number), expect.any(Number));
+        expect(ctx.fillText).not.toHaveBeenCalledWith('POWER', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).not.toHaveBeenCalledWith('N/A', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).not.toHaveBeenCalledWith('NO SENSOR', expect.any(Number), expect.any(Number));
     });

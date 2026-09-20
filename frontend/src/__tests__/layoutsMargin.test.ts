@@ -9,6 +9,7 @@ function createMockContext() {
         save: vi.fn(),
         restore: vi.fn(),
         fillText: vi.fn(),
+        strokeText: vi.fn(),
         fillRect: vi.fn(),
         strokeRect: vi.fn(),
         beginPath: vi.fn(),
@@ -19,10 +20,11 @@ function createMockContext() {
         stroke: vi.fn(),
         measureText: vi.fn((text: string) => ({ width: text.length * 10 })),
         roundRect: vi.fn(),
-        createLinearGradient: vi.fn(() => ({
+        createRadialGradient: vi.fn(() => ({
             addColorStop: vi.fn(),
         })),
         translate: vi.fn(),
+        scale: vi.fn(),
         rotate: vi.fn(),
         font: '',
         fillStyle: '',
@@ -99,7 +101,7 @@ describe('Margin Layout', () => {
         expect(mockCtx.fillText).toHaveBeenCalled();
     });
 
-    it('should render edge gradients', () => {
+    it('keeps the video clear without drawing backdrops', () => {
         const metrics: MetricItem[] = [{ label: 'Test', value: '10', unit: '' }];
         const config: ExtendedOverlayConfig = {
             ...baseConfig,
@@ -108,7 +110,8 @@ describe('Margin Layout', () => {
 
         renderMarginLayout(mockCtx as any, metrics, width, height, config);
 
-        expect(mockCtx.createLinearGradient).toHaveBeenCalled();
+        expect(mockCtx.createRadialGradient).not.toHaveBeenCalled();
+        expect(mockCtx.fillRect).not.toHaveBeenCalled();
     });
 
     it('should handle different screen sizes', () => {

@@ -122,7 +122,7 @@ describe('Overlay Renderer', () => {
         expect(drawCalls).not.toHaveBeenCalled();
     });
 
-    it('should render overlay without throwing', () => {
+    it('should render overlay without throwing', async () => {
         const ctx = createStubContext({ id: 'dest-basic' }) as unknown as CanvasRenderingContext2D;
 
         const frame: TelemetryFrame = {
@@ -134,11 +134,11 @@ describe('Overlay Renderer', () => {
             movingTimeSeconds: 60,
         };
 
-        expect(() => renderOverlay(ctx, frame, 640, 360, DEFAULT_OVERLAY_CONFIG)).not.toThrow();
+        await expect(renderOverlay(ctx, frame, 640, 360, DEFAULT_OVERLAY_CONFIG)).resolves.toBeUndefined();
         expect((ctx as unknown as StubContext).drawImage).toHaveBeenCalledTimes(1);
     });
 
-    it('should use cache for repeated render with identical frame/config', () => {
+    it('should use cache for repeated render with identical frame/config', async () => {
         const frame: TelemetryFrame = {
             timeOffset: 120,
             hr: 147,
@@ -151,16 +151,16 @@ describe('Overlay Renderer', () => {
         const ctx1 = createStubContext({ id: 'dest-first' }) as unknown as CanvasRenderingContext2D;
         const ctx2 = createStubContext({ id: 'dest-second' }) as unknown as CanvasRenderingContext2D;
 
-        renderOverlay(ctx1, frame, 1280, 720, DEFAULT_OVERLAY_CONFIG);
+        await renderOverlay(ctx1, frame, 1280, 720, DEFAULT_OVERLAY_CONFIG);
         const createdAfterFirstRender = offscreenCreateCount;
 
-        renderOverlay(ctx2, frame, 1280, 720, DEFAULT_OVERLAY_CONFIG);
+        await renderOverlay(ctx2, frame, 1280, 720, DEFAULT_OVERLAY_CONFIG);
 
         expect((ctx2 as unknown as StubContext).drawImage).toHaveBeenCalledTimes(1);
         expect(offscreenCreateCount).toBe(createdAfterFirstRender);
     });
 
-    it('should bypass cache for high-resolution renders', () => {
+    it('should bypass cache for high-resolution renders', async () => {
         const frame: TelemetryFrame = {
             timeOffset: 120,
             hr: 147,
@@ -173,16 +173,16 @@ describe('Overlay Renderer', () => {
         const ctx1 = createStubContext({ id: 'dest-hires-first' }) as unknown as CanvasRenderingContext2D;
         const ctx2 = createStubContext({ id: 'dest-hires-second' }) as unknown as CanvasRenderingContext2D;
 
-        renderOverlay(ctx1, frame, 3840, 2160, DEFAULT_OVERLAY_CONFIG);
+        await renderOverlay(ctx1, frame, 3840, 2160, DEFAULT_OVERLAY_CONFIG);
         const createdAfterFirstRender = offscreenCreateCount;
 
-        renderOverlay(ctx2, frame, 3840, 2160, DEFAULT_OVERLAY_CONFIG);
+        await renderOverlay(ctx2, frame, 3840, 2160, DEFAULT_OVERLAY_CONFIG);
 
         expect((ctx2 as unknown as StubContext).drawImage).toHaveBeenCalledTimes(1);
         expect(offscreenCreateCount).toBeGreaterThan(createdAfterFirstRender);
     });
 
-    it('should reuse a bounded single-entry cache for repeated 1080p renders', () => {
+    it('should reuse a bounded single-entry cache for repeated 1080p renders', async () => {
         const frame: TelemetryFrame = {
             timeOffset: 120,
             hr: 147,
@@ -195,10 +195,10 @@ describe('Overlay Renderer', () => {
         const ctx1 = createStubContext({ id: 'dest-1080-first' }) as unknown as CanvasRenderingContext2D;
         const ctx2 = createStubContext({ id: 'dest-1080-second' }) as unknown as CanvasRenderingContext2D;
 
-        renderOverlay(ctx1, frame, 1920, 1080, DEFAULT_OVERLAY_CONFIG);
+        await renderOverlay(ctx1, frame, 1920, 1080, DEFAULT_OVERLAY_CONFIG);
         const createdAfterFirstRender = offscreenCreateCount;
 
-        renderOverlay(ctx2, frame, 1920, 1080, DEFAULT_OVERLAY_CONFIG);
+        await renderOverlay(ctx2, frame, 1920, 1080, DEFAULT_OVERLAY_CONFIG);
 
         expect((ctx2 as unknown as StubContext).drawImage).toHaveBeenCalledTimes(1);
         expect(offscreenCreateCount).toBe(createdAfterFirstRender);
