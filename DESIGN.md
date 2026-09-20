@@ -451,6 +451,18 @@ Required ≠ disabled. Locked is a supported state — do not borrow the same tr
 - **Layout**: All four corners and both layout directions are supported. Real and reserved string widths plus total content height determine a common fit scale; the border is included in safe margins.
 - **Background**: Transparent by default. Optional solid and gradient backgrounds respect the opacity control, including zero. Text color, border and corner-radius settings remain available.
 
+### Arc Gauge
+
+- **Typography**: Bundled Barlow Semi Condensed, medium pace and telemetry values with semibold labels and smaller units. One family is loaded before preview and export rendering.
+- **Layout**: Pace sits within a centered semicircular gauge. Heart rate and distance use a measured left rail; elapsed time anchors to the lower right. Rail text fits the clear space around the gauge and the frame edges.
+- **Readability**: Active arc uses the established green accent; labels and units follow the selected text color with readable contrast. Available metric toggles match the metrics the layout actually renders.
+
+### Hero Number
+
+- **Typography**: Bundled Barlow Semi Condensed, bold pace as the focal point, semibold accent labels, and medium units. Preview and export wait for the same font faces.
+- **Layout**: The pace and its unit form a centered headline; secondary metrics occupy evenly spaced, bottom-aligned columns. Each role fits a shared size to the widest visible or reserved value.
+- **Readability**: Labels replace platform-dependent glyphs, the green accent marks metric names, and a thin text contour keeps white text legible on bright footage without panels or a dim layer. Only rendered metrics are exposed.
+
 ### L-Frame
 
 - **Typography**: Bundled Barlow Semi Condensed, medium values and units with semibold labels. Every role is measured against actual and reserved content widths.
