@@ -19,7 +19,8 @@ export function drawHeroNumber(
     const outlineWidth = Math.max(1.2, shortSide * 0.003);
     const fontScale = Math.max(0.7, Math.min(1.4, (config.fontSizePercent || 2.3) / 2.3));
     const valueScale = Math.max(0.75, Math.min(1.3, (config.valueSizeMultiplier || 2.8) / 2.8));
-    const labelScale = Math.max(0.75, Math.min(1.3, (config.labelSizeMultiplier || 0.5) / 0.5));
+    const labelScale = Math.max(0.75, Math.min(1.3, (config.labelSizeMultiplier || 0.65) / 0.65));
+    const labelTracking = Math.max(0, config.labelLetterSpacing ?? 0);
     const lineSpacing = Math.max(0.9, Math.min(1.4, config.lineSpacing || 1.1));
     const valueWeight = fontWeightValue(config.valueFontWeight || 'bold');
     const safeWidth = Math.max(1, w - orientation.safePad * 2);
@@ -40,7 +41,7 @@ export function drawHeroNumber(
     const valueBaseSize = Math.max(12, Math.round(shortSide * 0.068 * tuning.textScale * fontScale * valueScale));
 
     const labelSize = fitCommonTextSize(ctx, secondary.map((item) => item.label), family,
-        labelBaseSize, maxColumnTextWidth, 600);
+        labelBaseSize, maxColumnTextWidth, 600, labelTracking);
     const secondaryValueSize = fitCommonValueSize(ctx, secondary, family,
         valueBaseSize, maxColumnTextWidth, valueWeight);
     const unitSize = fitCommonTextSize(ctx, secondary.map((item) => item.unit ?? '').filter(Boolean),
@@ -72,26 +73,30 @@ export function drawHeroNumber(
             paceBaseSize * Math.min(1, paceMaxWidth / Math.max(1, paceTextWidth)),
             freeHeight / lineHeightRatio,
         ));
-        const paceLabelSize = Math.max(8, Math.round(paceSize * 0.16 * labelScale));
+        const paceLabelBaseSize = Math.max(8, Math.round(paceSize * 0.16 * labelScale));
+        const paceLabelSize = fitCommonTextSize(ctx, ['MIN / KM'], family, paceLabelBaseSize,
+            safeWidth * 0.94, 600, labelTracking);
         const paceGap = Math.max(4, Math.round(paceSize * 0.1 * lineSpacing));
 
         drawHeroText(ctx, data.pace, w * 0.5, paceTop,
             `${valueWeight} ${paceSize}px ${family}`, textColor, 1, outlineWidth, config);
         drawHeroText(ctx, 'MIN / KM', w * 0.5, paceTop + paceSize + paceGap,
-            `600 ${paceLabelSize}px ${family}`, textColor, 0.78, outlineWidth, config);
+            `600 ${paceLabelSize}px ${family}`, textColor, 0.84, outlineWidth, config,
+            paceLabelSize * labelTracking);
     }
 
     if (secondary.length) {
         secondary.forEach((item, index) => {
             const x = orientation.safePad + columnWidth * (index + 0.5);
             drawHeroText(ctx, item.label.toUpperCase(), x, secondaryTop,
-                `600 ${labelSize}px ${family}`, accent, 1, outlineWidth, config);
+                `600 ${labelSize}px ${family}`, accent, 1, outlineWidth, config,
+                labelSize * labelTracking);
             drawHeroText(ctx, item.value, x, secondaryTop + labelSize + labelValueGap,
                 `${valueWeight} ${secondaryValueSize}px ${family}`, textColor, 1, outlineWidth, config);
             if (item.unit) {
                 drawHeroText(ctx, item.unit, x,
                     secondaryTop + labelSize + labelValueGap + secondaryValueSize + valueUnitGap,
-                    `500 ${unitSize}px ${family}`, textColor, 0.72, outlineWidth, config);
+                    `500 ${unitSize}px ${family}`, textColor, 0.82, outlineWidth, config);
             }
         });
     }
@@ -106,10 +111,13 @@ function fitCommonTextSize(
     size: number,
     maxWidth: number,
     weight: number,
+    letterSpacingEm = 0,
 ): number {
     if (texts.length === 0) return size;
+    ctx.letterSpacing = '0px';
     ctx.font = `${weight} ${size}px ${family}`;
-    const width = Math.max(...texts.map((text) => ctx.measureText(text).width));
+    const width = Math.max(...texts.map((text) =>
+        ctx.measureText(text).width + Math.max(0, text.length - 1) * size * letterSpacingEm));
     return size * Math.min(1, maxWidth / Math.max(1, width));
 }
 
@@ -122,6 +130,7 @@ function fitCommonValueSize(
     weight: number,
 ): number {
     if (items.length === 0) return size;
+    ctx.letterSpacing = '0px';
     ctx.font = `${weight} ${size}px ${family}`;
     const width = Math.max(...items.flatMap((item) => [
         ctx.measureText(item.value).width,
@@ -140,8 +149,10 @@ function drawHeroText(
     opacity: number,
     outlineWidth: number,
     config: ExtendedOverlayConfig,
+    letterSpacingPx = 0,
 ): void {
     ctx.font = font;
+    ctx.letterSpacing = `${letterSpacingPx}px`;
     ctx.fillStyle = color;
     ctx.strokeStyle = config.textShadowColor || 'rgba(0,0,0,0.7)';
     ctx.lineWidth = outlineWidth;

@@ -1,11 +1,7 @@
 import type { MetricItem } from '../../core/types';
 import type { ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import {
-    getResolutionTuning,
-    applyTextShadow,
-    getStableMetricValue,
-} from '../overlayUtils';
+import { clamp, getResolutionTuning, getStableMetricValue } from '../overlayUtils';
 
 export function renderClassicLayout(
     ctx: OverlayContext2D,
@@ -14,28 +10,42 @@ export function renderClassicLayout(
     h: number,
     config: ExtendedOverlayConfig,
 ): void {
+    if (!metrics.length || w <= 0 || h <= 0) return;
+
     const tuning = getResolutionTuning(w, h);
-    let fontSize = Math.max(10, Math.min(w, h) * (config.fontSizePercent / 100) * tuning.textScale);
-    const spacing = Math.max(1.25, config.lineSpacing || 1.5);
+    const fontSizePercent = clamp(Number.isFinite(config.fontSizePercent) ? config.fontSizePercent : 3.5, 0.5, 10);
+    const valueSizeMultiplier = clamp(Number.isFinite(config.valueSizeMultiplier) ? config.valueSizeMultiplier : 2.5, 0.5, 5);
+    let fontSize = Math.max(12,
+        Math.min(w, h) * (fontSizePercent / 100) * tuning.textScale * (valueSizeMultiplier / 2.5));
+    // Keep enough physical room for the font's ink and optional shadow. Smaller
+    // values let adjacent rows overlap even when their baselines are distinct.
+    const spacing = Math.max(1.25, clamp(Number.isFinite(config.lineSpacing) ? config.lineSpacing : 1.5, 0.8, 2.4));
     const borderRadius = config.cornerRadius !== undefined
         ? Math.round(h * (config.cornerRadius / 100))
         : Math.round(h * 0.005);
 
-    const plainLabels = config.templateId === 'classic';
-    let lines = buildOverlayLines(metrics, plainLabels);
+    const classicLabels = config.templateId === 'classic';
+    const plainLabels = classicLabels && config.labelStyle !== 'hidden';
+    const hideLabels = classicLabels && config.labelStyle === 'hidden';
+    let lines = buildOverlayLines(metrics, plainLabels, hideLabels);
     if (lines.length === 0) return;
 
-    let stableLines = buildStableOverlayLines(metrics, plainLabels);
+    let stableLines = buildStableOverlayLines(metrics, plainLabels, hideLabels);
     if (config.layout === 'horizontal') {
         lines = [lines.join('   ·   ')];
         stableLines = [stableLines.join('   ·   ')];
     }
 
     const fontFamily = config.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    const fontWeight = config.valueFontWeight === 'bold' ? 600 : 500;
     ctx.save();
     ctx.letterSpacing = '0px';
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
     ctx.textAlign = 'left';
-    ctx.font = `600 ${fontSize}px ${fontFamily}`;
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
 
     const textLines = [...stableLines, ...lines];
     const measuredWidth = calculateMaxLineWidth(ctx, textLines);
@@ -49,7 +59,7 @@ export function renderClassicLayout(
     // on every platform. Remeasure at the actual draw size so narrow frames do
     // not clip long horizontal rows on Linux.
     for (let attempt = 0; attempt < 8; attempt++) {
-        ctx.font = `600 ${fontSize}px ${fontFamily}`;
+        ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
         const currentWidth = calculateMaxLineWidth(ctx, textLines);
         const requiredWidth = currentWidth + fontSize * 1.2;
         if (requiredWidth <= availableWidth) break;
@@ -57,7 +67,7 @@ export function renderClassicLayout(
         const correction = (availableWidth / requiredWidth) * 0.98;
         fontSize *= Math.max(0.01, Math.min(0.98, correction));
     }
-    ctx.font = `600 ${fontSize}px ${fontFamily}`;
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
     const maxWidth = calculateMaxLineWidth(ctx, textLines);
 
     const lineHeight = fontSize * spacing;
@@ -71,8 +81,12 @@ export function renderClassicLayout(
     drawBorder(ctx, x, y, bgWidth, bgHeight, borderRadius, config);
 
     ctx.fillStyle = config.textColor || '#FFFFFF';
-    applyTextShadow(ctx, config);
-    ctx.font = `600 ${fontSize}px ${fontFamily}`;
+    if (config.textShadow && config.textShadowColor) {
+        ctx.shadowColor = config.textShadowColor;
+        ctx.shadowBlur = clamp(config.textShadowBlur || 2, 1, 8);
+        ctx.shadowOffsetY = Math.max(1, fontSize * 0.035);
+    }
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
     ctx.textBaseline = 'top';
 
     for (let i = 0; i < lines.length; i++) {
@@ -173,15 +187,17 @@ function hasVisibleBackground(config: ExtendedOverlayConfig): boolean {
     return hasGradient || hasBackgroundColor || hasOpacity;
 }
 
-function buildOverlayLines(metrics: MetricItem[], plainLabels = false): string[] {
+function buildOverlayLines(metrics: MetricItem[], plainLabels = false, hideLabels = false): string[] {
     return metrics.map(m => {
+        if (hideLabels) return `${m.value} ${m.unit}`.trim();
         const icon = plainLabels ? `${m.label.toUpperCase()}  ` : metricIcon(m.label);
         return `${icon} ${m.value} ${m.unit}`.trim();
     });
 }
 
-function buildStableOverlayLines(metrics: MetricItem[], plainLabels = false): string[] {
+function buildStableOverlayLines(metrics: MetricItem[], plainLabels = false, hideLabels = false): string[] {
     return metrics.map(m => {
+        if (hideLabels) return `${getStableMetricValue(m.label)} ${m.unit}`.trim();
         const icon = plainLabels ? `${m.label.toUpperCase()}  ` : metricIcon(m.label);
         const stableValue = getStableMetricValue(m.label);
         return `${icon} ${stableValue} ${m.unit}`.trim();

@@ -60,6 +60,8 @@ describe('overlay-utils', () => {
         it('should return numeric weight values', () => {
             expect(fontWeightValue('light')).toBe(300);
             expect(fontWeightValue('normal')).toBe(400);
+            expect(fontWeightValue('medium')).toBe(500);
+            expect(fontWeightValue('semibold')).toBe(600);
             expect(fontWeightValue('bold')).toBe(700);
         });
 

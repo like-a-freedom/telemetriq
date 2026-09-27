@@ -8,6 +8,7 @@ export type MetricMap = {
     heartRate?: string;
     distance?: string;
     time?: string;
+    power?: string;
 };
 
 export type Orientation = {
@@ -27,7 +28,7 @@ export type Orientation = {
  *  choose to honor it or treat every item as 'normal'.
  */
 export interface MetricItemSpec {
-    key: 'pace' | 'heartRate' | 'distance' | 'time';
+    key: 'pace' | 'heartRate' | 'distance' | 'time' | 'power';
     label: string;
     value: string;
     unit?: string;
@@ -78,6 +79,7 @@ export function toMetricMap(metrics: MetricItem[]): MetricMap {
         heartRate: find('Heart Rate'),
         distance: find('Distance'),
         time: find('Time'),
+        power: find('Power'),
     };
 }
 

@@ -17,11 +17,42 @@ test('Classic keeps every metric inside the frame without text collisions', asyn
             { label: 'Time', value: '123:59:59', unit: '' },
             { label: 'Power', value: '1999', unit: 'W' },
         ];
+        const configurations = [
+            {
+                fontSizePercent: 1,
+                valueSizeMultiplier: 0.5,
+                labelStyle: 'uppercase',
+                lineSpacing: 0.8,
+                backgroundOpacity: 0,
+                borderWidth: 0,
+                textShadow: false,
+            },
+            {
+                fontSizePercent: 3.5,
+                valueSizeMultiplier: 2.5,
+                labelStyle: 'uppercase',
+                lineSpacing: 1.5,
+                backgroundColor: '#000000',
+                backgroundOpacity: 0.35,
+                borderWidth: 2,
+                textShadow: true,
+            },
+            {
+                fontSizePercent: 8,
+                valueSizeMultiplier: 4,
+                labelStyle: 'hidden',
+                lineSpacing: 2.2,
+                backgroundColor: '#000000',
+                backgroundOpacity: 0.8,
+                borderWidth: 8,
+                textShadow: true,
+            },
+        ];
         const failures: string[] = [];
         let cases = 0;
-        for (const [w, h] of [[320, 568], [360, 640], [640, 360], [1080, 1080], [1080, 1920], [1920, 1080], [3840, 2160]]) {
+        for (const [w, h] of [[320, 180], [320, 568], [360, 640], [640, 360], [884, 151], [1080, 1080], [1080, 1920], [1920, 1080], [3840, 2160]]) {
             for (let mask = 1; mask < 32; mask++) {
-                for (const fontSizePercent of [1, 3, 8]) {
+                for (const overrides of configurations) {
                   for (const position of ['top-left', 'top-right', 'bottom-left', 'bottom-right']) {
                    for (const layout of ['vertical', 'horizontal']) {
                     const canvas = document.createElement('canvas');
@@ -36,8 +67,9 @@ test('Classic keeps every metric inside the frame without text collisions', asyn
                             advance: bounds.width, inkLeft: bounds.actualBoundingBoxLeft, inkRight: bounds.actualBoundingBoxRight, font: ctx.font });
                     };
                     const enabled = metrics.filter((_, index) => mask & (1 << index));
-                    renderClassicLayout(ctx, enabled, w, h, { ...getTemplateConfig('classic'), fontSizePercent, position, layout });
-                    const id = `${w}x${h}/${mask}/${fontSizePercent}/${position}/${layout}`;
+                    const config = { ...getTemplateConfig('classic'), ...overrides, position, layout };
+                    renderClassicLayout(ctx, enabled, w, h, config);
+                    const id = `${w}x${h}/${mask}/${config.fontSizePercent}/${position}/${layout}/${config.labelStyle}`;
                     if (boxes.length !== (layout === 'horizontal' ? 1 : enabled.length)) failures.push(`${id}: missing text`);
                     for (let i = 0; i < boxes.length; i++) {
                         const a = boxes[i]!;
@@ -58,6 +90,6 @@ test('Classic keeps every metric inside the frame without text collisions', asyn
         }
         return { cases, failures };
     });
-    expect(result.cases).toBe(5208);
+    expect(result.cases).toBe(6696);
     expect(result.failures).toEqual([]);
 });

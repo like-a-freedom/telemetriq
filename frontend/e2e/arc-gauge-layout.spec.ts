@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('Arc Gauge keeps text and dial inside the video across sizes and metric settings', async ({ page }) => {
+test('Arc Gauge keeps text and dial inside the video across sizes and metric settings', async ({ page }, testInfo) => {
     await page.goto('/?e2e');
     const result = await page.evaluate(async () => {
         const layoutPath = '/src/modules/layouts/arcGaugeLayout.ts';
@@ -14,12 +14,13 @@ test('Arc Gauge keeps text and dial inside the video across sizes and metric set
         await ensureTrailRunFonts();
         const failures: string[] = [];
         let cases = 0;
-        const sizes = [[320, 568], [360, 640], [640, 360], [1080, 1080],
+        const sizes = [[320, 180], [884, 151], [320, 568], [360, 640], [640, 360], [1080, 1080],
             [1080, 1920], [1920, 1080], [3840, 2160]];
         const baseData = { pace: '99:59', heartRate: '199', distance: '12345.6', time: '123:59:59' };
         for (const [w, h] of sizes) {
             for (let mask = 0; mask < 16; mask++) {
                 for (const fontSizePercent of [1, 2.2, 6]) {
+                  for (const labelStyle of ['uppercase', 'hidden']) {
                     const canvas = document.createElement('canvas');
                     canvas.width = w!;
                     canvas.height = h!;
@@ -29,10 +30,9 @@ test('Arc Gauge keeps text and dial inside the video across sizes and metric set
                     const fillText = ctx.fillText.bind(ctx);
                     ctx.fillText = (text, x, y, maxWidth) => {
                         const metrics = ctx.measureText(text);
-                        const fontSize = Number.parseFloat(ctx.font.match(/([\d.]+)px/)?.[1] || '0');
                         boxes.push({ text, left: x - metrics.actualBoundingBoxLeft,
                             right: x + metrics.actualBoundingBoxRight,
-                            top: y, bottom: y + fontSize });
+                            top: y - metrics.actualBoundingBoxAscent, bottom: y + metrics.actualBoundingBoxDescent });
                         fillText(text, x, y, maxWidth);
                     };
                     const arc = ctx.arc.bind(ctx);
@@ -44,8 +44,9 @@ test('Arc Gauge keeps text and dial inside the video across sizes and metric set
                     const data = Object.fromEntries(keys.map((key, i) => [key,
                         mask & (1 << i) ? baseData[key] : undefined]));
                     const config = { fontFamily: '"Barlow Semi Condensed", sans-serif',
-                        fontSizePercent, valueSizeMultiplier: fontSizePercent === 1 ? 0.75 : fontSizePercent === 6 ? 3.5 : 1.8,
-                        labelSizeMultiplier: fontSizePercent === 1 ? 0.75 : fontSizePercent === 6 ? 1.3 : 0.45,
+                        labelStyle, textShadow: true, fontSizePercent, valueSizeMultiplier: fontSizePercent === 1 ? 0.75 : fontSizePercent === 6 ? 3.5 : 1.8,
+                        labelSizeMultiplier: fontSizePercent === 1 ? 0.75 : fontSizePercent === 6 ? 1.3 : 0.55,
+                        labelLetterSpacing: 0.18,
                         valueFontWeight: 'normal', textColor: '#fff', accentColor: '#00e676' };
                     drawArcGauge(ctx, data as never, w!, h!, config as never,
                         getOrientation(w!, h!), getResolutionTuning(w!, h!));
@@ -71,11 +72,26 @@ test('Arc Gauge keeps text and dial inside the video across sizes and metric set
                         }
                     }
                     cases++;
+                  }
                 }
             }
         }
-        return { cases, failures };
+        const previews: Record<string, string> = {};
+        const { getTemplateConfig } = await import('/src/modules/templateConfigs.ts');
+        for (const [w, h] of [[884, 151], [320, 568], [1280, 720]]) {
+            const canvas = document.createElement('canvas');
+            canvas.width = w!; canvas.height = h!;
+            const ctx = canvas.getContext('2d')!;
+            ctx.fillStyle = '#496455'; ctx.fillRect(0, 0, w!, h!);
+            drawArcGauge(ctx, { pace: '05:30', heartRate: '150', distance: '10.2', time: '00:45:12' },
+                w!, h!, getTemplateConfig('arc-gauge'), getOrientation(w!, h!), getResolutionTuning(w!, h!));
+            previews[`${w}x${h}`] = canvas.toDataURL();
+        }
+        return { cases, failures, previews };
     });
-    expect(result.cases).toBe(336);
+    for (const [name, url] of Object.entries(result.previews)) {
+        await testInfo.attach(name, { body: Buffer.from(url.split(',')[1]!, 'base64'), contentType: 'image/png' });
+    }
+    expect(result.cases).toBe(864);
     expect(result.failures).toEqual([]);
 });

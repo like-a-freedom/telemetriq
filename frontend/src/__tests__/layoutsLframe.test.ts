@@ -31,6 +31,8 @@ function createMockContext() {
         textAlign: '',
         shadowColor: '',
         shadowBlur: 0,
+        shadowOffsetX: 0,
+        shadowOffsetY: 0,
         globalAlpha: 1,
     };
 }
@@ -56,6 +58,7 @@ describe('LFrame Layout', () => {
         fontSizePercent: 2,
         textColor: '#FFFFFF',
         backgroundOpacity: 0.7,
+        labelStyle: 'uppercase',
         showHr: true,
         showPace: true,
         showDistance: true,
@@ -83,13 +86,16 @@ describe('LFrame Layout', () => {
     it('draws a corner frame without a backdrop or fake progress fill', () => {
         const metrics: MetricItem[] = [{ label: 'Test', value: '10', unit: '' }];
 
-        renderLFrameLayout(mockCtx as any, metrics, mockFrame, width, height, baseConfig);
+        renderLFrameLayout(mockCtx as any, metrics, mockFrame, width, height, {
+            ...baseConfig,
+            textShadow: true,
+        });
 
         expect(mockCtx.createLinearGradient).not.toHaveBeenCalled();
         expect(mockCtx.fillRect).not.toHaveBeenCalled();
         expect(mockCtx.moveTo).toHaveBeenCalledTimes(1);
         expect(mockCtx.lineTo).toHaveBeenCalledTimes(2);
-        expect(mockCtx.stroke).toHaveBeenCalled();
+        expect(mockCtx.stroke).toHaveBeenCalledTimes(1);
     });
 
     it('should handle different screen sizes', () => {
@@ -120,6 +126,57 @@ describe('LFrame Layout', () => {
 
         // Should adjust font sizes to fit
         expect(mockCtx.font).toContain('px');
+    });
+
+    it('applies value and label size multipliers', () => {
+        const metric: MetricItem[] = [{ label: 'Pace', value: '5:30', unit: 'km' }];
+        const normalConfig: ExtendedOverlayConfig = {
+            ...baseConfig,
+            valueSizeMultiplier: 3,
+            labelSizeMultiplier: 0.52,
+        };
+        let normalValueFont = '';
+        let normalLabelFont = '';
+        mockCtx.fillText.mockImplementation((text: string) => {
+            if (text === '5:30') normalValueFont = mockCtx.font;
+            if (text === 'P') normalLabelFont = mockCtx.font;
+        });
+        renderLFrameLayout(mockCtx as any, metric, mockFrame, width, height, normalConfig);
+
+        mockCtx = createMockContext();
+        let largerValueFont = '';
+        let largerLabelFont = '';
+        mockCtx.fillText.mockImplementation((text: string) => {
+            if (text === '5:30') largerValueFont = mockCtx.font;
+            if (text === 'P') largerLabelFont = mockCtx.font;
+        });
+        renderLFrameLayout(mockCtx as any, metric, mockFrame, width, height, {
+            ...normalConfig,
+            valueSizeMultiplier: 6,
+            labelSizeMultiplier: 0.78,
+        });
+
+        const fontSize = (font: string) => Number.parseFloat(font.match(/[\d.]+px/)?.[0] ?? '0');
+        expect(fontSize(largerValueFont)).toBeGreaterThan(fontSize(normalValueFont));
+        expect(fontSize(largerLabelFont)).toBeGreaterThan(fontSize(normalLabelFont));
+    });
+
+    it('tracks uppercase labels and hides them when configured', () => {
+        const metric: MetricItem[] = [{ label: 'Pace', value: '5:30', unit: 'min/km' }];
+        renderLFrameLayout(mockCtx as any, metric, mockFrame, width, height, {
+            ...baseConfig,
+            labelLetterSpacing: 0.12,
+        });
+        const labelCalls = mockCtx.fillText.mock.calls.filter(([text]) => ['P', 'A', 'C', 'E'].includes(String(text)));
+        expect(labelCalls).toHaveLength(4);
+        expect(Number(labelCalls[1]![1]) - Number(labelCalls[0]![1])).toBeGreaterThan(10);
+
+        mockCtx = createMockContext();
+        renderLFrameLayout(mockCtx as any, metric, mockFrame, width, height, {
+            ...baseConfig,
+            labelStyle: 'hidden',
+        });
+        expect(mockCtx.fillText.mock.calls.map(([text]) => text)).toEqual(['5:30', 'min/km']);
     });
 
 });

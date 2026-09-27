@@ -1,6 +1,7 @@
 import type { TelemetryFrame, ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import { applyTextShadow, getResolutionTuning } from '../overlayUtils';
+import { clamp, fontWeightValue, getResolutionTuning } from '../overlayUtils';
+import { TRAIL_RUN_FONT_FAMILY } from '../trailRunFonts';
 import { drawSpeedometerGauge } from './speedometerGauge';
 
 type SidebarMetricKey = 'powerWatts' | 'hr';
@@ -13,41 +14,134 @@ interface SidebarMetricDefinition {
     max: number;
 }
 
-const SIDEBAR_METRICS: readonly SidebarMetricDefinition[] = [
-    { label: 'Power', key: 'powerWatts', configKey: 'showPower', unit: 'W', max: 500 },
-    { label: 'Heart rate', key: 'hr', configKey: 'showHr', unit: 'BPM', max: 200 },
-];
+interface DisplayMetric {
+    label: string;
+    value: string;
+    unit: string;
+    progress?: number;
+}
 
 interface MetricTypography {
     valueSize: number;
     unitSize: number;
     labelSize: number;
     barHeight: number;
-    gapValueToLabel: number;
-    gapLabelToBar: number;
+    gapLabelToValue: number;
+    gapValueToBar: number;
     gapBetweenBlocks: number;
 }
 
-function getMetricTypography(textScale: number, compact: boolean): MetricTypography {
+const SIDEBAR_METRICS: readonly SidebarMetricDefinition[] = [
+    { label: 'POWER', key: 'powerWatts', configKey: 'showPower', unit: 'W', max: 500 },
+    { label: 'HEART RATE', key: 'hr', configKey: 'showHr', unit: 'BPM', max: 200 },
+];
+
+function getMetricTypography(shortSide: number, scale: number, compact: boolean, labelScale: number): MetricTypography {
+    const valueSize = compact
+        ? clamp(Math.round(shortSide * 0.07 * scale), 14, 36)
+        : clamp(Math.round(shortSide * 0.052 * scale), 24, 76);
+
     return {
-        valueSize: compact
-            ? Math.max(26, Math.round(42 * textScale))
-            : Math.max(34, Math.round(56 * textScale)),
-        unitSize: compact
-            ? Math.max(11, Math.round(18 * textScale))
-            : Math.max(13, Math.round(22 * textScale)),
-        labelSize: compact
-            ? Math.max(11, Math.round(18 * textScale))
-            : Math.max(13, Math.round(22 * textScale)),
-        barHeight: Math.max(2, Math.round(3 * textScale)),
-        gapValueToLabel: Math.max(16, Math.round(26 * textScale)),
-        gapLabelToBar: Math.max(7, Math.round(10 * textScale)),
-        gapBetweenBlocks: Math.round((compact ? 22 : 32) * textScale),
+        valueSize,
+        unitSize: clamp(Math.round(valueSize * 0.42), 8, 22),
+        labelSize: clamp(Math.round(valueSize * labelScale), 8, 24),
+        barHeight: compact ? 2 : 3,
+        gapLabelToValue: Math.max(3, Math.round(valueSize * 0.11)),
+        gapValueToBar: Math.max(5, Math.round(valueSize * 0.14)),
+        gapBetweenBlocks: compact ? 8 : Math.max(18, Math.round(valueSize * 0.42)),
     };
 }
 
-function sidebarContentHeight(t: MetricTypography): number {
-    return t.valueSize + t.gapValueToLabel + t.labelSize + t.gapLabelToBar + t.barHeight;
+function metricBlockHeight(typography: MetricTypography, withBar: boolean): number {
+    return typography.labelSize + typography.gapLabelToValue + typography.valueSize
+        + (withBar ? typography.gapValueToBar + typography.barHeight : 0)
+        + typography.gapBetweenBlocks;
+}
+
+function buildMetricList(frame: TelemetryFrame, config: ExtendedOverlayConfig): DisplayMetric[] {
+    const metrics: DisplayMetric[] = [];
+
+    for (const definition of SIDEBAR_METRICS) {
+        const rawValue = frame[definition.key];
+        if (config[definition.configKey] === false || !Number.isFinite(rawValue)) continue;
+
+        metrics.push({
+            label: definition.label,
+            value: Math.round(rawValue!).toString(),
+            unit: definition.unit,
+            progress: clamp(rawValue! / definition.max, 0, 1),
+        });
+    }
+
+    if (config.showDistance !== false) {
+        metrics.push({
+            label: 'DISTANCE',
+            value: Number.isFinite(frame.distanceKm) ? frame.distanceKm.toFixed(1) : 'N/A',
+            unit: 'KM',
+        });
+    }
+
+    return metrics;
+}
+
+function fitMetricTypography(
+    ctx: OverlayContext2D,
+    metrics: readonly DisplayMetric[],
+    typography: MetricTypography,
+    availableWidth: number,
+    fontFamily: string,
+    valueWeight: number,
+    labelTrackingRatio: { labelScale: number; tracking: number },
+    minValueSize: number,
+): MetricTypography {
+    for (let valueSize = typography.valueSize; valueSize >= minValueSize; valueSize -= 1) {
+        const unitSize = Math.max(8, Math.round(valueSize * 0.42));
+        const labelSize = clamp(Math.round(valueSize * labelTrackingRatio.labelScale), 8, 24);
+        const unitGap = Math.max(3, Math.round(valueSize * 0.12));
+        let fits = true;
+
+        ctx.font = `${valueWeight} ${valueSize}px ${fontFamily}`;
+        for (const metric of metrics) {
+            const valueWidth = ctx.measureText(metric.value).width;
+            let groupWidth = valueWidth;
+            if (metric.unit) {
+                ctx.font = `600 ${unitSize}px ${fontFamily}`;
+                groupWidth += unitGap + ctx.measureText(metric.unit).width;
+                ctx.font = `${valueWeight} ${valueSize}px ${fontFamily}`;
+            }
+
+            if (groupWidth > availableWidth * 0.9) {
+                fits = false;
+                break;
+            }
+        }
+
+        if (fits) {
+            ctx.font = `500 ${labelSize}px ${fontFamily}`;
+            fits = metrics.every((metric) => {
+                const labelWidth = ctx.measureText(metric.label).width
+                    + Math.max(0, metric.label.length - 1) * labelSize * labelTrackingRatio.tracking;
+                return labelWidth <= availableWidth * 0.92;
+            });
+        }
+
+        if (fits) {
+            return {
+                ...typography,
+                valueSize,
+                unitSize,
+                labelSize,
+            };
+        }
+    }
+
+    const valueSize = minValueSize;
+    return {
+        ...typography,
+        valueSize,
+        unitSize: Math.max(8, Math.round(valueSize * 0.42)),
+        labelSize: clamp(Math.round(valueSize * labelTrackingRatio.labelScale), 8, 24),
+    };
 }
 
 export function renderCyclingProLayout(
@@ -57,215 +151,249 @@ export function renderCyclingProLayout(
     h: number,
     config: ExtendedOverlayConfig,
 ): void {
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w < 96 || h < 96) return;
+
     const tuning = getResolutionTuning(w, h);
     const shortSide = Math.min(w, h);
-    const portrait = h > w;
-    const compact = shortSide < 480 || portrait;
+    const compact = shortSide < 480;
     const accentColor = config.accentColor || '#00E676';
-    const left = Math.round(w * (portrait ? 0.038 : 0.028));
-    const top = Math.round(h * (portrait ? 0.068 : 0.07));
-    const sidebarWidth = portrait
-        ? Math.max(112, Math.round(shortSide * 0.255))
-        : Math.max(130, Math.round(shortSide * 0.28));
-    const typ = getMetricTypography(tuning.textScale, compact);
-    const metricBlockHeight = sidebarContentHeight(typ) + typ.gapBetweenBlocks;
-    const gaugeDiameter = portrait
-        ? Math.max(112, Math.round(shortSide * 0.27))
-        : Math.max(120, Math.round(shortSide * 0.3));
-    const gaugeRadius = gaugeDiameter / 2;
-    const gaugeCenterX = left + Math.round(sidebarWidth * 0.5);
-    const gaugeBottomInset = Math.round(h * (portrait ? 0.085 : 0.055));
-    const gaugeCenterY = h - gaugeBottomInset - gaugeRadius;
-    const backdropX = left - Math.round(sidebarWidth * 0.12);
-    const backdropY = top - Math.round(h * 0.02);
-    const backdropWidth = sidebarWidth + Math.round(w * (portrait ? 0.08 : 0.06));
+    const fontFamily = config.fontFamily || TRAIL_RUN_FONT_FAMILY;
+    const textColor = config.textColor || '#FFFFFF';
+    const valueWeight = fontWeightValue(config.valueFontWeight || 'bold');
+    const configuredScale = clamp(
+        ((config.fontSizePercent ?? 2.2) / 2.2) * ((config.valueSizeMultiplier ?? 2.1) / 2.1),
+        0.65,
+        2,
+    );
+    const typeScale = clamp(tuning.textScale * configuredScale, 0.65, 2);
+    const labelScale = clamp(config.labelSizeMultiplier ?? 0.32, 0.25, 0.65);
+    const labelTrackingRatio = {
+        labelScale,
+        tracking: clamp(config.labelLetterSpacing ?? 0.05, 0, 0.16),
+    };
+    const metrics = buildMetricList(frame, config);
+    const safePad = clamp(Math.round(shortSide * 0.035), 6, 24);
+    const defaultTypography = getMetricTypography(shortSide, typeScale, compact, labelScale);
+    const speedAvailable = config.showSpeed !== false && Number.isFinite(frame.speedKmh);
 
     ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.shadowBlur = 0;
 
-    const availableMetrics = SIDEBAR_METRICS.filter(
-        (metric) => config[metric.configKey] !== false && frame[metric.key] !== undefined,
-    );
+    if (compact) {
+        const gridWidth = Math.max(0, w - safePad * 2);
+        const cellWidth = metrics.length > 0 ? gridWidth / metrics.length : 0;
+        const typography = fitMetricTypography(
+            ctx, metrics, defaultTypography, cellWidth, fontFamily, valueWeight,
+            labelTrackingRatio, 11,
+        );
+        const rowTop = safePad;
 
-    const lastBlockBottom = availableMetrics.length > 0
-        ? top + availableMetrics.length * metricBlockHeight
-        : top;
-    const distanceContentHeight = config.showDistance !== false
-        ? typ.valueSize + typ.gapValueToLabel + typ.labelSize
-        : 0;
-    const backdropBottom = lastBlockBottom + distanceContentHeight + Math.round(h * (portrait ? 0.04 : 0.03));
-    drawSidebarBackdrop(ctx, backdropX, backdropY, backdropWidth, Math.max(0, backdropBottom - backdropY), portrait);
-
-    applyTextShadow(ctx, config);
-
-    availableMetrics.forEach((metric, index) => {
-        const rawValue = frame[metric.key]!;
-        drawSidebarMetric(ctx, {
-            x: left,
-            y: top + index * metricBlockHeight,
-            label: metric.label,
-            unit: metric.unit,
-            unitColor: accentColor,
-            value: Math.round(rawValue).toString(),
-            progress: Math.max(0, Math.min(1, rawValue / metric.max)),
-            width: sidebarWidth,
-            fontFamily: config.fontFamily,
-            typ,
-            accentColor,
-            placeholder: false,
+        metrics.forEach((metric, index) => {
+            const centerX = safePad + cellWidth * (index + 0.5);
+            drawMetric(ctx, {
+                x: centerX,
+                y: rowTop,
+                width: cellWidth,
+                center: true,
+                metric,
+                typography,
+                fontFamily,
+                valueWeight,
+                accentColor,
+                textColor,
+                labelTracking: labelTrackingRatio.tracking,
+            });
         });
-    });
 
-    if (config.showDistance !== false) {
-        const lastMetricBottom = availableMetrics.length > 0
-            ? top + availableMetrics.length * metricBlockHeight
-            : top;
-        const distanceValueY = lastMetricBottom + typ.valueSize;
+        if (speedAvailable) {
+            const diameter = clamp(Math.round(shortSide * 0.3), 72, 122);
+            const radius = diameter / 2;
+            const cx = w - safePad - radius;
+            const cy = h - safePad - radius;
+            drawSpeedometerGauge(ctx, {
+                cx,
+                cy,
+                diameter,
+                speedKmh: frame.speedKmh,
+                maxSpeed: 60,
+                fontFamily,
+                accentColor,
+                textColor,
+            });
+        }
+    } else {
+        const left = clamp(Math.round(w * 0.035), 8, 48);
+        const top = clamp(Math.round(h * 0.07), 8, 72);
+        const sidebarWidth = Math.min(w - left - safePad, Math.max(138, Math.round(shortSide * 0.34)));
+        const typography = fitMetricTypography(
+            ctx, metrics, defaultTypography, sidebarWidth, fontFamily, valueWeight,
+            labelTrackingRatio, 18,
+        );
+        const sidebarRows = metrics.filter((metric) => metric.progress !== undefined);
+        const distanceMetric = metrics.find((metric) => metric.label === 'DISTANCE');
+        const blockHeight = metricBlockHeight(typography, true);
 
-        drawDistanceCallout(ctx, {
-            x: left,
-            valueBaselineY: distanceValueY,
-            distanceValue: frame.distanceKm.toFixed(1),
-            fontFamily: config.fontFamily,
-            typ,
-            accentColor,
+        sidebarRows.forEach((metric, index) => {
+            drawMetric(ctx, {
+                x: left,
+                y: top + index * blockHeight,
+                width: sidebarWidth,
+                center: false,
+                metric,
+                typography,
+                fontFamily,
+                valueWeight,
+                accentColor,
+                textColor,
+                labelTracking: labelTrackingRatio.tracking,
+            });
         });
-    }
 
-    if (config.showSpeed !== false) {
-        drawSpeedometerGauge(ctx, {
-            cx: gaugeCenterX,
-            cy: gaugeCenterY,
-            diameter: gaugeDiameter,
-            speedKmh: frame.speedKmh ?? 0,
-            maxSpeed: 60,
-            fontFamily: config.fontFamily,
-            accentColor,
-            textColor: config.textColor || '#FFFFFF',
-            backgroundColor: portrait ? 'rgba(2, 14, 7, 0.68)' : 'rgba(2, 14, 7, 0.74)',
-        });
+        if (distanceMetric) {
+            drawMetric(ctx, {
+                x: left,
+                y: top + sidebarRows.length * blockHeight,
+                width: sidebarWidth,
+                center: false,
+                metric: distanceMetric,
+                typography,
+                fontFamily,
+                valueWeight,
+                accentColor,
+                textColor,
+                labelTracking: labelTrackingRatio.tracking,
+            });
+        }
+
+        if (speedAvailable) {
+            const desiredDiameter = clamp(Math.round(shortSide * 0.3), 112, 320);
+            const bottomInset = clamp(Math.round(h * 0.055), 20, 72);
+            const contentBottom = distanceMetric
+                ? top + sidebarRows.length * blockHeight + typography.labelSize
+                    + typography.gapLabelToValue + typography.valueSize
+                : top + sidebarRows.length * blockHeight;
+            const availableDiameter = Math.max(0, 2 * (h - bottomInset - contentBottom - 24));
+            const diameter = Math.min(desiredDiameter, availableDiameter);
+
+            if (diameter >= 96) {
+                drawSpeedometerGauge(ctx, {
+                    cx: left + sidebarWidth / 2,
+                    cy: h - bottomInset - diameter / 2,
+                    diameter,
+                    speedKmh: frame.speedKmh,
+                    maxSpeed: 60,
+                    fontFamily,
+                    accentColor,
+                    textColor,
+                });
+            }
+        }
     }
 
     ctx.restore();
 }
 
-function drawSidebarBackdrop(
-    ctx: OverlayContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    portrait: boolean,
-): void {
-    if (typeof ctx.createLinearGradient === 'function') {
-        const gradient = ctx.createLinearGradient(x, y, x + width, y);
-        gradient.addColorStop(0, portrait ? 'rgba(0,0,0,0.48)' : 'rgba(0,0,0,0.36)');
-        gradient.addColorStop(0.5, portrait ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.14)');
-        gradient.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = gradient;
-    } else {
-        ctx.fillStyle = portrait ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.2)';
-    }
-
-    ctx.fillRect(x, y, width, height);
-}
-
-function drawUnit(
-    ctx: OverlayContext2D,
-    unit: string,
-    x: number,
-    valueWidth: number,
-    valueBaseline: number,
-    valueSize: number,
-    unitSize: number,
-    fontFamily: string,
-): void {
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = `500 ${unitSize}px ${fontFamily}`;
-    ctx.fillText(
-        unit,
-        x + valueWidth + Math.max(4, valueSize * 0.12),
-        valueBaseline,
-    );
-}
-
-function drawSidebarMetric(
+function drawMetric(
     ctx: OverlayContext2D,
     params: {
         x: number;
         y: number;
-        label: string;
-        unit: string;
-        unitColor: string;
-        value: string;
-        progress: number;
         width: number;
+        center: boolean;
+        metric: DisplayMetric;
+        typography: MetricTypography;
         fontFamily: string;
-        typ: MetricTypography;
+        valueWeight: number;
         accentColor: string;
-        placeholder: boolean;
+        textColor: string;
+        labelTracking: number;
     },
 ): void {
-    const t = params.typ;
-    const valueBaseline = params.y + t.valueSize;
-    const labelBaseline = valueBaseline + t.gapValueToLabel;
-    const barTop = labelBaseline + t.labelSize + t.gapLabelToBar;
+    const { metric, typography: typ } = params;
+    const centerX = params.center ? params.x : params.x + params.width / 2;
+    const labelX = params.center ? centerX : params.x;
+    const labelBaseline = params.y + typ.labelSize;
+    const valueBaseline = labelBaseline + typ.gapLabelToValue + typ.valueSize;
+    const unitGap = Math.max(3, Math.round(typ.valueSize * 0.12));
+    const align: CanvasTextAlign = params.center ? 'center' : 'left';
 
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = params.placeholder ? 'rgba(255,255,255,0.82)' : '#FFFFFF';
-    ctx.font = `600 ${t.valueSize}px ${params.fontFamily}`;
-    ctx.fillText(params.value, params.x, valueBaseline);
+    drawOutlinedText(
+        ctx,
+        metric.label,
+        labelX,
+        labelBaseline,
+        `500 ${typ.labelSize}px ${params.fontFamily}`,
+        'rgba(248,250,252,0.92)',
+        align,
+        typ.labelSize,
+        params.labelTracking,
+    );
 
-    if (params.unit) {
-        const valueWidth = ctx.measureText(params.value).width;
-        drawUnit(ctx, params.unit, params.x, valueWidth, valueBaseline, t.valueSize, t.unitSize, params.fontFamily);
+    ctx.font = `${params.valueWeight} ${typ.valueSize}px ${params.fontFamily}`;
+    const valueWidth = ctx.measureText(metric.value).width;
+    let unitWidth = 0;
+    if (metric.unit) {
+        ctx.font = `600 ${typ.unitSize}px ${params.fontFamily}`;
+        unitWidth = ctx.measureText(metric.unit).width;
+    }
+    const groupWidth = valueWidth + (metric.unit ? unitGap + unitWidth : 0);
+    const groupLeft = params.center ? centerX - groupWidth / 2 : params.x;
+
+    drawOutlinedText(
+        ctx,
+        metric.value,
+        groupLeft,
+        valueBaseline,
+        `${params.valueWeight} ${typ.valueSize}px ${params.fontFamily}`,
+        params.textColor,
+        'left',
+        typ.valueSize,
+    );
+
+    if (metric.unit) {
+        drawOutlinedText(
+            ctx,
+            metric.unit,
+            groupLeft + valueWidth + unitGap,
+            valueBaseline - Math.max(0, Math.round((typ.valueSize - typ.unitSize) * 0.16)),
+            `600 ${typ.unitSize}px ${params.fontFamily}`,
+            metric.value === 'N/A' ? 'rgba(0,230,118,0.72)' : params.accentColor,
+            'left',
+            typ.unitSize,
+        );
     }
 
-    ctx.fillStyle = params.placeholder ? 'rgba(255,255,255,0.56)' : '#FFFFFF';
-    ctx.font = `600 ${t.labelSize}px ${params.fontFamily}`;
-    ctx.letterSpacing = `${t.labelSize * 0.06}px`;
-    ctx.fillText(params.label.toUpperCase(), params.x, labelBaseline);
-    ctx.letterSpacing = '0px';
-
-    ctx.fillStyle = 'rgba(255,255,255,0.12)';
-    ctx.fillRect(params.x, barTop, Math.round(params.width * 0.78), t.barHeight);
-
-    if (params.placeholder) {
-        ctx.fillStyle = 'rgba(255,255,255,0.22)';
-        ctx.fillRect(params.x, barTop, Math.max(14, Math.round(params.width * 0.78) * 0.18), t.barHeight);
-        return;
+    if (metric.progress !== undefined) {
+        const barWidth = Math.max(8, params.width * (params.center ? 0.68 : 0.78));
+        const barLeft = params.center ? centerX - barWidth / 2 : params.x;
+        const barTop = valueBaseline + typ.gapValueToBar;
+        ctx.fillStyle = 'rgba(4,10,16,0.42)';
+        ctx.fillRect(barLeft, barTop, barWidth, typ.barHeight);
+        ctx.fillStyle = params.accentColor;
+        ctx.fillRect(barLeft, barTop, Math.max(1, barWidth * clamp(metric.progress, 0, 1)), typ.barHeight);
     }
-
-    ctx.fillStyle = params.accentColor;
-    ctx.fillRect(params.x, barTop, Math.round(params.width * 0.78 * params.progress), t.barHeight);
 }
 
-function drawDistanceCallout(
+function drawOutlinedText(
     ctx: OverlayContext2D,
-    params: {
-        x: number;
-        valueBaselineY: number;
-        distanceValue: string;
-        fontFamily: string;
-        typ: MetricTypography;
-        accentColor: string;
-    },
+    text: string,
+    x: number,
+    y: number,
+    font: string,
+    color: string,
+    align: CanvasTextAlign,
+    size: number,
+    tracking = 0,
 ): void {
-    const t = params.typ;
-
-    ctx.textAlign = 'left';
+    ctx.font = font;
+    ctx.textAlign = align;
     ctx.textBaseline = 'alphabetic';
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = `600 ${t.valueSize}px ${params.fontFamily}`;
-    ctx.fillText(params.distanceValue, params.x, params.valueBaselineY);
-
-    const distValueWidth = ctx.measureText(params.distanceValue).width;
-    drawUnit(ctx, 'KM', params.x, distValueWidth, params.valueBaselineY, t.valueSize, t.unitSize, params.fontFamily);
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = `600 ${t.labelSize}px ${params.fontFamily}`;
-    ctx.letterSpacing = `${t.labelSize * 0.06}px`;
-    ctx.fillText('DISTANCE', params.x, params.valueBaselineY + t.gapValueToLabel);
+    ctx.fillStyle = color;
+    ctx.strokeStyle = 'rgba(4,10,16,0.92)';
+    ctx.lineWidth = clamp(size * 0.09, 0.8, 2.5);
+    ctx.letterSpacing = `${size * tracking}px`;
+    if (typeof ctx.strokeText === 'function') ctx.strokeText(text, x, y);
+    ctx.fillText(text, x, y);
     ctx.letterSpacing = '0px';
 }

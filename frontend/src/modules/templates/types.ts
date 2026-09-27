@@ -36,9 +36,9 @@ export interface TypographyPreset {
   /** Base font family */
   fontFamily: string;
   /** Font weight for values: 'light' (300), 'normal' (400), 'bold' (700) */
-  valueFontWeight: 'light' | 'normal' | 'bold';
+  valueFontWeight: 'light' | 'normal' | 'medium' | 'semibold' | 'bold';
   /** Font weight for labels */
-  labelFontWeight: 'light' | 'normal' | 'bold';
+  labelFontWeight: 'light' | 'normal' | 'medium' | 'semibold' | 'bold';
   /** Value font size multiplier relative to base fontSizePercent */
   valueSizeMultiplier: number;
   /** Label font size multiplier relative to base fontSizePercent */

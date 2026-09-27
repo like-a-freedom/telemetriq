@@ -128,4 +128,61 @@ describe('Margin Layout', () => {
         expect(mockCtx.fillText).toHaveBeenCalled();
     });
 
+    it('applies value and label size multipliers to the rendered type hierarchy', () => {
+        const metric: MetricItem[] = [{ label: 'Pace', value: '5:30', unit: 'km' }];
+        const normalConfig: ExtendedOverlayConfig = {
+            ...baseConfig,
+            valueSizeMultiplier: 3.5,
+            labelSizeMultiplier: 0.5,
+        };
+        renderMarginLayout(mockCtx as any, metric, width, height, normalConfig);
+        const normalUnitY = Number(mockCtx.fillText.mock.calls[1]![2]);
+        const normalLabelSize = Number.parseFloat(mockCtx.font.match(/[\d.]+px/)?.[0] ?? '0');
+
+        mockCtx = createMockContext();
+        renderMarginLayout(mockCtx as any, metric, width, height, {
+            ...normalConfig,
+            valueSizeMultiplier: 7,
+            labelSizeMultiplier: 0.75,
+        });
+
+        const largerUnitY = Number(mockCtx.fillText.mock.calls[1]![2]);
+        const largerLabelSize = Number.parseFloat(mockCtx.font.match(/[\d.]+px/)?.[0] ?? '0');
+        expect(largerUnitY).toBeGreaterThan(normalUnitY);
+        expect(largerLabelSize).toBeGreaterThan(normalLabelSize);
+    });
+
+    it('uses tracking for vertical labels and supports hiding them', () => {
+        const metric: MetricItem[] = [{ label: 'Pace', value: '5:30', unit: 'min/km' }];
+        const trackedConfig: ExtendedOverlayConfig = {
+            ...baseConfig,
+            labelLetterSpacing: 0.12,
+        };
+
+        renderMarginLayout(mockCtx as any, metric, width, height, trackedConfig);
+        const labelCalls = mockCtx.fillText.mock.calls.filter(([text]) => ['P', 'A', 'C', 'E'].includes(String(text)));
+        expect(labelCalls).toHaveLength(4);
+        expect(Number(labelCalls[1]![1]) - Number(labelCalls[0]![1])).toBeGreaterThan(10);
+
+        mockCtx = createMockContext();
+        renderMarginLayout(mockCtx as any, metric, width, height, { ...trackedConfig, labelStyle: 'hidden' });
+        expect(mockCtx.fillText.mock.calls.map(([text]) => text)).toEqual(['5:30', 'min/km']);
+    });
+
+    it('keeps the readable text contour thin and only draws it when enabled', () => {
+        renderMarginLayout(mockCtx as any, [{ label: 'Pace', value: '5:30', unit: '' }], width, height, {
+            ...baseConfig,
+            textShadow: true,
+        });
+        expect(mockCtx.lineWidth).toBeCloseTo(1.404);
+        expect(mockCtx.strokeText).toHaveBeenCalled();
+
+        mockCtx = createMockContext();
+        renderMarginLayout(mockCtx as any, [{ label: 'Pace', value: '5:30', unit: '' }], width, height, {
+            ...baseConfig,
+            textShadow: false,
+        });
+        expect(mockCtx.strokeText).not.toHaveBeenCalled();
+    });
+
 });

@@ -123,4 +123,53 @@ describe('Classic Layout', () => {
         }
     });
 
+    it('respects the label visibility setting without substituting emoji', () => {
+        const metrics: MetricItem[] = [
+            { label: 'Pace', value: '5:30', unit: 'min/km' },
+            { label: 'Heart Rate', value: '140', unit: 'bpm' },
+        ];
+
+        renderClassicLayout(mockCtx as any, metrics, width, height, {
+            ...baseConfig,
+            labelStyle: 'hidden',
+            layout: 'vertical',
+        });
+
+        expect(mockCtx.fillText.mock.calls.map(([text]) => text)).toEqual(['5:30 min/km', '140 bpm']);
+    });
+
+    it('uses a soft, offset text shadow for contrast over footage', () => {
+        let shadowAtDraw: { blur: number; offsetY: number } | undefined;
+        mockCtx.fillText.mockImplementation(() => {
+            shadowAtDraw = { blur: mockCtx.shadowBlur, offsetY: mockCtx.shadowOffsetY };
+        });
+
+        renderClassicLayout(mockCtx as any, [{ label: 'Pace', value: '5:30', unit: 'min/km' }], width, height, {
+            ...baseConfig,
+            textShadow: true,
+            textShadowBlur: 2,
+        });
+
+        expect(shadowAtDraw?.blur).toBe(2);
+        expect(shadowAtDraw?.offsetY).toBeGreaterThan(0);
+    });
+
+    it('keeps vertical rows separated when configured with tight line spacing', () => {
+        const metrics: MetricItem[] = [
+            { label: 'Heart Rate', value: '199', unit: 'bpm' },
+            { label: 'Distance', value: '12345.6', unit: 'km' },
+        ];
+        renderClassicLayout(mockCtx as any, metrics, 320, 180, {
+            ...baseConfig,
+            layout: 'vertical',
+            lineSpacing: 0.8,
+            textShadow: true,
+        });
+
+        const rows = mockCtx.fillText.mock.calls;
+        const fontSize = Number.parseFloat(mockCtx.font.match(/([\d.]+)px/)?.[1] ?? '0');
+        expect(rows).toHaveLength(2);
+        expect(rows[1]![2] - rows[0]![2]).toBeGreaterThanOrEqual(fontSize * 1.25);
+    });
+
 });

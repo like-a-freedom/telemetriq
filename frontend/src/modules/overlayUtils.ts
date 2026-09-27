@@ -28,6 +28,8 @@ export function fontWeightValue(weight: string): number {
     switch (weight) {
         case 'light': return 300;
         case 'normal': return 400;
+        case 'medium': return 500;
+        case 'semibold': return 600;
         case 'bold': return 700;
         default: return 400;
     }

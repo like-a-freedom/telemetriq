@@ -9,7 +9,7 @@ export const horizonTemplate = defineTemplate({
   id: 'horizon',
   metadata: {
     name: 'Horizon',
-    description: 'Bottom bar with gradient overlay and horizontal metric layout',
+    description: 'A clear metric grid over a fading bottom edge',
     previewColors: { bg: '#0a0a0a', accent: '#ffffff', text: '#ffffff' },
   },
   config: {
@@ -29,9 +29,9 @@ export const horizonTemplate = defineTemplate({
     labelStyle: 'uppercase',
     valueFontWeight: 'bold',
     valueSizeMultiplier: 2.5,
-    labelSizeMultiplier: 0.4,
+    labelSizeMultiplier: 0.52,
     labelLetterSpacing: 0.15,
-    accentColor: '#ef4444',
+    accentColor: '#FFFFFF',
   },
   capabilities: {
     ...DEFAULT_CAPABILITIES,
@@ -39,17 +39,25 @@ export const horizonTemplate = defineTemplate({
     supportsPosition: false,
     supportsBorder: false,
     supportsTextShadow: false,
+    supportsAccentColor: false,
     supportsLayoutDirection: false,
   },
   styles: {
     typography: {
       fontFamily: TRAIL_RUN_FONT_FAMILY,
       valueFontWeight: 'bold',
+      labelFontWeight: 'semibold',
       valueSizeMultiplier: 2.5,
-      labelSizeMultiplier: 0.4,
+      labelSizeMultiplier: 0.52,
       labelLetterSpacing: 0.15,
     },
+    spacing: {
+      basePaddingPercent: 0.045,
+      metricGapPercent: 0.035,
+      lineSpacing: 1.2,
+    },
     visual: {
+      textShadow: false,
       labelStyle: 'uppercase',
     },
   },

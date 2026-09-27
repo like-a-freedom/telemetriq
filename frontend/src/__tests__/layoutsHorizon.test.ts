@@ -28,6 +28,7 @@ function createMockContext() {
         lineWidth: 1,
         textBaseline: '',
         textAlign: '',
+        letterSpacing: '0px',
         shadowColor: '',
         shadowBlur: 0,
         globalAlpha: 1,
@@ -109,5 +110,38 @@ describe('Horizon Layout', () => {
         renderHorizonLayout(mockCtx as any, metrics, width, height, config);
 
         expect(mockCtx.font).toContain('px');
+    });
+
+    it('applies label tracking when drawing the metric name', () => {
+        const config: ExtendedOverlayConfig = {
+            ...baseConfig,
+            labelLetterSpacing: 0.15,
+            labelSizeMultiplier: 0.52,
+        };
+
+        renderHorizonLayout(mockCtx as any, [{ label: 'Pace', value: '5:30', unit: 'min/km' }], 1920, 1080, config);
+
+        const labelCalls = mockCtx.fillText.mock.calls.filter(([text]) => ['P', 'A', 'C', 'E'].includes(String(text)));
+        expect(labelCalls).toHaveLength(4);
+        expect(Number(labelCalls[1]![1]) - Number(labelCalls[0]![1])).toBeGreaterThan(10);
+    });
+
+    it('omits the label line when labels are hidden', () => {
+        const config: ExtendedOverlayConfig = { ...baseConfig, labelStyle: 'hidden' };
+
+        renderHorizonLayout(mockCtx as any, [{ label: 'Distance', value: '5.2', unit: 'km' }], 1920, 1080, config);
+
+        expect(mockCtx.fillText.mock.calls.map(([text]) => text)).toEqual(['5.2', 'km']);
+    });
+
+    it('does not apply a text shadow when the template disables shadows', () => {
+        const config: ExtendedOverlayConfig = { ...baseConfig, textShadow: false, textShadowColor: '#000000' };
+        mockCtx.shadowBlur = 12;
+        mockCtx.shadowColor = '#222222';
+
+        renderHorizonLayout(mockCtx as any, [{ label: 'Pace', value: '5:30', unit: 'min/km' }], 1920, 1080, config);
+
+        expect(mockCtx.shadowBlur).toBe(0);
+        expect(mockCtx.shadowColor).toBe('transparent');
     });
 });

@@ -1,39 +1,45 @@
 /**
- * Thin Line template - Ultra-thin baseline and lightweight inline metrics.
+ * Thin Line template - a fine baseline with compact, readable telemetry.
  */
 
 import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
+import { TRAIL_RUN_FONT_FAMILY } from '../trailRunFonts';
 
 export const thinLineTemplate = defineTemplate({
   id: 'thin-line',
   metadata: {
     name: 'Thin Line',
-    description: 'Ultra-thin baseline and lightweight inline metrics',
-    previewColors: { bg: '#0f172a', accent: '#cbd5e1', text: '#e2e8f0' },
+    description: 'A fine telemetry baseline with clear values and units',
+    previewColors: { bg: '#0f172a', accent: '#cbd5e1', text: '#ffffff' },
   },
   config: {
     layoutMode: 'thin-line',
     position: 'bottom-left',
     backgroundOpacity: 0,
-    fontSizePercent: 1.55,
-    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    textColor: 'rgba(255,255,255,0.8)',
+    fontSizePercent: 2,
+    fontFamily: TRAIL_RUN_FONT_FAMILY,
+    textColor: '#ffffff',
     backgroundColor: 'transparent',
-    lineSpacing: 1,
+    lineSpacing: 1.15,
     layout: 'horizontal',
     gradientBackground: false,
     gradientStartColor: '#000000',
     gradientEndColor: '#333333',
     labelStyle: 'hidden',
-    valueFontWeight: 'light',
+    valueFontWeight: 'bold',
     valueSizeMultiplier: 1,
-    labelSizeMultiplier: 0.3,
-    labelLetterSpacing: 0.1,
+    labelSizeMultiplier: 0.52,
+    labelLetterSpacing: 0.06,
     accentColor: '#cbd5e1',
+    textShadow: true,
+    textShadowColor: 'rgba(0,0,0,0.82)',
+    textShadowBlur: 2,
   },
   capabilities: {
     ...DEFAULT_CAPABILITIES,
+    supportedMetrics: ['pace', 'hr', 'distance', 'time'],
     supportsPosition: false,
+    supportsBackgroundOpacity: false,
     supportsGradient: false,
     supportsBorder: false,
     supportsTextShadow: true,
@@ -41,17 +47,22 @@ export const thinLineTemplate = defineTemplate({
   },
   styles: {
     typography: {
-      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      valueSizeMultiplier: 2.0,
-      labelSizeMultiplier: 0.4,
+      fontFamily: TRAIL_RUN_FONT_FAMILY,
+      valueFontWeight: 'bold',
+      labelFontWeight: 'medium',
+      valueSizeMultiplier: 1,
+      labelSizeMultiplier: 0.52,
+      labelLetterSpacing: 0.06,
     },
     spacing: {
-      basePaddingPercent: 0.02,
+      basePaddingPercent: 0.03,
       metricGapPercent: 0.01,
-      lineSpacing: 1.2,
+      lineSpacing: 1.15,
     },
     visual: {
-      labelStyle: 'uppercase',
+      textShadow: true,
+      textShadowBlur: 2,
+      labelStyle: 'hidden',
     },
   },
 });

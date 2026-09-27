@@ -30,8 +30,10 @@ test('Hero Number keeps the headline and balanced metric columns inside the fram
                     ctx.fillText = (text, x, y, maxWidth) => {
                         const metrics = ctx.measureText(text);
                         const fontSize = Number.parseFloat(ctx.font.match(/([\d.]+)px/)?.[1] || '0');
-                        boxes.push({ text, left: x - metrics.actualBoundingBoxLeft,
-                            right: x + metrics.actualBoundingBoxRight, top: y, bottom: y + fontSize });
+                        const tracking = Number.parseFloat(ctx.letterSpacing) || 0;
+                        const width = metrics.width + Math.max(0, text.length - 1) * tracking;
+                        boxes.push({ text, left: x - width / 2,
+                            right: x + width / 2, top: y, bottom: y + fontSize });
                         fillText(text, x, y, maxWidth);
                     };
                     const keys = ['pace', 'heartRate', 'distance', 'time'] as const;
@@ -41,7 +43,8 @@ test('Hero Number keeps the headline and balanced metric columns inside the fram
                         fontFamily: '"Barlow Semi Condensed", sans-serif',
                         fontSizePercent,
                         valueSizeMultiplier: fontSizePercent === 1 ? 0.75 : fontSizePercent === 6 ? 3.5 : 2.8,
-                        labelSizeMultiplier: fontSizePercent === 1 ? 0.75 : fontSizePercent === 6 ? 1.3 : 0.5,
+                        labelSizeMultiplier: fontSizePercent === 1 ? 0.75 : fontSizePercent === 6 ? 1.3 : 0.65,
+                        labelLetterSpacing: 0.14,
                         valueFontWeight: 'bold',
                         lineSpacing: fontSizePercent === 6 ? 1.5 : 1.1,
                         textColor: '#fff',

@@ -24,9 +24,21 @@ export const heroNumberTemplate = defineTemplate({
     labelStyle: 'uppercase',
     valueFontWeight: 'bold',
     valueSizeMultiplier: 2.8,
-    labelSizeMultiplier: 0.5,
-    labelLetterSpacing: 0.25,
+    labelSizeMultiplier: 0.65,
+    labelLetterSpacing: 0.14,
     accentColor: '#00E676',
+  },
+  styles: {
+    typography: {
+      fontFamily: TRAIL_RUN_FONT_FAMILY,
+      valueFontWeight: 'bold',
+      labelFontWeight: 'semibold',
+      valueSizeMultiplier: 2.8,
+      labelSizeMultiplier: 0.65,
+      labelLetterSpacing: 0.14,
+    },
+    spacing: { lineSpacing: 1.1 },
+    visual: { textShadow: true, textShadowBlur: 6, labelStyle: 'uppercase' },
   },
   capabilities: {
     ...DEFAULT_CAPABILITIES,

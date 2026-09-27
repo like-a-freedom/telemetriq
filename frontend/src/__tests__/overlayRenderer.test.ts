@@ -138,6 +138,30 @@ describe('Overlay Renderer', () => {
         expect((ctx as unknown as StubContext).drawImage).toHaveBeenCalledTimes(1);
     });
 
+    it('should skip overlay rendering while the video frame has no drawable dimensions', async () => {
+        const frame: TelemetryFrame = {
+            timeOffset: 0,
+            hr: 145,
+            paceSecondsPerKm: 300,
+            distanceKm: 1,
+            elapsedTime: '00:00:10',
+            movingTimeSeconds: 10,
+        };
+        const destinations = [
+            { width: 0, height: 720 },
+            { width: 1280, height: 0 },
+            { width: Number.NaN, height: 720 },
+        ];
+
+        for (const { width, height } of destinations) {
+            const ctx = createStubContext({ id: `dest-${width}x${height}` }) as unknown as CanvasRenderingContext2D;
+            await expect(renderOverlay(ctx, frame, width, height, DEFAULT_OVERLAY_CONFIG)).resolves.toBeUndefined();
+            expect((ctx as unknown as StubContext).drawImage).not.toHaveBeenCalled();
+        }
+
+        expect(offscreenCreateCount).toBe(0);
+    });
+
     it('should use cache for repeated render with identical frame/config', async () => {
         const frame: TelemetryFrame = {
             timeOffset: 120,

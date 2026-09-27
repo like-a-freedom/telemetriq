@@ -9,7 +9,7 @@ describe('minimal-ring template module', () => {
         it('should have correct id and metadata', () => {
             expect(minimalRingTemplate.id).toBe('minimal-ring');
             expect(minimalRingTemplate.metadata.name).toBe('Minimal Ring');
-            expect(minimalRingTemplate.metadata.description).toContain('circular progress ring');
+            expect(minimalRingTemplate.metadata.description.toLowerCase()).toContain('circular progress ring');
         });
 
         it('should have pace as required metric', () => {
@@ -22,6 +22,7 @@ describe('minimal-ring template module', () => {
 
         it('should have correct supported metrics', () => {
             expect(minimalRingTemplate.capabilities.supportedMetrics).toEqual(['pace', 'hr', 'distance', 'power']);
+            expect(minimalRingTemplate.config.showPower).toBe(true);
         });
 
         it('should provide custom reason for unavailable time metric', () => {
@@ -70,7 +71,10 @@ describe('minimal-ring template module', () => {
     describe('template styles', () => {
         it('should have typography preset', () => {
             expect(minimalRingTemplate.styles.typography).toBeDefined();
-            expect(minimalRingTemplate.styles.typography.valueFontWeight).toBe('light');
+            expect(minimalRingTemplate.styles.typography.valueFontWeight).toBe('bold');
+            expect(minimalRingTemplate.styles.typography.fontFamily).toBe(minimalRingTemplate.config.fontFamily);
+            expect(minimalRingTemplate.styles.typography.labelSizeMultiplier)
+                .toBe(minimalRingTemplate.config.labelSizeMultiplier);
         });
 
         it('should have visual preset', () => {

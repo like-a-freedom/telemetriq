@@ -1,6 +1,12 @@
 import type { ExtendedOverlayConfig, MetricItem } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import { applyTextShadow, getStableMetricValue } from '../overlayUtils';
+import {
+    clamp,
+    drawTrackedText,
+    fontWeightValue,
+    getStableMetricValue,
+    measureTrackedTextWidth,
+} from '../overlayUtils';
 
 /** A bottom strip with balanced rows for dense portrait configurations. */
 export function renderHorizonLayout(
@@ -14,6 +20,10 @@ export function renderHorizonLayout(
 
     ctx.save();
     ctx.letterSpacing = '0px';
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
     const shortSide = Math.min(w, h);
     const padding = shortSide * 0.045;
     const rows = w <= h ? Math.ceil(metrics.length / 3) : Math.ceil(metrics.length / 6);
@@ -21,32 +31,47 @@ export function renderHorizonLayout(
     const columnWidth = (w - padding * 2) / columns;
     const availableWidth = columnWidth * 0.84;
     const fontFamily = config.fontFamily;
-    const weight = !config.valueFontWeight || config.valueFontWeight === 'bold' ? 600 : 500;
-    const scale = Math.max(0.5, Math.min(2, (config.fontSizePercent || 2.4) / 2.4));
-    let valueSize = Math.min(shortSide * 0.065 * scale, h * 0.13 / rows);
-    let labelSize = Math.max(9, shortSide * 0.023 * scale);
-    let unitSize = labelSize;
+    const valueWeight = fontWeightValue(config.valueFontWeight || 'bold');
+    const labelWeight = 600;
+    const unitWeight = 500;
+    const labelsVisible = config.labelStyle !== 'hidden';
+    const sizeScale = clamp((config.fontSizePercent || 2.4) / 2.4, 0.5, 2);
+    const valueScale = clamp(config.valueSizeMultiplier / 2.5, 0.5, 2);
+    const labelScale = clamp(config.labelSizeMultiplier / 0.52, 0.5, 1.5);
+    const labelTracking = clamp(config.labelLetterSpacing, 0, 0.2);
+    const lineSpacing = clamp(config.lineSpacing, 0.8, 1.8);
+    let valueSize = Math.min(shortSide * 0.065 * sizeScale * valueScale, h * 0.13 / rows);
+    let labelSize = labelsVisible ? Math.max(10, shortSide * 0.027 * sizeScale * labelScale) : 0;
+    let unitSize = Math.max(9, labelSize * 0.84);
 
     // Reserve stable widths, but also measure actual long values and every label.
     let valueWidth = 0;
     let labelWidth = 0;
     let unitWidth = 0;
     for (const metric of metrics) {
-        ctx.font = `${weight} ${valueSize}px ${fontFamily}`;
+        ctx.font = `${valueWeight} ${valueSize}px ${fontFamily}`;
         valueWidth = Math.max(valueWidth, ctx.measureText(metric.value).width,
             ctx.measureText(getStableMetricValue(metric.label)).width);
-        ctx.font = `600 ${labelSize}px ${fontFamily}`;
-        labelWidth = Math.max(labelWidth, ctx.measureText(metric.label.toUpperCase()).width);
-        ctx.font = `500 ${unitSize}px ${fontFamily}`;
+        if (labelsVisible) {
+            ctx.font = `${labelWeight} ${labelSize}px ${fontFamily}`;
+            labelWidth = Math.max(labelWidth, measureTrackedTextWidth(
+                ctx,
+                metric.label.toUpperCase(),
+                labelTracking,
+                labelSize,
+            ));
+        }
+        ctx.font = `${unitWeight} ${unitSize}px ${fontFamily}`;
         unitWidth = Math.max(unitWidth, ctx.measureText(metric.unit).width);
     }
     valueSize *= Math.min(1, availableWidth / Math.max(1, valueWidth));
-    labelSize *= Math.min(1, availableWidth / Math.max(1, labelWidth));
+    if (labelsVisible) labelSize *= Math.min(1, availableWidth / Math.max(1, labelWidth));
     unitSize *= Math.min(1, availableWidth / Math.max(1, unitWidth));
 
-    const gap = shortSide * 0.012;
-    const rowGap = shortSide * 0.035;
-    const contentHeight = labelSize + valueSize + unitSize + gap * 2;
+    const gap = Math.max(2, shortSide * 0.012 * lineSpacing);
+    const labelGap = labelsVisible ? gap : 0;
+    const rowGap = shortSide * 0.035 * lineSpacing;
+    const contentHeight = labelSize + valueSize + unitSize + labelGap + gap;
     const totalHeight = rows * contentHeight + (rows - 1) * rowGap;
     const top = h - padding - totalHeight;
     const backgroundTop = Math.max(0, top - shortSide * 0.16);
@@ -63,7 +88,6 @@ export function renderHorizonLayout(
     }
     ctx.fillRect(0, backgroundTop, w, h - backgroundTop);
     ctx.globalAlpha = 1;
-    applyTextShadow(ctx, { ...config, textShadow: true });
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
 
@@ -87,13 +111,19 @@ export function renderHorizonLayout(
                 ctx.restore();
             }
             ctx.fillStyle = config.textColor;
-            ctx.font = `600 ${labelSize}px ${fontFamily}`;
-            ctx.fillText(metric.label.toUpperCase(), x, y);
-            ctx.font = `${weight} ${valueSize}px ${fontFamily}`;
-            ctx.fillText(metric.value, x, y + labelSize + gap);
+            if (labelsVisible) {
+                const label = metric.label.toUpperCase();
+                ctx.font = `${labelWeight} ${labelSize}px ${fontFamily}`;
+                const labelWidthAtSize = measureTrackedTextWidth(ctx, label, labelTracking, labelSize);
+                ctx.textAlign = 'left';
+                drawTrackedText(ctx, label, x - labelWidthAtSize / 2, y, labelTracking, labelSize);
+                ctx.textAlign = 'center';
+            }
+            ctx.font = `${valueWeight} ${valueSize}px ${fontFamily}`;
+            ctx.fillText(metric.value, x, y + labelSize + labelGap);
             if (metric.unit) {
-                ctx.font = `500 ${unitSize}px ${fontFamily}`;
-                ctx.fillText(metric.unit, x, y + labelSize + valueSize + gap * 2);
+                ctx.font = `${unitWeight} ${unitSize}px ${fontFamily}`;
+                ctx.fillText(metric.unit, x, y + labelSize + labelGap + valueSize + gap);
             }
         }
     }

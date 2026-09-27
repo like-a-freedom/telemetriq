@@ -91,8 +91,10 @@ export async function renderOverlay(
     config: ExtendedOverlayConfig = DEFAULT_OVERLAY_CONFIG,
     renderContext: OverlayRenderContext = {},
 ): Promise<void> {
+    if (!isRenderableSize(videoWidth, videoHeight)) return;
+
     const effectiveConfig = getEffectiveConfig(config);
-    if (effectiveConfig.templateId === 'classic' || ['trail-run', 'cycling-pro', 'arc-gauge', 'hero-number', 'bottom-bar', 'side-margins', 'corner-frame'].includes(effectiveConfig.layoutMode || '')) await ensureTrailRunFonts();
+    if (effectiveConfig.templateId === 'classic' || ['trail-run', 'cycling-pro', 'arc-gauge', 'hero-number', 'cinematic-bar', 'ticker-tape', 'whisper', 'two-tone', 'condensed-strip', 'soft-rounded', 'thin-line', 'swiss-grid', 'garmin-style', 'bottom-bar', 'side-margins', 'corner-frame'].includes(effectiveConfig.layoutMode || '')) await ensureTrailRunFonts();
     const metrics = buildMetrics(frame, effectiveConfig);
     const shouldRenderFixedTemplate = shouldRenderWithoutMetrics(effectiveConfig);
 
@@ -314,7 +316,12 @@ function cacheOverlay(
     height: number,
     strategy: 'standard' | 'high-resolution-single' | 'none',
 ): void {
-    if (strategy === 'none') return;
+    if (
+        strategy === 'none' ||
+        !isRenderableSize(width, height) ||
+        sourceCanvas.width <= 0 ||
+        sourceCanvas.height <= 0
+    ) return;
 
     if (overlayCache.size >= MAX_CACHE_ENTRIES) {
         const firstKey = overlayCache.keys().next().value as string | undefined;
@@ -343,6 +350,8 @@ function createOverlayTarget(
     width: number,
     height: number,
 ): { canvas: OffscreenCanvas | HTMLCanvasElement; ctx: OverlayContext2D } | null {
+    if (!isRenderableSize(width, height)) return null;
+
     const key = destinationCtx.canvas as unknown as object;
     const cached = scratchOverlays.get(key);
     if (cached && cached.width === width && cached.height === height) {
@@ -366,6 +375,10 @@ function createCanvas(width: number, height: number): OffscreenCanvas | HTMLCanv
     return canvas;
 }
 
+function isRenderableSize(width: number, height: number): boolean {
+    return Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
+}
+
 function getCanvasContext(
     canvas: OffscreenCanvas | HTMLCanvasElement,
 ): OverlayContext2D | null {
@@ -387,9 +400,10 @@ export async function renderOverlayOnFrame(
 ): Promise<VideoFrame> {
     const width = videoFrame.displayWidth;
     const height = videoFrame.displayHeight;
+    if (!isRenderableSize(width, height)) return videoFrame;
 
     const effectiveConfig = getEffectiveConfig(config);
-    if (effectiveConfig.templateId === 'classic' || ['trail-run', 'cycling-pro', 'arc-gauge', 'hero-number', 'bottom-bar', 'side-margins', 'corner-frame'].includes(effectiveConfig.layoutMode || '')) await ensureTrailRunFonts();
+    if (effectiveConfig.templateId === 'classic' || ['trail-run', 'cycling-pro', 'arc-gauge', 'hero-number', 'cinematic-bar', 'ticker-tape', 'whisper', 'two-tone', 'condensed-strip', 'soft-rounded', 'thin-line', 'swiss-grid', 'garmin-style', 'bottom-bar', 'side-margins', 'corner-frame'].includes(effectiveConfig.layoutMode || '')) await ensureTrailRunFonts();
     const metrics = buildMetrics(telemetryFrame, effectiveConfig);
     const shouldRenderFixedTemplate = shouldRenderWithoutMetrics(effectiveConfig);
 

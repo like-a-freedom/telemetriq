@@ -1,4 +1,5 @@
 import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
+import { TRAIL_RUN_FONT_FAMILY } from '../trailRunFonts';
 
 export const cinematicBarTemplate = defineTemplate({
   id: 'cinematic-bar',
@@ -12,16 +13,28 @@ export const cinematicBarTemplate = defineTemplate({
     position: 'bottom-left',
     backgroundOpacity: 0.6,
     fontSizePercent: 1.85,
-    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    fontFamily: TRAIL_RUN_FONT_FAMILY,
     textColor: '#FFFFFF',
     backgroundColor: '#000000',
     lineSpacing: 1.15,
     layout: 'horizontal',
     labelStyle: 'uppercase',
     valueSizeMultiplier: 1.05,
-    labelSizeMultiplier: 0.42,
-    labelLetterSpacing: 0.16,
+    labelSizeMultiplier: 0.48,
+    labelLetterSpacing: 0.14,
     accentColor: '#FFFFFF',
+  },
+  styles: {
+    typography: {
+      fontFamily: TRAIL_RUN_FONT_FAMILY,
+      valueFontWeight: 'bold',
+      labelFontWeight: 'semibold',
+      valueSizeMultiplier: 1.05,
+      labelSizeMultiplier: 0.48,
+      labelLetterSpacing: 0.14,
+    },
+    spacing: { lineSpacing: 1.15 },
+    visual: { textShadow: false, textShadowBlur: 0, labelStyle: 'uppercase' },
   },
   capabilities: {
     ...DEFAULT_CAPABILITIES,
@@ -29,7 +42,7 @@ export const cinematicBarTemplate = defineTemplate({
     supportsPosition: false,
     supportsGradient: false,
     supportsBorder: false,
-    supportsTextShadow: true,
+    supportsTextShadow: false,
     supportsLayoutDirection: false,
   },
 });

@@ -274,14 +274,14 @@ describe('templates registry', () => {
                 expect(classicTemplate.capabilities.supportsPosition).toBe(true);
             });
 
-            it('should support all features', () => {
+            it('should support its background, border, shadow and layout controls', () => {
                 const caps = classicTemplate.capabilities;
                 expect(caps.supportsBackgroundOpacity).toBe(true);
                 expect(caps.supportsGradient).toBe(true);
                 expect(caps.supportsBorder).toBe(true);
                 expect(caps.supportsTextShadow).toBe(true);
-                expect(caps.supportsAccentColor).toBe(true);
                 expect(caps.supportsLayoutDirection).toBe(true);
+                expect(caps.supportsAccentColor).toBe(false);
             });
         });
 
@@ -337,9 +337,9 @@ describe('templates registry', () => {
     describe('template styles', () => {
         it('minimal-ring should have correct typography preset', () => {
             const styles = minimalRingTemplate.styles.typography;
-            expect(styles.valueFontWeight).toBe('light');
-            expect(styles.valueSizeMultiplier).toBe(1.6);
-            expect(styles.labelSizeMultiplier).toBe(0.32);
+            expect(styles.valueFontWeight).toBe('bold');
+            expect(styles.valueSizeMultiplier).toBe(1.4);
+            expect(styles.labelSizeMultiplier).toBe(0.44);
         });
 
         it('minimal-ring should have correct visual preset', () => {
@@ -349,9 +349,9 @@ describe('templates registry', () => {
             expect(styles.iconStyle).toBe('none');
         });
 
-        it('classic should have bold values', () => {
+        it('classic should use semibold Barlow values', () => {
             const styles = classicTemplate.styles.typography;
-            expect(styles.valueFontWeight).toBe('bold');
+            expect(styles.valueFontWeight).toBe('semibold');
         });
     });
 });

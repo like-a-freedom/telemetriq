@@ -3,20 +3,21 @@
  */
 
 import { DEFAULT_CAPABILITIES, defineTemplate } from './types';
+import { TRAIL_RUN_FONT_FAMILY } from '../trailRunFonts';
 
 export const tickerTapeTemplate = defineTemplate({
   id: 'ticker-tape',
   metadata: {
     name: 'Ticker Tape',
-    description: 'Live ticker strip at the bottom edge',
+    description: 'Compact telemetry strip along the bottom edge',
     previewColors: { bg: '#0a0a0a', accent: '#ef4444', text: '#f8fafc' },
   },
   config: {
     layoutMode: 'ticker-tape',
     position: 'bottom-left',
     backgroundOpacity: 0.95,
-    fontSizePercent: 1.7,
-    fontFamily: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
+    fontSizePercent: 4.2,
+    fontFamily: TRAIL_RUN_FONT_FAMILY,
     textColor: '#FFFFFF',
     backgroundColor: '#000000',
     lineSpacing: 1.2,
@@ -24,9 +25,11 @@ export const tickerTapeTemplate = defineTemplate({
     gradientBackground: false,
     gradientStartColor: '#000000',
     gradientEndColor: '#333333',
-    labelStyle: 'hidden',
-    labelSizeMultiplier: 0.4,
-    labelLetterSpacing: 0.12,
+    labelStyle: 'uppercase',
+    valueFontWeight: 'bold',
+    valueSizeMultiplier: 1.0,
+    labelSizeMultiplier: 0.55,
+    labelLetterSpacing: 0.08,
     accentColor: '#ef4444',
   },
   capabilities: {
@@ -40,9 +43,11 @@ export const tickerTapeTemplate = defineTemplate({
   },
   styles: {
     typography: {
-      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      valueSizeMultiplier: 2.0,
-      labelSizeMultiplier: 0.4,
+      fontFamily: TRAIL_RUN_FONT_FAMILY,
+      valueFontWeight: 'bold',
+      valueSizeMultiplier: 1.0,
+      labelSizeMultiplier: 0.55,
+      labelLetterSpacing: 0.08,
     },
     spacing: {
       basePaddingPercent: 0.02,

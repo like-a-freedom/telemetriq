@@ -17,11 +17,31 @@ test('Margin keeps every metric inside the frame without text collisions', async
             { label: 'Time', value: '123:59:59', unit: '' },
             { label: 'Power', value: '1999', unit: 'W' },
         ];
+        const configurations = [
+            { fontSizePercent: 1 },
+            { fontSizePercent: 2.4 },
+            { fontSizePercent: 8 },
+            {
+                fontSizePercent: 4.8,
+                valueSizeMultiplier: 7,
+                labelSizeMultiplier: 1.2,
+                labelLetterSpacing: 0.2,
+                lineSpacing: 1.8,
+            },
+            {
+                fontSizePercent: 0.8,
+                valueSizeMultiplier: 0.5,
+                labelSizeMultiplier: 0.25,
+                labelLetterSpacing: 0,
+                lineSpacing: 0.8,
+                labelStyle: 'hidden',
+            },
+        ];
         const failures: string[] = [];
         let cases = 0;
-        for (const [w, h] of [[320, 568], [360, 640], [640, 360], [1080, 1080], [1080, 1920], [1920, 1080], [3840, 2160]]) {
+        for (const [w, h] of [[320, 180], [320, 568], [360, 640], [640, 360], [884, 151], [1080, 1080], [1080, 1920], [1920, 1080], [3840, 2160]]) {
             for (let mask = 1; mask < 32; mask++) {
-                for (const fontSizePercent of [1, 2.4, 8]) {
+                for (const overrides of configurations) {
                     const canvas = document.createElement('canvas');
                     canvas.width = w!;
                     canvas.height = h!;
@@ -40,9 +60,15 @@ test('Margin keeps every metric inside the frame without text collisions', async
                             top: Math.min(...points.map(p => p.y)), bottom: Math.max(...points.map(p => p.y)) });
                     };
                     const enabled = metrics.filter((_, index) => mask & (1 << index));
-                    renderMarginLayout(ctx, enabled, w, h, { ...getTemplateConfig('margin'), fontSizePercent });
-                    const id = `${w}x${h}/${mask}/${fontSizePercent}`;
-                    if (boxes.length !== enabled.reduce((count, metric) => count + (metric.unit ? 3 : 2), 0)) failures.push(`${id}: missing text`);
+                    const config = { ...getTemplateConfig('margin'), ...overrides };
+                    renderMarginLayout(ctx, enabled, w, h, config);
+                    const id = `${w}x${h}/${mask}/${config.fontSizePercent}`;
+                    const expectedText = enabled.reduce((count, metric) => {
+                        const shortLabel = metric.label === 'Heart Rate' ? 'HR'
+                            : metric.label === 'Distance' ? 'DIST' : metric.label.toUpperCase();
+                        return count + (config.labelStyle === 'hidden' ? 0 : shortLabel.length) + 1 + (metric.unit ? 1 : 0);
+                    }, 0);
+                    if (boxes.length !== expectedText) failures.push(`${id}: missing text (${boxes.length}/${expectedText})`);
                     for (let i = 0; i < boxes.length; i++) {
                         const a = boxes[i]!;
                         if (a.left < 0 || a.top < 0 || a.right > w! || a.bottom > h!) failures.push(`${id}: outside ${a.text}`);
@@ -58,6 +84,6 @@ test('Margin keeps every metric inside the frame without text collisions', async
         }
         return { cases, failures };
     });
-    expect(result.cases).toBe(651);
+    expect(result.cases).toBe(1395);
     expect(result.failures).toEqual([]);
 });
