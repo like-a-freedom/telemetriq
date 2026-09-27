@@ -46,17 +46,21 @@ test('Margin keeps every metric inside the frame without text collisions', async
                     canvas.width = w!;
                     canvas.height = h!;
                     const ctx = canvas.getContext('2d')!;
-                    const boxes: { text: string; left: number; right: number; top: number; bottom: number }[] = [];
+                    const boxes: { text: string; group: string; left: number; right: number; top: number; bottom: number }[] = [];
                     ctx.fillText = (text, x, y) => {
                         const bounds = ctx.measureText(text);
                         const matrix = ctx.getTransform();
+                        const isRotatedLabel = Math.abs(matrix.a) < 0.001 && Math.abs(matrix.d) < 0.001;
+                        const group = isRotatedLabel
+                            ? `label:${matrix.e.toFixed(3)}:${matrix.f.toFixed(3)}:${matrix.b.toFixed(3)}`
+                            : `text:${boxes.length}`;
                         const points = [
                             [x - bounds.actualBoundingBoxLeft, y - bounds.actualBoundingBoxAscent],
                             [x + bounds.actualBoundingBoxRight, y - bounds.actualBoundingBoxAscent],
                             [x - bounds.actualBoundingBoxLeft, y + bounds.actualBoundingBoxDescent],
                             [x + bounds.actualBoundingBoxRight, y + bounds.actualBoundingBoxDescent],
                         ].map(([px, py]) => new DOMPoint(px, py).matrixTransform(matrix));
-                        boxes.push({ text, left: Math.min(...points.map(p => p.x)), right: Math.max(...points.map(p => p.x)),
+                        boxes.push({ text, group, left: Math.min(...points.map(p => p.x)), right: Math.max(...points.map(p => p.x)),
                             top: Math.min(...points.map(p => p.y)), bottom: Math.max(...points.map(p => p.y)) });
                     };
                     const enabled = metrics.filter((_, index) => mask & (1 << index));
@@ -69,10 +73,22 @@ test('Margin keeps every metric inside the frame without text collisions', async
                         return count + (config.labelStyle === 'hidden' ? 0 : shortLabel.length) + 1 + (metric.unit ? 1 : 0);
                     }, 0);
                     if (boxes.length !== expectedText) failures.push(`${id}: missing text (${boxes.length}/${expectedText})`);
-                    for (let i = 0; i < boxes.length; i++) {
-                        const a = boxes[i]!;
+                    const collisionBoxes = [...boxes.reduce((groups, box) => {
+                        const previous = groups.get(box.group);
+                        if (!previous) groups.set(box.group, { ...box });
+                        else {
+                            previous.text += box.text;
+                            previous.left = Math.min(previous.left, box.left);
+                            previous.right = Math.max(previous.right, box.right);
+                            previous.top = Math.min(previous.top, box.top);
+                            previous.bottom = Math.max(previous.bottom, box.bottom);
+                        }
+                        return groups;
+                    }, new Map<string, (typeof boxes)[number]>()).values()];
+                    for (let i = 0; i < collisionBoxes.length; i++) {
+                        const a = collisionBoxes[i]!;
                         if (a.left < 0 || a.top < 0 || a.right > w! || a.bottom > h!) failures.push(`${id}: outside ${a.text}`);
-                        for (const b of boxes.slice(i + 1)) {
+                        for (const b of collisionBoxes.slice(i + 1)) {
                             if (a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top) {
                                 failures.push(`${id}: collision ${a.text}/${b.text}`);
                             }
