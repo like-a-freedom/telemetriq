@@ -1,0 +1,17 @@
+{
+    "name": "Telemetriq",
+    "short_name": "Telemetriq",
+    "description": "Sports telemetry overlay for videos",
+    "icons": [
+        {
+            "src": "favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        }
+    ],
+    "theme_color": "#1e293b",
+    "background_color": "#1e293b",
+    "display": "standalone",
+    "start_url": "./"
+}

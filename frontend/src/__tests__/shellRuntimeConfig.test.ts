@@ -39,10 +39,8 @@ describe('production shell runtime config', () => {
 
         // Verify that the public shell assets are structurally sound
         // (these files are shipped alongside the app shell and validated by the production build).
-        for (const publicFile of ['public/site.webmanifest', 'public/llms.txt']) {
-            if (!fs.existsSync(path.join(FRONTEND_DIR, publicFile))) {
-                continue;
-            }
+        for (const publicFile of ['public/favicon.svg', 'public/site.webmanifest', 'public/llms.txt']) {
+            expect(fs.existsSync(path.join(FRONTEND_DIR, publicFile))).toBe(true);
             const content = readFrontendFile(publicFile);
             if (publicFile === 'public/site.webmanifest') {
                 const manifest = JSON.parse(content) as { icons?: Array<{ src: string }> };
