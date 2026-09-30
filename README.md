@@ -7,6 +7,18 @@
 
 Telemetriq is a web application for visualizing sports telemetry (GPX and other formats) on top of video — with customizable overlay templates and export capabilities.
 
+## Demo / Screenshots
+
+Click any image to open the full-size original.
+
+<p align="center">
+  <a href="assets/example_01.jpeg"><img src="assets/example_01.jpeg" width="48%" alt="Preview and sync screen with a runner and Horizon telemetry overlay"></a>
+  <a href="assets/example_02.jpeg"><img src="assets/example_02.jpeg" width="48%" alt="Preview and sync screen with a Trail Run telemetry overlay"></a>
+  <br>
+  <a href="assets/example_03.jpeg"><img src="assets/example_03.jpeg" width="48%" alt="Arc Gauge telemetry overlay preview"></a>
+  <a href="assets/example_04.jpeg"><img src="assets/example_04.jpeg" width="48%" alt="Editorial telemetry overlay preview"></a>
+</p>
+
 ---
 
 ## Table of contents
