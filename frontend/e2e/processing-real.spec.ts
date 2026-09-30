@@ -57,13 +57,15 @@ async function processFixture(page: import('@playwright/test').Page): Promise<nu
     });
 }
 
-async function inspectMp4(bytes: number[]): Promise<{ hasVideo: boolean; hasAudio: boolean }> {
+async function inspectMp4(bytes: number[]): Promise<{ videoCodec: string | null; audioCodec: string | null }> {
     const file = new File([Uint8Array.from(bytes)], 'result.mp4', { type: 'video/mp4' });
     const input = new Input({ formats: ALL_FORMATS, source: new BlobSource(file) });
     try {
+        const video = await input.getPrimaryVideoTrack();
+        const audio = await input.getPrimaryAudioTrack();
         return {
-            hasVideo: Boolean(await input.getPrimaryVideoTrack()),
-            hasAudio: Boolean(await input.getPrimaryAudioTrack()),
+            videoCodec: video ? await video.getCodec() : null,
+            audioCodec: audio ? await audio.getCodec() : null,
         };
     } finally {
         const disposable = input as unknown as { [Symbol.dispose]?: () => void };
@@ -81,7 +83,7 @@ test.describe('Real processing flow (chromium only)', () => {
         const outputBytes = await processFixture(page);
         expect(await page.evaluate(() => window.crossOriginIsolated)).toBe(false);
         expect(outputBytes.length).toBeGreaterThan(1000);
-        expect(await inspectMp4(outputBytes)).toEqual({ hasVideo: true, hasAudio: true });
+        expect(await inspectMp4(outputBytes)).toEqual({ videoCodec: 'avc', audioCodec: 'aac' });
     });
 
     test('production Pages: transcodes with the pinned local FFmpeg core when CDNs are blocked', async ({ page }) => {
@@ -111,7 +113,7 @@ test.describe('Real processing flow (chromium only)', () => {
 
         const outputBytes = await processFixture(page);
         expect(outputBytes.length).toBeGreaterThan(1000);
-        expect(await inspectMp4(outputBytes)).toEqual({ hasVideo: true, hasAudio: true });
+        expect(await inspectMp4(outputBytes)).toEqual({ videoCodec: 'avc', audioCodec: 'aac' });
         expect(localCoreAssets).toContain('ffmpeg-core.js');
         expect(localCoreAssets).toContain('ffmpeg-core.wasm');
     });

@@ -5,6 +5,8 @@ const appBasePath = configuredPath.endsWith('/') ? configuredPath : `${configure
 const siteOrigin = process.env.VITE_SITE_URL || 'https://like-a-freedom.github.io';
 
 test('production Pages: serves the app and static metadata from the project path', async ({ page, request }) => {
+    test.skip(!process.env.PAGES_BASE_PATH, 'Pages production checks run only with the Pages test configuration.');
+
     const failures: string[] = [];
     page.on('response', (response) => {
         if (response.status() >= 400 && response.url().startsWith('http://127.0.0.1:4173')) {
