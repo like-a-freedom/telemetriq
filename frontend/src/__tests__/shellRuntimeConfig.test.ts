@@ -32,9 +32,10 @@ describe('production shell runtime config', () => {
         const indexHtml = readFrontendFile('index.html');
 
         // index.html must reference the core shell assets
-        for (const asset of ['favicon.svg', 'site.webmanifest', 'llms.txt']) {
+        for (const asset of ['favicon.svg', 'llms.txt']) {
             expect(indexHtml).toContain(`/${asset}`);
         }
+        expect(indexHtml).toContain('href="%BASE_URL%site.webmanifest"');
 
         // Verify that the public shell assets are structurally sound
         // (these files are shipped alongside the app shell and validated by the production build).
