@@ -24,6 +24,8 @@ test('production Pages: serves the app and static metadata from the project path
         siteUrl: (window as Window & { __SITE_URL__?: string }).__SITE_URL__,
     }));
     expect(urls.canonical).toBe(`${siteOrigin}${appBasePath}`);
+    expect(new URL(urls.manifest!).pathname).toBe(`${appBasePath}site.webmanifest`);
+    expect(new URL(urls.manifest!).origin).toBe(new URL(page.url()).origin);
     expect(urls.image).toBe(`${siteOrigin}${appBasePath}og-image.png`);
     expect(urls.siteUrl).toBe(siteOrigin);
 

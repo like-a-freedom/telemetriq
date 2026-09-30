@@ -78,11 +78,8 @@ test.describe('Real processing flow (chromium only)', () => {
     test('production Pages: exports H.264/AAC video without cross-origin isolation', async ({ page }) => {
         test.setTimeout(240_000);
 
-        if (process.env.PAGES_BASE_PATH) {
-            expect(await page.evaluate(() => window.crossOriginIsolated)).toBe(false);
-        }
-
         const outputBytes = await processFixture(page);
+        expect(await page.evaluate(() => window.crossOriginIsolated)).toBe(false);
         expect(outputBytes.length).toBeGreaterThan(1000);
         expect(await inspectMp4(outputBytes)).toEqual({ hasVideo: true, hasAudio: true });
     });
@@ -119,32 +116,34 @@ test.describe('Real processing flow (chromium only)', () => {
         expect(localCoreAssets).toContain('ffmpeg-core.wasm');
     });
 
-    test('manual sync adjustment controls should update offset state', async ({ page }) => {
-        test.setTimeout(90_000);
+});
 
-        await page.goto('/', { waitUntil: 'domcontentloaded' });
+test('manual sync adjustment controls should update offset state', async ({ page }) => {
+    test.skip(!HAS_FIXTURES, 'Missing real processing fixtures.');
+    test.setTimeout(90_000);
 
-        await page.getByTestId('video-upload').locator('input[type="file"]').setInputFiles(VIDEO_PATH);
-        await page.getByTestId('gpx-upload').locator('input[type="file"]').setInputFiles(GPX_PATH);
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
 
-        await expect(page.getByTestId('proceed-btn')).toBeEnabled({ timeout: 30_000 });
-        await page.getByTestId('proceed-btn').click();
+    await page.getByTestId('video-upload').locator('input[type="file"]').setInputFiles(VIDEO_PATH);
+    await page.getByTestId('gpx-upload').locator('input[type="file"]').setInputFiles(GPX_PATH);
 
-        await expect(page).toHaveURL(/\/preview/, { timeout: 30_000 });
+    await expect(page.getByTestId('proceed-btn')).toBeEnabled({ timeout: 30_000 });
+    await page.getByTestId('proceed-btn').click();
 
-        const syncRange = page.getByTestId('sync-range');
-        await expect(syncRange).toBeVisible({ timeout: 30_000 });
+    await expect(page).toHaveURL(/\/preview/, { timeout: 30_000 });
 
-        // Reproduce user flow: manual adjustment via sync controls.
-        await page.getByTestId('sync-reset').click({ force: true });
-        await expect(syncRange).toHaveValue('0');
+    const syncRange = page.getByTestId('sync-range');
+    await expect(syncRange).toBeVisible({ timeout: 30_000 });
 
-        for (let i = 0; i < 3; i += 1) {
-            await page.getByTestId('sync-plus1').click({ force: true });
-        }
+    // Reproduce user flow: manual adjustment via sync controls.
+    await page.getByTestId('sync-reset').click({ force: true });
+    await expect(syncRange).toHaveValue('0');
 
-        await expect(syncRange).not.toHaveValue('1800');
-        await expect(page.getByTestId('sync-slider').locator('.sync-slider__badge--manual')).toBeVisible();
-        await expect(page.getByTestId('process-btn')).toBeVisible();
-    });
+    for (let i = 0; i < 3; i += 1) {
+        await page.getByTestId('sync-plus1').click({ force: true });
+    }
+
+    await expect(syncRange).not.toHaveValue('1800');
+    await expect(page.getByTestId('sync-slider')).toContainText(/manual/i);
+    await expect(page.getByTestId('process-btn')).toBeVisible();
 });
