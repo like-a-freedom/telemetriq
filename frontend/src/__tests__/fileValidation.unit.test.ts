@@ -178,7 +178,6 @@ describe('file-validation', () => {
 
             expect(result.supported).toBe(false);
             expect(result.missing).toContain('WebCodecs API');
-            expect(result.missing).toContain('SharedArrayBuffer');
             expect(result.missing).toContain('OffscreenCanvas');
         });
 
@@ -193,6 +192,18 @@ describe('file-validation', () => {
 
             expect(result.supported).toBe(true);
             expect(result.missing).toHaveLength(0);
+        });
+
+        it('should allow the single-threaded processing path without SharedArrayBuffer', () => {
+            (globalThis as any).VideoDecoder = class { };
+            (globalThis as any).VideoEncoder = class { };
+            (globalThis as any).VideoFrame = class { };
+            (globalThis as any).SharedArrayBuffer = undefined;
+            (globalThis as any).OffscreenCanvas = class { };
+
+            const result = checkBrowserCapabilities();
+
+            expect(result).toEqual({ supported: true, missing: [] });
         });
     });
 });

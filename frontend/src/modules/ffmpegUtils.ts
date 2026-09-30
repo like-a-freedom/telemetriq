@@ -26,7 +26,7 @@ const DEFAULT_CORE_CANDIDATES = [
 ];
 
 /** Local vendor path for FFmpeg core */
-const LOCAL_VENDOR_PATH = '/vendor/ffmpeg';
+const LOCAL_VENDOR_PATH = `${import.meta.env.BASE_URL}vendor/ffmpeg`;
 
 /**
  * Load FFmpeg core from multiple CDN candidates with fallbacks.

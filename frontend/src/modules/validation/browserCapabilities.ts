@@ -10,7 +10,7 @@ export function isWebCodecsSupported(): boolean {
 }
 
 /**
- * Check if SharedArrayBuffer is available (needed for FFmpeg.wasm).
+ * Check if SharedArrayBuffer is available (needed by the multi-threaded FFmpeg core).
  */
 export function isSharedArrayBufferSupported(): boolean {
     return typeof SharedArrayBuffer !== 'undefined';
@@ -24,10 +24,6 @@ export function checkBrowserCapabilities(): { supported: boolean; missing: strin
 
     if (!isWebCodecsSupported()) {
         missing.push('WebCodecs API');
-    }
-
-    if (!isSharedArrayBufferSupported()) {
-        missing.push('SharedArrayBuffer');
     }
 
     if (typeof OffscreenCanvas === 'undefined') {

@@ -45,16 +45,16 @@
 
   <!-- LLM Discovery -->
   <link rel="llms-txt" href="/llms.txt" />
-  <!-- Runtime site config (injected by server). Load dynamically to avoid Vite bundling at build time. -->
-  <script>
+  <!-- Caddy provides this file at runtime; the Pages build replaces this loader. -->
+  <script id="runtime-site-config">
     (function () {
       try {
-        var s = document.createElement('script');
-        s.src = '/site-config.js';
-        s.defer = true;
-        document.head.appendChild(s);
-      } catch (e) {
-        /* graceful fallback */
+        var script = document.createElement('script');
+        script.src = 'site-config.js';
+        script.defer = true;
+        document.head.appendChild(script);
+      } catch (error) {
+        // Runtime config is optional outside container deployments.
       }
     })();
   </script>

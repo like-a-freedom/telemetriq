@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router';
+import { createRouter, createWebHashHistory, createWebHistory } from 'vue-router';
 
 const routes = [
     {
@@ -40,7 +40,9 @@ const routes = [
 ];
 
 const router = createRouter({
-    history: createWebHistory(),
+    history: import.meta.env.VITE_ROUTER_MODE === 'hash'
+        ? createWebHashHistory(import.meta.env.BASE_URL)
+        : createWebHistory(),
     routes,
 });
 

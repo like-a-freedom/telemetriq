@@ -37,8 +37,10 @@ const SITE_URL = (
     || 'https://telemetriq.app'
 ).replace(/\/$/, '');
 
+const BASE_PATH = import.meta.env.BASE_URL;
+const SITE_ROOT = `${SITE_URL}${BASE_PATH === '/' || SITE_URL.endsWith(BASE_PATH.slice(0, -1)) ? '' : BASE_PATH.slice(0, -1)}`;
 const DEFAULT_DESCRIPTION = 'Create stunning sports telemetry overlay videos. Visualize GPS data, heart rate, speed, and elevation from GPX files on your workout videos.';
-const DEFAULT_IMAGE = '/og-image.png';
+const DEFAULT_IMAGE = `${SITE_ROOT}/og-image.png`;
 
 export function useSeo(options: SeoOptions = {}): void {
     const route = useRoute();
@@ -51,8 +53,10 @@ export function useSeo(options: SeoOptions = {}): void {
     });
 
     const description = computed(() => options.description || DEFAULT_DESCRIPTION);
-    const url = computed(() => options.url || `${SITE_URL}${route.path}`);
-    const image = computed(() => options.image || `${SITE_URL}${DEFAULT_IMAGE}`);
+    const url = computed(() => options.url || (import.meta.env.VITE_ROUTER_MODE === 'hash'
+        ? `${SITE_ROOT}/`
+        : `${SITE_URL}${route.path}`));
+    const image = computed(() => options.image || DEFAULT_IMAGE);
 
     useHead({
         title,
@@ -65,7 +69,7 @@ export function useSeo(options: SeoOptions = {}): void {
                 '@type': 'WebApplication',
                 name: SITE_NAME,
                 description: description.value,
-                url: SITE_URL,
+                url: SITE_ROOT,
                 applicationCategory: 'MultimediaApplication',
                 operatingSystem: 'Any (Web Browser)',
                 offers: {

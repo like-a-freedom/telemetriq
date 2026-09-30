@@ -1,9 +1,51 @@
 import { defineConfig } from 'vitest/config'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import vue from '@vitejs/plugin-vue'
+
+const configuredBasePath = process.env.VITE_BASE_PATH || '/'
+const basePath = configuredBasePath === '/'
+  ? '/'
+  : `/${configuredBasePath.replace(/^\/+|\/+$/g, '')}/`
+const pagesBuild = process.env.PAGES_BUILD === 'true'
+const siteUrl = process.env.VITE_SITE_URL || 'https://telemetriq.app'
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: basePath,
   plugins: [vue() as any,
+  {
+    name: 'pages-site-config',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html) {
+        if (!pagesBuild) return html
+
+        const siteRoot = `${siteUrl.replace(/\/$/, '')}${basePath === '/' ? '' : `/${basePath.replace(/^\/+|\/+$/g, '')}`}`
+        const assetBase = basePath.endsWith('/') ? basePath : `${basePath}/`
+        return html
+          .replace(
+            /<script id="runtime-site-config">[\s\S]*?<\/script>/,
+            `<script>window.__SITE_URL__ = ${JSON.stringify(siteUrl.replace(/\/$/, ''))};</script>`,
+          )
+          .replaceAll('{site_url}', `${siteRoot}/`)
+          .replaceAll('content="/og-image.png"', `content="${assetBase}og-image.png"`)
+      },
+    },
+    async generateBundle() {
+      if (!pagesBuild) return
+
+      const coreDirectory = join(import.meta.dirname, '.cache/ffmpeg-core')
+      const [core, wasm] = await Promise.all([
+        readFile(join(coreDirectory, 'ffmpeg-core.js')),
+        readFile(join(coreDirectory, 'ffmpeg-core.wasm')),
+      ])
+
+      this.emitFile({ type: 'asset', fileName: 'vendor/ffmpeg/ffmpeg-core.js', source: core })
+      this.emitFile({ type: 'asset', fileName: 'vendor/ffmpeg/ffmpeg-core.wasm', source: wasm })
+    },
+  },
   // dev-only middleware: return dynamic robots/sitemap using SITE_URL env var
   {
     name: 'dev-runtime-sitefiles',

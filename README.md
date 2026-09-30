@@ -16,11 +16,12 @@ Telemetriq is a web application for visualizing sports telemetry (GPX and other 
 4. [Run & Build](#run--build)
 5. [Tests](#tests)
 6. [Docker / dev‑compose](#docker--dev-compose)
-7. [Architecture & stack](#architecture--stack)
-8. [Environment variables](#environment-variables)
-9. [Contributing](#contributing)
-10. [FAQ](#faq)
-11. [License](#license)
+7. [GitHub Pages](#github-pages)
+8. [Architecture & stack](#architecture--stack)
+9. [Environment variables](#environment-variables)
+10. [Contributing](#contributing)
+11. [FAQ](#faq)
+12. [License](#license)
 
 ---
 
@@ -75,7 +76,7 @@ All JS/TS commands use `bun` (see `frontend/package.json`).
 - Fix lint issues: `bun run lint:fix`
 
 ### Notable scripts
-- `bun run fetch-ffmpeg-core` — download wasm ffmpeg to `public/vendor/ffmpeg`
+- `bun run fetch-ffmpeg-core` — download and verify the pinned FFmpeg core used by the Pages build
 - `bun run test:performance` — run video-processing performance tests (Vitest)
 
 ---
@@ -113,6 +114,15 @@ docker pull ghcr.io/like-a-freedom/telemetriq:latest
 # or pinned to commit
 docker pull ghcr.io/like-a-freedom/telemetriq:<commit-sha>
 ```
+
+---
+
+## GitHub Pages
+The `Deploy GitHub Pages` workflow validates pull requests targeting `master` with a production build and browser checks. After the existing CI workflow succeeds for a push to `master`, it deploys that same tested artifact to `https://like-a-freedom.github.io/telemetriq/`. It can also be started manually from the default branch.
+
+Before the first deploy, set **Settings → Pages → Build and deployment → Source** to **GitHub Actions**. The Pages build uses hash-based client routing and a repository path prefix, so refreshes and deep links stay within the project site. It bundles a checksum-verified, pinned single-thread FFmpeg core because Pages cannot set the cross-origin isolation headers used by the container deployment.
+
+To run the same production checks locally after `bun run build` with the Pages environment (`VITE_BASE_PATH=/telemetriq/`, `VITE_ROUTER_MODE=hash`, `PAGES_BUILD=true`, and `VITE_SITE_URL=https://like-a-freedom.github.io`), run `PAGES_BASE_PATH=/telemetriq/ VITE_SITE_URL=https://like-a-freedom.github.io RUN_REAL_PROCESSING=1 bun run test:e2e:pages`.
 
 ---
 

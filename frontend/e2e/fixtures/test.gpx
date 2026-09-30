@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Telemetriq test fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Short processing test track</name>
+    <trkseg>
+      <trkpt lat="55.75000" lon="37.61000"><ele>150</ele><time>2026-01-01T12:00:00Z</time><extensions><hr>120</hr></extensions></trkpt>
+      <trkpt lat="55.75002" lon="37.61002"><ele>151</ele><time>2026-01-01T12:00:01Z</time><extensions><hr>122</hr></extensions></trkpt>
+      <trkpt lat="55.75004" lon="37.61004"><ele>152</ele><time>2026-01-01T12:00:02Z</time><extensions><hr>124</hr></extensions></trkpt>
+      <trkpt lat="55.75006" lon="37.61006"><ele>153</ele><time>2026-01-01T12:00:03Z</time><extensions><hr>126</hr></extensions></trkpt>
+    </trkseg>
+  </trk>
+</gpx>
