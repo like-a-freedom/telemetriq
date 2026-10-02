@@ -121,6 +121,76 @@ test('Ghost Run renders missing data explicitly and leaves the center transparen
     expect(result).toEqual({ centerClear: true, hasInk: true });
 });
 
+test('Ghost Run never exposes invalid numbers or invents an elapsed time', async ({ page }) => {
+    await page.goto('/?e2e');
+    const failures = await page.evaluate(async () => {
+        const { renderGhostRunLayout } = await import('/src/modules/layouts/ghostRunLayout.ts');
+        const { getTemplateConfig } = await import('/src/modules/templates/registry.ts');
+        const { ensureTrailRunFonts } = await import('/src/modules/trailRunFonts.ts');
+        await ensureTrailRunFonts();
+        const canvas = document.createElement('canvas');
+        canvas.width = 390; canvas.height = 844;
+        const ctx = canvas.getContext('2d')!;
+        const text: string[] = [];
+        const fillText = ctx.fillText.bind(ctx);
+        ctx.fillText = (value, x, y) => { text.push(value); fillText(value, x, y); };
+        const failures: string[] = [];
+        for (const pace of [undefined, NaN, Infinity, -Infinity, -30]) {
+            text.length = 0;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            renderGhostRunLayout(ctx, { timeOffset: NaN, totalElapsedSeconds: NaN, distanceKm: NaN,
+                paceSecondsPerKm: pace, hr: Infinity, elevationM: NaN, gradePercent: Infinity },
+                canvas.width, canvas.height, getTemplateConfig('ghost-run'));
+            if (text.some((value) => /NaN|Infinity/.test(value))) failures.push(`${pace}: invalid number exposed`);
+            // Pace, distance, elapsed, heart rate and elevation are all unavailable.
+            if (text.filter((value) => value === 'N/A').length !== 5) failures.push(`${pace}: unavailable measurement formatted as data`);
+            if (!text.includes('N/A% grade')) failures.push(`${pace}: unavailable grade not explicit`);
+            if (text.includes('0:00')) failures.push(`${pace}: invented elapsed time`);
+        }
+        text.length = 0;
+        renderGhostRunLayout(ctx, { timeOffset: 0, totalElapsedSeconds: 0, distanceKm: 0, paceSecondsPerKm: 314 },
+            canvas.width, canvas.height, getTemplateConfig('ghost-run'));
+        if (!text.includes('5:14') || !text.includes('0:00') || !text.includes('0.0')) failures.push('valid values lost');
+        return failures;
+    });
+    expect(failures).toEqual([]);
+});
+
+test('Ghost Run keeps ordinary terrain totals readable in small landscape videos', async ({ page }) => {
+    await page.goto('/?e2e');
+    const failures = await page.evaluate(async () => {
+        const { renderGhostRunLayout } = await import('/src/modules/layouts/ghostRunLayout.ts');
+        const { getGhostRunRoute } = await import('/src/modules/ghostRunRoute.ts');
+        const { getTemplateConfig } = await import('/src/modules/templates/registry.ts');
+        const { ensureTrailRunFonts } = await import('/src/modules/trailRunFonts.ts');
+        await ensureTrailRunFonts();
+        const frame = { timeOffset: 877, totalElapsedSeconds: 877, paceSecondsPerKm: 314, distanceKm: 2.8,
+            hr: 162, elevationM: 78, gradePercent: -2.1 };
+        const route = getGhostRunRoute(Array.from({ length: 60 }, (_, i) => ({ ...frame,
+            timeOffset: i * 30, distanceKm: i / 59 * 5.1, latitude: 45 + i * 0.001, longitude: 10 + Math.sin(i / 5) * 0.01,
+            elevationM: 100 + Math.sin(i / 5) * 70 })));
+        const failures: string[] = [];
+        for (const [w, h] of [[640, 360], [960, 540], [540, 540]]) {
+            const canvas = document.createElement('canvas');
+            canvas.width = w!; canvas.height = h!;
+            const ctx = canvas.getContext('2d')!;
+            const fillText = ctx.fillText.bind(ctx);
+            let totals = 0;
+            ctx.fillText = (value, x, y) => {
+                if (/^[+−]\d+ m$/.test(value)) {
+                    totals++;
+                    if (Number(ctx.font.match(/([\d.]+)px/)?.[1]) < 11) failures.push(`${w}x${h}: tiny ${value}`);
+                }
+                fillText(value, x, y);
+            };
+            renderGhostRunLayout(ctx, frame, w!, h!, getTemplateConfig('ghost-run'), { ghostRoute: route });
+            if (totals !== 2) failures.push(`${w}x${h}: missing terrain totals`);
+        }
+        return failures;
+    });
+    expect(failures).toEqual([]);
+});
+
 test('Ghost Run keeps portrait type and its contrasting edges visible across footage palettes', async ({ page }) => {
     await page.goto('/?e2e');
     const failures = await page.evaluate(async () => {

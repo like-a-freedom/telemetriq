@@ -62,7 +62,8 @@ function finiteValue(value: number | undefined, digits = 0): string {
 
 /**
  * Absolute track time at this frame, rendered as a zero-padded 24-hour clock in
- * the renderer's local time zone — the wall clock the athlete actually saw.
+ * the renderer's local time zone. The timestamp alone does not encode the
+ * athlete's original time zone.
  * Returns undefined when the track carries no usable absolute time, so the HUD
  * draws no clock instead of inventing one.
  */
@@ -92,15 +93,18 @@ function resolveTrackTimestampMs(
 
 function buildRail(frame: TelemetryFrame, config: ExtendedOverlayConfig): GhostMetric[] {
     const metrics: GhostMetric[] = [];
-    if (config.showPace) metrics.push({ label: 'PACE', value: formatPace(frame.paceSecondsPerKm ?? NaN) || 'N/A', unit: 'km', reserve: '59:59', pace: true });
+    if (config.showPace) metrics.push({ label: 'PACE',
+        value: Number.isFinite(frame.paceSecondsPerKm) && frame.paceSecondsPerKm! >= 0
+            ? formatPace(frame.paceSecondsPerKm)! : 'N/A',
+        unit: 'km', reserve: '59:59', pace: true });
     if (config.showDistance) metrics.push({ label: 'DISTANCE', value: finiteValue(frame.distanceKm, 1), unit: 'km', reserve: '999.9' });
     // The reference calls this elapsed, rather than the application's moving time.
     if (config.showTime) {
         const seconds = frame.totalElapsedSeconds ?? frame.timeOffset;
-        const safeSeconds = Math.max(0, Math.floor(Number.isFinite(seconds) ? seconds : 0));
+        const safeSeconds = Math.max(0, Math.floor(seconds));
         const hours = Math.floor(safeSeconds / 3600);
         const minutes = Math.floor(safeSeconds % 3600 / 60);
-        const value = hours > 0
+        const value = !Number.isFinite(seconds) ? 'N/A' : hours > 0
             ? `${hours}:${String(minutes).padStart(2, '0')}:${String(safeSeconds % 60).padStart(2, '0')}`
             : `${minutes}:${String(safeSeconds % 60).padStart(2, '0')}`;
         metrics.push({ label: 'ELAPSED', value, unit: '', reserve: '59:59' });
@@ -195,7 +199,7 @@ export function renderGhostRunLayout(
             ctx.beginPath();
             ctx.moveTo(right + metricSize * 0.16, metricSize * 0.25);
             ctx.lineTo(right + metricSize * 0.43, -metricSize * 0.6);
-            strokeLine(ctx, text, Math.max(0.8, metricSize * 0.025), config, 0.85);
+            strokeLine(ctx, text, Math.max(1.4, metricSize * 0.04), config);
             right += metricSize * 0.52;
             drawText(ctx, metric.unit, right, unitSize * 0.4, unitSize, 500, text, config);
             right += ctx.measureText(metric.unit).width;
@@ -414,13 +418,22 @@ function drawProgress(ctx: OverlayContext2D, route: GhostRunRoute, frame: Teleme
     const short = Math.min(w, h);
     const portrait = w < h;
     const compact = !portrait && h < 240;
-    const width = portrait ? w - safe * 2 - short * 0.04 : compact ? Math.min(w * 0.78, short * 2.9) : Math.min(w * 0.25, short * 0.46);
+    const width = portrait ? w - safe * 2 - short * 0.04 : compact ? Math.min(w * 0.78, short * 2.9) : Math.min(w * 0.29, short * 0.52);
     const x = portrait ? safe + short * 0.04 : w - safe - width;
     const baseline = h * (portrait ? 0.86 : 0.825);
     const plane = createPlane(x, baseline, portrait || compact ? 0 : 0.012);
-    const detailWidth = config.showElevation && route.ascentM !== undefined ? width * 0.2 : 0;
+    const gain = route.ascentM !== undefined ? `+${Math.round(route.ascentM)} m` : '';
+    const loss = route.descentM !== undefined ? `−${Math.round(route.descentM)} m` : '';
+    let detailSize = Math.max(portrait ? 13 : compact ? 10 : 11, short * (portrait ? 0.033 : 0.018));
+    ctx.font = `500 ${detailSize}px ${TRAIL_RUN_FONT_FAMILY}`;
+    const measuredDetailWidth = Math.max(ctx.measureText(gain).width, ctx.measureText(loss).width);
+    // Reserve real text width before allocating the profile; a fixed fraction
+    // squeezed readable ascent/descent back down to seven pixels on small video.
+    const detailWidth = config.showElevation && gain && loss
+        ? Math.min(width * 0.4, Math.max(width * 0.2, measuredDetailWidth + 2)) : 0;
+    if (detailWidth) detailSize *= Math.min(1, detailWidth / measuredDetailWidth);
     const trackWidth = width - detailWidth - (detailWidth ? short * 0.025 : 0);
-    const size = Math.max(portrait ? 18 : compact ? 12 : 8, short * (portrait ? 0.05 : 0.027));
+    const size = Math.max(portrait ? 18 : 12, short * (portrait ? 0.05 : 0.027));
     const hasProfile = config.showElevation && route.profile.length > 1 && route.totalDistanceKm > 0;
     const labelWidth = hasProfile ? trackWidth * 0.54 : trackWidth;
     if (config.showDistance) {
@@ -464,14 +477,9 @@ function drawProgress(ctx: OverlayContext2D, route: GhostRunRoute, frame: Teleme
             if (index === 0) ctx.moveTo(p.x, p.y);
             else ctx.lineTo(p.x, p.y);
         });
-        strokeLine(ctx, accent, Math.max(1.2, short * 0.0018), config);
+        strokeLine(ctx, accent, Math.max(1.6, short * 0.0024), config);
     }
     if (detailWidth) {
-        const gain = `+${Math.round(route.ascentM!)} m`;
-        const loss = `−${Math.round(route.descentM!)} m`;
-        let detailSize = Math.max(portrait ? 13 : compact ? 10 : 7, short * (portrait ? 0.033 : 0.018));
-        ctx.font = `500 ${detailSize}px ${TRAIL_RUN_FONT_FAMILY}`;
-        detailSize *= Math.min(1, detailWidth / Math.max(ctx.measureText(gain).width, ctx.measureText(loss).width));
         if (portrait) {
             ctx.save();
             // Portrait details and progress share a level baseline and outer edge.

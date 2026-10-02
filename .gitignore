@@ -154,6 +154,3 @@ tmp/
 temp/
 frontend/playwright-report/index.html
 .commandcode/
-
-# Local Impeccable review captures
-.impeccable/review/
