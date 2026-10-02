@@ -91,6 +91,21 @@ function resolveTrackTimestampMs(
         .find((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
 }
 
+/**
+ * Heart badge geometry. The heart is drawn as two mirrored cubics whose control
+ * points overshoot the painted shape; the painted edges around the anchor are
+ * roughly −0.015…1.015 sizes wide and 0.04…1 size tall (curve bounds, not the
+ * control-point bounds), verified against rendered pixels.
+ */
+const HEART_SIZE_RATIO = 0.3;
+const HEART_PAINT_LEFT = -0.015;
+const HEART_PAINT_WIDTH = 1.03;
+/** The rail's shared value→unit gap ratio, used by plain units and the badge alike. */
+const UNIT_GAP_RATIO = 0.16;
+/** Tight step between the heart and the unit text stacked below it. */
+const HEART_UNIT_GAP_RATIO = 0.05;
+const HEART_UNIT_GAP_MIN = 2;
+
 function buildRail(frame: TelemetryFrame, config: ExtendedOverlayConfig): GhostMetric[] {
     const metrics: GhostMetric[] = [];
     if (config.showPace) metrics.push({ label: 'PACE',
@@ -167,10 +182,13 @@ export function renderGhostRunLayout(
             ctx.font = `600 ${valueSize}px ${TRAIL_RUN_FONT_FAMILY}`;
             const valueWidth = Math.max(ctx.measureText(metric.value).width, ctx.measureText(metric.reserve).width);
             ctx.font = `500 ${unitSize}px ${TRAIL_RUN_FONT_FAMILY}`;
-            const unitWidth = metric.unit ? ctx.measureText(metric.unit).width + valueSize * (metric.pace ? 0.52 : 0.16) : 0;
-            const heartWidth = metric.heart ? valueSize * 0.62 : 0;
+            const unitTextWidth = metric.unit ? ctx.measureText(metric.unit).width : 0;
+            // The heart/bpm badge reserves its true column width: heart above unit.
+            const unitWidth = metric.heart
+                ? valueSize * UNIT_GAP_RATIO + Math.max(valueSize * HEART_SIZE_RATIO * HEART_PAINT_WIDTH, unitTextWidth)
+                : metric.unit ? unitTextWidth + valueSize * (metric.pace ? 0.52 : UNIT_GAP_RATIO) : 0;
             ctx.font = `500 ${labelSize}px ${TRAIL_RUN_FONT_FAMILY}`;
-            return valueWidth + unitWidth + heartWidth < cellWidth - (compact ? short * 0.06 : 2)
+            return valueWidth + unitWidth < cellWidth - (compact ? short * 0.06 : 2)
                 && (!labelsVisible || ctx.measureText(metric.label).width < cellWidth - 2);
         });
         if (fitsWidth && rowStep * rows <= h * 0.57) break;
@@ -191,15 +209,20 @@ export function renderGhostRunLayout(
         ctx.font = `600 ${metricSize}px ${TRAIL_RUN_FONT_FAMILY}`;
         let right = ctx.measureText(metric.value).width;
         if (metric.heart) {
-            const heartX = right + metricSize * 0.18;
-            const heartY = -metricSize * 0.61;
-            const heartSize = metricSize * 0.5;
-            drawHeart(ctx, heartX, heartY, heartSize, config);
+            // Heart and bpm form one badge column beside the value: shared left
+            // edge on the rail's unit gap, the heart stacked above the unit, and
+            // the unit lowered onto the value baseline like every other unit.
             ctx.font = `500 ${unitSize}px ${TRAIL_RUN_FONT_FAMILY}`;
+            const unitWidth = ctx.measureText(metric.unit).width;
             const unitAscent = ctx.measureText(metric.unit).actualBoundingBoxAscent || unitSize * 0.8;
-            const unitBaseline = heartY + heartSize + unitAscent + Math.max(2, metricSize * 0.03);
-            drawText(ctx, metric.unit, heartX, unitBaseline, unitSize, 500, text, config);
-            right = heartX + Math.max(metricSize * 0.46, ctx.measureText(metric.unit).width);
+            const columnX = right + metricSize * UNIT_GAP_RATIO;
+            const heartSize = metricSize * HEART_SIZE_RATIO;
+            const innerGap = Math.max(HEART_UNIT_GAP_MIN, metricSize * HEART_UNIT_GAP_RATIO);
+            const unitBaseline = unitSize * 0.1;
+            drawHeart(ctx, columnX - HEART_PAINT_LEFT * heartSize,
+                unitBaseline - unitAscent - innerGap - heartSize, heartSize, config);
+            drawText(ctx, metric.unit, columnX, unitBaseline, unitSize, 500, text, config);
+            right = columnX + Math.max(HEART_PAINT_WIDTH * heartSize, unitWidth);
         } else if (metric.pace) {
             ctx.beginPath();
             ctx.moveTo(right + metricSize * 0.16, metricSize * 0.25);
@@ -209,7 +232,7 @@ export function renderGhostRunLayout(
             drawText(ctx, metric.unit, right, unitSize * 0.4, unitSize, 500, text, config);
             right += ctx.measureText(metric.unit).width;
         } else if (metric.unit) {
-            right += metricSize * 0.16;
+            right += metricSize * UNIT_GAP_RATIO;
             drawText(ctx, metric.unit, right, unitSize * 0.1, unitSize, 500, text, config);
             right += ctx.measureText(metric.unit).width;
         }
