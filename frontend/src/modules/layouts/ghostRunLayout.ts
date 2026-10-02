@@ -62,6 +62,36 @@ function finiteValue(value: number | undefined, digits = 0): string {
     return value === undefined || !Number.isFinite(value) ? 'N/A' : value.toFixed(digits);
 }
 
+/**
+ * Absolute track time at this frame, rendered as a zero-padded 24-hour clock in
+ * the renderer's local time zone — the wall clock the athlete actually saw.
+ * Returns undefined when the track carries no usable absolute time, so the HUD
+ * draws no clock instead of inventing one.
+ */
+export function formatGhostRunClock(
+    frame: TelemetryFrame,
+    route?: Pick<GhostRunRoute, 'startTimestampMs'>,
+): string | undefined {
+    const timestampMs = resolveTrackTimestampMs(frame, route);
+    if (timestampMs === undefined) return undefined;
+    const recordedTime = new Date(timestampMs);
+    if (!Number.isFinite(recordedTime.getTime())) return undefined;
+    return `${String(recordedTime.getHours()).padStart(2, '0')}:${String(recordedTime.getMinutes()).padStart(2, '0')}`;
+}
+
+/** Prefer the frame's own recording time; fall back to the route start plus the offset. */
+function resolveTrackTimestampMs(
+    frame: TelemetryFrame,
+    route?: Pick<GhostRunRoute, 'startTimestampMs'>,
+): number | undefined {
+    const fromRoute = route?.startTimestampMs !== undefined && Number.isFinite(frame.timeOffset)
+        ? route.startTimestampMs + frame.timeOffset * 1000
+        : undefined;
+    // Non-positive values are epoch placeholders, not a real recording time.
+    return [frame.timestampMs, fromRoute]
+        .find((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
+}
+
 function buildRail(frame: TelemetryFrame, config: ExtendedOverlayConfig): GhostMetric[] {
     const metrics: GhostMetric[] = [];
     if (config.showPace) metrics.push({ label: 'PACE', value: formatPace(frame.paceSecondsPerKm ?? NaN) || 'N/A', unit: 'km', reserve: '59:59', pace: true });
@@ -211,15 +241,11 @@ export function renderGhostRunLayout(
     if (route && (config.showDistance || config.showElevation)) {
         drawProgress(ctx, route, frame, w, h, safe, text, accent, config);
     }
-    if (config.showTime && route?.startTimestampMs !== undefined) {
-        const timestamp = route.startTimestampMs + frame.timeOffset * 1000;
-        const recordedTime = new Date(timestamp);
-        if (Number.isFinite(recordedTime.getTime())) {
-            const clock = recordedTime.toISOString().slice(11, 16) + ' UTC';
-            const clockSize = Math.max(portrait ? 12 : compact ? 10 : 8, short * (portrait ? 0.033 : 0.021));
-            ctx.textAlign = 'right';
-            drawText(ctx, clock, w - safe, safe + clockSize, clockSize, 500, text, config);
-        }
+    const clock = config.showTime ? formatGhostRunClock(frame, route) : undefined;
+    if (clock) {
+        const clockSize = Math.max(portrait ? 12 : compact ? 10 : 8, short * (portrait ? 0.033 : 0.021));
+        ctx.textAlign = 'right';
+        drawText(ctx, clock, w - safe, safe + clockSize, clockSize, 500, text, config);
     }
     ctx.restore();
 }

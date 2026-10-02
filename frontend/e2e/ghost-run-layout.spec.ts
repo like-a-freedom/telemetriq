@@ -246,7 +246,8 @@ test('Ghost Run preserves portrait right edges and proportional type up to 4K vi
                 const top = matrix.transformPoint({ x: x - metrics.actualBoundingBoxLeft, y: y - metrics.actualBoundingBoxAscent });
                 const bottom = matrix.transformPoint({ x: x + metrics.actualBoundingBoxRight, y: y + metrics.actualBoundingBoxDescent });
                 if (value === '5:14') paceHeight = (bottom.y - top.y) / short;
-                if (portrait && (value === 'ELEVATION' || value === 'm' || value.endsWith('% grade') || value.endsWith(' UTC') || /^[+−]\d+ m$/.test(value))) {
+                const isClock = /^([01]\d|2[0-3]):[0-5]\d$/.test(value) && ctx.textAlign === 'right';
+                if (portrait && (value === 'ELEVATION' || value === 'm' || value.endsWith('% grade') || isClock || /^[+−]\d+ m$/.test(value))) {
                     if (Math.abs(bottom.x - edge) > short * 0.006) failures.push(`${w}x${h}: misaligned right edge ${value}`);
                 }
                 fillText(value, x, y);
