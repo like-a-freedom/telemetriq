@@ -36,6 +36,7 @@ import {
     focusTypeTemplate,
     trailRunTemplate,
     cyclingProTemplate,
+    ghostRunTemplate,
     customTemplate,
     TEMPLATE_IDS,
     isMetricAvailable,
@@ -171,6 +172,7 @@ describe('templates registry', () => {
             expect(focusTypeTemplate.config.layoutMode).toBe('focus-type');
             expect(trailRunTemplate.config.layoutMode).toBe('trail-run');
             expect(cyclingProTemplate.config.layoutMode).toBe('cycling-pro');
+            expect(ghostRunTemplate.config.layoutMode).toBe('ghost-run');
         });
     });
 

@@ -187,4 +187,27 @@ describe('PreviewView (synchronization panel)', () => {
         expect(wrapper.findAll('.preview-view__checkbox--locked')).toHaveLength(0);
         expect(wrapper.text()).not.toContain('Locked');
     });
+
+    it('explains that ghost-run time includes pauses', () => {
+        const { settings } = makeStores({ autoSynced: false });
+        settings.updateOverlayConfig({ templateId: 'ghost-run' as never });
+
+        const wrapper = mount(PreviewView, {
+            global: { stubs: ['VideoPlayer', 'SyncSlider', 'TemplateSelector', 'DateTimePicker'] },
+        });
+
+        expect(wrapper.text()).toContain('Elapsed time including pauses.');
+        expect(wrapper.text()).not.toContain('Moving time that excludes pauses.');
+    });
+
+    it('keeps the default moving-time hint for templates other than ghost-run', () => {
+        makeStores({ autoSynced: false });
+
+        const wrapper = mount(PreviewView, {
+            global: { stubs: ['VideoPlayer', 'SyncSlider', 'TemplateSelector', 'DateTimePicker'] },
+        });
+
+        expect(wrapper.text()).toContain('Moving time that excludes pauses.');
+        expect(wrapper.text()).not.toContain('Elapsed time including pauses.');
+    });
 });

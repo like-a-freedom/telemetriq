@@ -141,4 +141,33 @@ describe('useTemplateCapabilities', () => {
 
         expect(capabilities.availableMetrics.value).toEqual(['hr', 'power', 'speed', 'distance']);
     });
+
+    it('should expose ghost-run metrics when ghost-run is selected', async () => {
+        const settingsStore = useSettingsStore();
+        const capabilities = useTemplateCapabilities();
+
+        settingsStore.selectTemplate('ghost-run');
+        await nextTick();
+
+        expect(capabilities.availableMetrics.value).toEqual(['pace', 'distance', 'time', 'hr', 'elevation', 'grade']);
+        expect(capabilities.isMetricAvailable('cadence')).toBe(false);
+        expect(capabilities.isMetricAvailable('power')).toBe(false);
+        expect(capabilities.isMetricAvailable('speed')).toBe(false);
+    });
+
+    it('should hide layout, background and gradient controls for ghost-run', async () => {
+        const settingsStore = useSettingsStore();
+        const capabilities = useTemplateCapabilities();
+
+        settingsStore.selectTemplate('ghost-run');
+        await nextTick();
+
+        expect(capabilities.supportsFeature('supportsPosition')).toBe(false);
+        expect(capabilities.supportsFeature('supportsBackgroundOpacity')).toBe(false);
+        expect(capabilities.supportsFeature('supportsGradient')).toBe(false);
+        expect(capabilities.supportsFeature('supportsBorder')).toBe(false);
+        expect(capabilities.supportsFeature('supportsLayoutDirection')).toBe(false);
+        expect(capabilities.supportsFeature('supportsTextShadow')).toBe(true);
+        expect(capabilities.supportsFeature('supportsAccentColor')).toBe(true);
+    });
 });

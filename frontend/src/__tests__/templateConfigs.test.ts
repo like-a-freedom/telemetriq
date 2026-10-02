@@ -128,8 +128,12 @@ describe('template-configs', () => {
             expect(ids).toContain('night-runner');
             expect(ids).toContain('data-block');
             expect(ids).toContain('race-tag');
+            expect(ids).toContain('glass-panel');
+            expect(ids).toContain('minimal-ring');
+            expect(ids).toContain('focus-type');
             expect(ids).toContain('trail-run');
             expect(ids).toContain('cycling-pro');
+            expect(ids).toContain('ghost-run');
         });
 
         it('should have preview colors for each template', () => {

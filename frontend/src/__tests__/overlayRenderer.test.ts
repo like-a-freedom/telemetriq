@@ -15,6 +15,9 @@ type StubContext = {
     shadowOffsetX: number;
     shadowOffsetY: number;
     measureText: ReturnType<typeof vi.fn>;
+    transform: ReturnType<typeof vi.fn>;
+    quadraticCurveTo: ReturnType<typeof vi.fn>;
+    strokeText: ReturnType<typeof vi.fn>;
     beginPath: ReturnType<typeof vi.fn>;
     roundRect: ReturnType<typeof vi.fn>;
     fill: ReturnType<typeof vi.fn>;
@@ -54,6 +57,9 @@ function createStubContext(canvasRef: unknown): StubContext {
         shadowOffsetX: 0,
         shadowOffsetY: 0,
         measureText: vi.fn((text: string) => ({ width: text.length * 8 })),
+        transform: vi.fn(),
+        quadraticCurveTo: vi.fn(),
+        strokeText: vi.fn(),
         beginPath: vi.fn(),
         roundRect: vi.fn(),
         fill: vi.fn(),
@@ -282,6 +288,55 @@ describe('Overlay Renderer', () => {
         });
 
         expect((ctx as unknown as StubContext).drawImage).toHaveBeenCalledTimes(1);
+    });
+
+    it('should still render the ghost-run HUD when every metric toggle is off', async () => {
+        const ctx = createStubContext({ id: 'ghost-placeholder' }) as unknown as CanvasRenderingContext2D;
+        const frame: TelemetryFrame = {
+            timeOffset: 5,
+            distanceKm: 0,
+            elapsedTime: '00:00:05',
+            movingTimeSeconds: 5,
+        };
+
+        await renderOverlay(ctx, frame, 1280, 720, {
+            ...DEFAULT_OVERLAY_CONFIG,
+            templateId: 'ghost-run',
+            layoutMode: 'ghost-run',
+            showHr: false,
+            showPace: false,
+            showDistance: false,
+            showTime: false,
+        });
+
+        expect((ctx as unknown as StubContext).drawImage).toHaveBeenCalledTimes(1);
+    });
+
+    it('should bypass the cache for ghost-run so the live route redraws each frame', async () => {
+        const frame: TelemetryFrame = {
+            timeOffset: 120,
+            hr: 147,
+            paceSecondsPerKm: 320,
+            distanceKm: 3.42,
+            elapsedTime: '00:02:00',
+            movingTimeSeconds: 120,
+        };
+        const config: ExtendedOverlayConfig = {
+            ...DEFAULT_OVERLAY_CONFIG,
+            templateId: 'ghost-run',
+            layoutMode: 'ghost-run',
+        };
+
+        const ctx1 = createStubContext({ id: 'ghost-first' }) as unknown as CanvasRenderingContext2D;
+        const ctx2 = createStubContext({ id: 'ghost-second' }) as unknown as CanvasRenderingContext2D;
+
+        await renderOverlay(ctx1, frame, 1280, 720, config);
+        const createdAfterFirstRender = offscreenCreateCount;
+
+        await renderOverlay(ctx2, frame, 1280, 720, config);
+
+        expect((ctx2 as unknown as StubContext).drawImage).toHaveBeenCalledTimes(1);
+        expect(offscreenCreateCount).toBeGreaterThan(createdAfterFirstRender);
     });
 });
 
