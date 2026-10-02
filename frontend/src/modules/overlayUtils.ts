@@ -2,6 +2,15 @@ import type { ExtendedOverlayConfig, OverlayContext2D } from '../core/types';
 
 export type { OverlayContext2D } from '../core/types';
 
+/**
+ * An elapsed-time label is paintable only when it is a plain clock string.
+ * Non-finite moving time formats as "NaN:NaN"/"Infinity" and must never reach
+ * the video; callers fall back to their own missing-data presentation.
+ */
+export function isValidElapsedText(value: unknown): value is string {
+    return typeof value === 'string' && value.length > 0 && !/(NaN|Infinity|undefined)/.test(value);
+}
+
 export type ResolutionTuning = {
     textScale: number;
     spacingScale: number;

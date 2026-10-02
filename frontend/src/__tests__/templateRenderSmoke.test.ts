@@ -22,6 +22,7 @@ const originalOffscreenCanvas = (globalThis as { OffscreenCanvas?: unknown }).Of
 interface StubContext {
     canvas: unknown;
     ink: number;
+    texts: string[];
     font: string;
     fillStyle: string | CanvasGradient;
     strokeStyle: string;
@@ -48,6 +49,7 @@ function createStubContext(canvasRef: unknown): StubContext {
     const stub = {
         canvas: canvasRef,
         ink: 0,
+        texts: [] as string[],
         get font() {
             return currentFont;
         },
@@ -71,8 +73,14 @@ function createStubContext(canvasRef: unknown): StubContext {
         shadowBlur: 0,
         shadowOffsetX: 0,
         shadowOffsetY: 0,
-        fillText: paint,
-        strokeText: paint,
+        fillText: (value: string) => {
+            stub.ink += 1;
+            stub.texts.push(value);
+        },
+        strokeText: (value: string) => {
+            stub.ink += 1;
+            stub.texts.push(value);
+        },
         fill: paint,
         stroke: paint,
         fillRect: paint,
@@ -146,6 +154,63 @@ function inkDrawnIn(overlayCanvasesForRender: StubContext[]): number {
     return overlayCanvasesForRender.reduce((total, ctx) => total + ctx.ink, 0);
 }
 
+/** Text that must never reach the video: broken numbers and missing placeholders. */
+const INVALID_TEXT = /NaN|undefined|Infinity|Invalid|\[object/;
+
+const sparseFrame: TelemetryFrame = {
+    timeOffset: 0,
+    distanceKm: 0,
+    elapsedTime: '0:00',
+    movingTimeSeconds: 0,
+};
+
+const brokenFrame: TelemetryFrame = {
+    timeOffset: 0,
+    distanceKm: Number.NaN,
+    elapsedTime: 'NaN:NaN',
+    movingTimeSeconds: Number.NaN,
+    hr: Number.NaN,
+    paceSecondsPerKm: Number.NaN,
+    speedKmh: Number.NaN,
+    gradePercent: Number.NaN,
+    elevationM: Number.NaN,
+    cadenceRpm: Number.NaN,
+    powerWatts: Number.POSITIVE_INFINITY,
+};
+
+const mixedFrame: TelemetryFrame = {
+    timeOffset: 60,
+    distanceKm: 2.5,
+    elapsedTime: '00:01:00',
+    movingTimeSeconds: 60,
+    hr: 148,
+    paceSecondsPerKm: Number.NaN,
+    speedKmh: Number.NaN,
+    gradePercent: Number.NaN,
+    elevationM: 123,
+    cadenceRpm: Number.NaN,
+    powerWatts: Number.NaN,
+};
+
+async function renderFor(
+    templateId: string,
+    frame: TelemetryFrame,
+    size: [number, number],
+    configOverride?: Record<string, unknown>,
+): Promise<string[]> {
+    const before = overlayCanvases.length;
+    const ctx = createDestination(`dest-${templateId}-${before}`);
+    await renderOverlay(ctx, frame, size[0], size[1], {
+        ...getTemplateConfig(templateId),
+        ...(configOverride ?? {}),
+    });
+    return overlayCanvases.slice(before).flatMap((canvas) => canvas.texts);
+}
+
+function invalidTexts(texts: string[]): string[] {
+    return [...new Set(texts.filter((value) => INVALID_TEXT.test(value)))];
+}
+
 describe('renderOverlay template smoke', () => {
     beforeEach(() => {
         overlayCanvases.length = 0;
@@ -188,5 +253,66 @@ describe('renderOverlay template smoke', () => {
 
         expect(fontSpy).toHaveBeenCalledTimes(1);
         expect(inkDrawnIn(overlayCanvases)).toBeGreaterThan(0);
+    });
+
+    it('never paints invalid numbers when every value in the frame is broken', async () => {
+        const leaks: Record<string, string[]> = {};
+
+        for (const templateId of TEMPLATE_IDS) {
+            const invalid = invalidTexts(await renderFor(templateId, brokenFrame, [1280, 720]));
+            if (invalid.length) leaks[templateId] = invalid;
+        }
+
+        expect(leaks).toEqual({});
+    });
+
+    it('renders partial metric sets while silently dropping broken neighbours', async () => {
+        const leaks: Record<string, string[]> = {};
+
+        for (const templateId of TEMPLATE_IDS) {
+            const invalid = invalidTexts(await renderFor(templateId, mixedFrame, [1280, 720]));
+            if (invalid.length) leaks[templateId] = invalid;
+        }
+
+        expect(leaks).toEqual({});
+    });
+
+    it('never paints invalid numbers for a frame with no telemetry at all', async () => {
+        const leaks: Record<string, string[]> = {};
+
+        for (const templateId of TEMPLATE_IDS) {
+            const invalid = invalidTexts(await renderFor(templateId, sparseFrame, [1280, 720]));
+            if (invalid.length) leaks[templateId] = invalid;
+        }
+
+        expect(leaks).toEqual({});
+    });
+
+    it('renders every template on degenerate frame sizes without throwing', async () => {
+        const failures: string[] = [];
+
+        for (const templateId of TEMPLATE_IDS) {
+            for (const [width, height] of [[48, 48], [80, 60], [96, 96], [40, 1000], [1000, 40], [64, 0], [0, 0]] as Array<[number, number]>) {
+                try {
+                    await renderFor(templateId, brokenFrame, [width, height]);
+                } catch (error) {
+                    failures.push(`${templateId}@${width}x${height}: ${(error as Error).message}`);
+                }
+            }
+        }
+
+        expect(failures).toEqual([]);
+    });
+
+    it('keeps extreme typography controls free of invalid text on a broken frame', async () => {
+        const leaks: Record<string, string[]> = {};
+        const extreme = { fontSizePercent: 8, valueSizeMultiplier: 2.5, labelSizeMultiplier: 1.2, labelLetterSpacing: 0.4, lineSpacing: 1.6 };
+
+        for (const templateId of TEMPLATE_IDS) {
+            const invalid = invalidTexts(await renderFor(templateId, brokenFrame, [320, 568], extreme));
+            if (invalid.length) leaks[templateId] = invalid;
+        }
+
+        expect(leaks).toEqual({});
     });
 });

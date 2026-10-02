@@ -209,4 +209,31 @@ describe('trailRun layout', () => {
         expect(ctx.fillRect).not.toHaveBeenCalled();
     });
 
+    it('falls back to N/A when the elapsed label is not a paintable clock string', () => {
+        const ctx = createMockContext();
+        const drawn: string[] = [];
+        ctx.fillText.mockImplementation((value: string) => {
+            drawn.push(value);
+        });
+
+        renderTrailRunLayout(ctx as never, {
+            timeOffset: 60,
+            distanceKm: 1.2,
+            elapsedTime: 'NaN:NaN',
+            movingTimeSeconds: Number.NaN,
+        }, 640, 360, {
+            ...getTemplateConfig('trail-run'),
+            showPace: false,
+            showHr: false,
+            showDistance: false,
+            showTime: true,
+            showGrade: false,
+            showElevation: false,
+            showPower: false,
+        }, { elevationHistory: [] });
+
+        expect(drawn).toContain('N/A');
+        expect(drawn.some(value => /NaN|Infinity/.test(value))).toBe(false);
+    });
+
 });

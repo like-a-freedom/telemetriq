@@ -1,6 +1,6 @@
 import type { TelemetryFrame, ExtendedOverlayConfig } from '../../core/types';
 import type { OverlayContext2D } from '../overlayUtils';
-import { fontWeightValue, getResolutionTuning } from '../overlayUtils';
+import { fontWeightValue, getResolutionTuning, isValidElapsedText } from '../overlayUtils';
 import type { OverlayRenderContext } from '../overlayRenderer';
 import { TRAIL_RUN_FONT_FAMILY } from '../trailRunFonts';
 
@@ -48,7 +48,7 @@ function buildTrailColumns(
     if (config.showTime) {
         columns.push({
             label: 'TIME',
-            value: frame.elapsedTime || 'N/A',
+            value: isValidElapsedText(frame.elapsedTime) ? frame.elapsedTime : 'N/A',
             unit: '',
         });
     }

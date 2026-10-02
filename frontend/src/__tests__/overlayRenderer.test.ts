@@ -525,4 +525,92 @@ describe('buildMetrics', () => {
         expect(metrics.some(m => m.label === 'Cadence')).toBe(false);
         expect(metrics.some(m => m.label === 'Power')).toBe(false);
     });
+
+    it('should drop every metric whose underlying value is not finite', () => {
+        const frame: TelemetryFrame = {
+            timeOffset: 0,
+            distanceKm: Number.NaN,
+            elapsedTime: 'NaN:NaN',
+            movingTimeSeconds: Number.NaN,
+            hr: Number.NaN,
+            paceSecondsPerKm: Number.NaN,
+            speedKmh: Number.NaN,
+            gradePercent: Number.NaN,
+            elevationM: Number.NaN,
+            cadenceRpm: Number.NaN,
+            powerWatts: Number.POSITIVE_INFINITY,
+        };
+        const config: ExtendedOverlayConfig = {
+            ...DEFAULT_OVERLAY_CONFIG,
+            showPace: true,
+            showHr: true,
+            showDistance: true,
+            showTime: true,
+            showSpeed: true,
+            showGrade: true,
+            showElevation: true,
+            showCadence: true,
+            showPower: true,
+        };
+
+        expect(buildMetrics(frame, config)).toEqual([]);
+    });
+
+    it('should keep finite metrics while dropping their broken neighbours', () => {
+        const frame: TelemetryFrame = {
+            timeOffset: 60,
+            distanceKm: 2.5,
+            elapsedTime: '00:01:00',
+            movingTimeSeconds: 60,
+            hr: 148,
+            paceSecondsPerKm: Number.NaN,
+            speedKmh: Number.NaN,
+            gradePercent: Number.NaN,
+            elevationM: 123,
+            cadenceRpm: Number.NaN,
+            powerWatts: Number.NaN,
+        };
+        const config: ExtendedOverlayConfig = {
+            ...DEFAULT_OVERLAY_CONFIG,
+            showPace: true,
+            showHr: true,
+            showDistance: true,
+            showTime: true,
+            showSpeed: true,
+            showGrade: true,
+            showElevation: true,
+            showCadence: true,
+            showPower: true,
+        };
+
+        const labels = buildMetrics(frame, config).map(item => item.label);
+
+        expect(labels).toContain('Heart Rate');
+        expect(labels).toContain('Distance');
+        expect(labels).toContain('Time');
+        expect(labels).toContain('Elevation');
+        for (const broken of ['Pace', 'Speed', 'Grade', 'Cadence', 'Power']) {
+            expect(labels, broken).not.toContain(broken);
+        }
+    });
+
+    it('should only paint the time metric when the elapsed label is a plain clock', () => {
+        const config: ExtendedOverlayConfig = {
+            ...DEFAULT_OVERLAY_CONFIG,
+            showPace: false,
+            showHr: false,
+            showDistance: false,
+            showTime: true,
+        };
+        const base = { timeOffset: 0, distanceKm: 0, movingTimeSeconds: 0 };
+        const valuesFor = (elapsedTime: string) =>
+            buildMetrics({ ...base, elapsedTime } as TelemetryFrame, config).map(item => item.value);
+
+        expect(valuesFor('12:05')).toEqual(['12:05']);
+        expect(valuesFor('123:59:59')).toEqual(['123:59:59']);
+        expect(valuesFor('NaN:NaN')).toEqual([]);
+        expect(valuesFor('Infinity:NaN')).toEqual([]);
+        expect(valuesFor('')).toEqual([]);
+        expect(valuesFor(undefined as unknown as string)).toEqual([]);
+    });
 });

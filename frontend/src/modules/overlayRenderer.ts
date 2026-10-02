@@ -3,6 +3,7 @@ import type { TelemetryFrame, ExtendedOverlayConfig, MetricItem } from '../core/
 import { formatPace } from './telemetryCore';
 import { getTemplateConfig } from './templates';
 import type { OverlayContext2D } from './overlayUtils';
+import { isValidElapsedText } from './overlayUtils';
 import { renderHorizonLayout } from './layouts/horizonLayout';
 import { renderMarginLayout } from './layouts/marginLayout';
 import { renderLFrameLayout } from './layouts/lframeLayout';
@@ -219,32 +220,32 @@ function renderLayout(
 export function buildMetrics(frame: TelemetryFrame, config: ExtendedOverlayConfig): MetricItem[] {
     const items: MetricItem[] = [];
 
-    if (config.showPace && frame.paceSecondsPerKm !== undefined) {
+    if (config.showPace && frame.paceSecondsPerKm !== undefined && Number.isFinite(frame.paceSecondsPerKm)) {
         const paceStr = formatPace(frame.paceSecondsPerKm);
         if (paceStr) items.push({ label: 'Pace', value: paceStr, unit: 'min/km' });
     }
-    if (config.showHr && frame.hr !== undefined) {
+    if (config.showHr && frame.hr !== undefined && Number.isFinite(frame.hr)) {
         items.push({ label: 'Heart Rate', value: String(frame.hr), unit: 'bpm' });
     }
-    if (config.showDistance) {
+    if (config.showDistance && Number.isFinite(frame.distanceKm)) {
         items.push({ label: 'Distance', value: frame.distanceKm.toFixed(1), unit: 'km' });
     }
-    if (config.showTime) {
+    if (config.showTime && isValidElapsedText(frame.elapsedTime)) {
         items.push({ label: 'Time', value: frame.elapsedTime, unit: '' });
     }
-    if (config.showSpeed && frame.speedKmh !== undefined) {
+    if (config.showSpeed && frame.speedKmh !== undefined && Number.isFinite(frame.speedKmh)) {
         items.push({ label: 'Speed', value: frame.speedKmh.toFixed(frame.speedKmh >= 100 ? 0 : 1), unit: 'km/h' });
     }
-    if (config.showGrade && frame.gradePercent !== undefined) {
+    if (config.showGrade && frame.gradePercent !== undefined && Number.isFinite(frame.gradePercent)) {
         items.push({ label: 'Grade', value: frame.gradePercent.toFixed(1), unit: '%' });
     }
-    if (config.showElevation && frame.elevationM !== undefined) {
+    if (config.showElevation && frame.elevationM !== undefined && Number.isFinite(frame.elevationM)) {
         items.push({ label: 'Elevation', value: Math.round(frame.elevationM).toString(), unit: 'm' });
     }
-    if (config.showCadence && frame.cadenceRpm !== undefined) {
+    if (config.showCadence && frame.cadenceRpm !== undefined && Number.isFinite(frame.cadenceRpm)) {
         items.push({ label: 'Cadence', value: Math.round(frame.cadenceRpm).toString(), unit: 'rpm' });
     }
-    if (config.showPower && frame.powerWatts !== undefined) {
+    if (config.showPower && frame.powerWatts !== undefined && Number.isFinite(frame.powerWatts)) {
         items.push({ label: 'Power', value: Math.round(frame.powerWatts).toString(), unit: 'W' });
     }
 
