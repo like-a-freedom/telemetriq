@@ -21,19 +21,17 @@ interface GhostPlane {
     place: (ctx: OverlayContext2D, x: number, y: number) => void;
 }
 
-/** A shallow HUD plane: shared perspective for ink, rules and route markers. */
-function createPlane(originX: number, horizonY: number, width: number, depth: number, slope: number): GhostPlane {
-    const project = (x: number, y: number) => {
-        const dx = x - originX;
-        const denominator = 1 + depth * dx / width;
-        return { x: originX + dx / denominator, y: horizonY + (y - horizonY + slope * dx) / denominator };
-    };
+/** A rigid HUD plane keeps glyph proportions and every baseline consistent. */
+function createPlane(originX: number, originY: number, angle: number): GhostPlane {
+    const cosine = Math.cos(angle);
+    const sine = Math.sin(angle);
+    const project = (x: number, y: number) => ({
+        x: originX + (x - originX) * cosine - (y - originY) * sine,
+        y: originY + (x - originX) * sine + (y - originY) * cosine,
+    });
     return { project, place(ctx, x, y) {
-        const denominator = 1 + depth * (x - originX) / width;
         const anchor = project(x, y);
-        // Text uses the plane's local tangent, so its baseline follows nearby paths.
-        ctx.transform(1 / denominator ** 2, (slope - depth * (y - horizonY) / width) / denominator ** 2,
-            0, 1 / denominator, anchor.x, anchor.y);
+        ctx.transform(cosine, sine, -sine, cosine, anchor.x, anchor.y);
     } };
 }
 
@@ -146,7 +144,7 @@ export function renderGhostRunLayout(
     const columns = compact ? Math.min(2, Math.max(1, metrics.length)) : 1;
     const rows = Math.ceil(metrics.length / columns);
     const cellWidth = railWidth / columns;
-    const plane = createPlane(lineX, h * (portrait ? 0.32 : 0.43), compact ? railWidth : Math.min(short * 0.26, railWidth), 0.045, 0.012);
+    const plane = createPlane(lineX, top, portrait || compact ? 0 : 0.012);
     const labelsVisible = config.labelStyle !== 'hidden';
     const desired = Math.max(compact ? 14 : 26, short * (portrait ? 0.088 : 0.062))
         * Math.max(0.25, config.fontSizePercent / 5.8) * Math.max(0.5, config.valueSizeMultiplier);
@@ -270,7 +268,7 @@ function strokeLine(ctx: OverlayContext2D, color: string, width: number, config:
     if (config.textShadow) {
         ctx.globalAlpha = 1;
         ctx.strokeStyle = contourFor(color, config);
-        ctx.lineWidth = width + Math.max(2, width * 0.8);
+        ctx.lineWidth = width + Math.max(1, width * 0.45);
         ctx.stroke();
     }
     ctx.globalAlpha = opacity;
@@ -336,8 +334,8 @@ function drawRightTelemetry(ctx: OverlayContext2D, frame: TelemetryFrame, w: num
     const compact = !portrait && h < 240;
     const width = w * (portrait ? 0.42 : compact ? 0.2 : 0.12);
     const x = w - safe - width;
-    const top = h * (portrait ? 0.64 : h < 240 ? 0.48 : 0.585);
-    const plane = createPlane(x, top, width, 0.02, 0.05);
+    const top = h * (portrait ? 0.64 : compact ? 0.43 : 0.585);
+    const plane = createPlane(x, top, portrait || compact ? 0 : 0.012);
     const value = config.showElevation ? finiteValue(frame.elevationM) : config.showGrade ? finiteValue(frame.gradePercent, 1) : '';
     if (!value) return;
     const label = config.showElevation ? 'ELEVATION' : 'GRADE';
@@ -356,7 +354,7 @@ function drawRightTelemetry(ctx: OverlayContext2D, frame: TelemetryFrame, w: num
         const valueWidth = ctx.measureText(value).width;
         const baseline = (labelsVisible ? labelSize * 1.35 : 0) + size * 0.85;
         ctx.save();
-        createPlane(w - safe, top, width, 0.02, 0.05).place(ctx, w - safe, top);
+        createPlane(w - safe, top, 0).place(ctx, w - safe, top);
         ctx.textAlign = 'right';
         if (labelsVisible) drawText(ctx, label, 0, labelSize * 0.8, labelSize, 500, text, config);
         ctx.textAlign = 'left';
@@ -413,7 +411,7 @@ function drawProgress(ctx: OverlayContext2D, route: GhostRunRoute, frame: Teleme
     const width = portrait ? w - safe * 2 - short * 0.04 : compact ? Math.min(w * 0.78, short * 2.9) : Math.min(w * 0.25, short * 0.46);
     const x = portrait ? safe + short * 0.04 : w - safe - width;
     const baseline = h * (portrait ? 0.86 : 0.825);
-    const plane = createPlane(x, baseline, width, 0.015, 0.06);
+    const plane = createPlane(x, baseline, portrait || compact ? 0 : 0.045);
     const detailWidth = config.showElevation && route.ascentM !== undefined ? width * 0.2 : 0;
     const trackWidth = width - detailWidth - (detailWidth ? short * 0.025 : 0);
     const size = Math.max(portrait ? 18 : compact ? 12 : 8, short * (portrait ? 0.05 : 0.027));
@@ -470,9 +468,8 @@ function drawProgress(ctx: OverlayContext2D, route: GhostRunRoute, frame: Teleme
         detailSize *= Math.min(1, detailWidth / Math.max(ctx.measureText(gain).width, ctx.measureText(loss).width));
         if (portrait) {
             ctx.save();
-            // The total lines share the portrait outer edge, with the track's slope.
-            ctx.translate(w - safe, baseline + width * 0.06);
-            ctx.transform(1, 0.06, 0, 1, 0, 0);
+            // Portrait details and progress share a level baseline and outer edge.
+            ctx.translate(w - safe, baseline);
             ctx.textAlign = 'right';
             drawText(ctx, gain, 0, -detailSize * 1.5, detailSize, 500, text, config);
             drawText(ctx, loss, 0, 0, detailSize, 500, text, config);

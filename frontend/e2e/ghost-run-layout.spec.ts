@@ -243,6 +243,15 @@ test('Ghost Run preserves portrait right edges and proportional type up to 4K vi
             ctx.fillText = (value, x, y) => {
                 const metrics = ctx.measureText(value);
                 const matrix = ctx.getTransform();
+                const horizontalScale = Math.hypot(matrix.a, matrix.b);
+                const verticalScale = Math.hypot(matrix.c, matrix.d);
+                const perpendicular = matrix.a * matrix.c + matrix.b * matrix.d;
+                if (Math.abs(horizontalScale - verticalScale) > 0.0001 || Math.abs(perpendicular) > 0.0001) {
+                    failures.push(`${w}x${h}: distorted glyph proportions for ${value}`);
+                }
+                if (portrait && (Math.abs(matrix.b) > 0.0001 || Math.abs(matrix.c) > 0.0001)) {
+                    failures.push(`${w}x${h}: tilted portrait text ${value}`);
+                }
                 const top = matrix.transformPoint({ x: x - metrics.actualBoundingBoxLeft, y: y - metrics.actualBoundingBoxAscent });
                 const bottom = matrix.transformPoint({ x: x + metrics.actualBoundingBoxRight, y: y + metrics.actualBoundingBoxDescent });
                 if (value === '5:14') paceHeight = (bottom.y - top.y) / short;

@@ -107,3 +107,9 @@ Capture context is recorded in `.impeccable/review/ghost-run-evidence.json`: a l
 The refreshed visual-regression baseline, `frontend/e2e/templates-visual.spec.ts-snapshots/template-ghost-run-chromium-darwin.png`, contains an `impeccable:prompt` PNG text chunk identifying Playwright capture after the perspective/portrait refinements, its synthetic preview fixture and the Canvas renderer. It is a test capture, not generated artwork. Ghost Run ships no raster artwork.
 
 Global documentation state was preserved: `DESIGN.md` predates this surface brief, uses `Layout & Spacing` instead of the current document contract's canonical `Layout` heading, and carries component properties beyond that contract's eight-property schema. `.impeccable/design.json` is absent. This ordinary extension does not canonize or repair those pre-existing documentation gaps.
+
+## Projection correction, 2026-10-02
+
+Supersedes the perspective description above: HUD blocks now use rigid rotation, with no perspective compression or shear of glyphs. Landscape rail and right telemetry use a restrained 0.012-radian rotation; progress uses 0.045 radians. Portrait and compact layouts remain level, including ascent/descent totals. Compact right telemetry sits higher to maintain separation from the progress details. Geometry contrast under-strokes are narrower. Existing contours remain to preserve readability over footage.
+
+The Ghost Run browser suite checks undistorted, orthogonal glyph transforms and level portrait typography alongside bounds, collisions, contrast and preview/export parity. All six tests passed after this correction; build and lint passed.
