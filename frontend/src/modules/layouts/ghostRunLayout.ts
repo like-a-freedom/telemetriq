@@ -155,10 +155,10 @@ export function renderGhostRunLayout(
 
     // Fit the whole rail as one system; never shrink one metric independently.
     for (let attempt = 0; attempt < 160; attempt++) {
-        labelSize = labelsVisible ? Math.max(portrait ? 12 : compact ? 10 : 7, valueSize * Math.max(0.25, Math.min(0.65, config.labelSizeMultiplier))) : 0;
-        unitSize = Math.max(portrait ? 12 : compact ? 10 : 7, valueSize * 0.4);
+        labelSize = labelsVisible ? Math.max(portrait ? 13 : compact ? 10 : 8, valueSize * Math.max(0.25, Math.min(0.65, config.labelSizeMultiplier))) : 0;
+        unitSize = Math.max(portrait ? 13 : compact ? 10 : 8, valueSize * 0.4);
         const contentHeight = labelSize * 1.2 + valueSize * 1.05 + Math.max(2, valueSize * 0.12);
-        rowStep = Math.max(contentHeight + valueSize * (portrait ? 0.5 : 0.35), Math.min(h * (compact ? 0.24 : portrait ? 0.105 : 0.137), short * (compact || portrait ? 0.22 : 0.15)));
+        rowStep = Math.max(contentHeight + valueSize * (portrait ? 0.26 : 0.35), Math.min(h * (compact ? 0.24 : portrait ? 0.105 : 0.137), short * (compact ? 0.22 : portrait ? 0.195 : 0.15)));
         const fitsWidth = metrics.every((metric) => {
             ctx.font = `600 ${valueSize}px ${TRAIL_RUN_FONT_FAMILY}`;
             const valueWidth = Math.max(ctx.measureText(metric.value).width, ctx.measureText(metric.reserve).width);
@@ -177,29 +177,30 @@ export function renderGhostRunLayout(
     metrics.forEach((metric, index) => {
         const rowTop = top + Math.floor(index / columns) * rowStep;
         const rowX = x + index % columns * cellWidth;
-        const baseline = rowTop + labelSize * 1.2 + Math.max(2, valueSize * 0.12) + valueSize * 0.75;
+        const metricSize = valueSize * (config.showPace && !metric.pace && !compact ? 0.88 : 1);
+        const baseline = rowTop + labelSize * 1.2 + Math.max(2, metricSize * 0.12) + metricSize * 0.75;
         ctx.save();
         plane.place(ctx, rowX, baseline);
         // Keep each value, separator and unit on one tangent, even for long values.
         if (labelsVisible) drawText(ctx, metric.label, 0, rowTop + labelSize * 0.8 - baseline, labelSize, 500, text, config);
-        drawText(ctx, metric.value, 0, 0, valueSize, 600, text, config);
-        ctx.font = `600 ${valueSize}px ${TRAIL_RUN_FONT_FAMILY}`;
+        drawText(ctx, metric.value, 0, 0, metricSize, 600, text, config);
+        ctx.font = `600 ${metricSize}px ${TRAIL_RUN_FONT_FAMILY}`;
         let right = ctx.measureText(metric.value).width;
         if (metric.heart) {
-            const heartX = right + valueSize * 0.18;
-            drawHeart(ctx, heartX, -valueSize * 0.61, valueSize * 0.5, config);
-            drawText(ctx, metric.unit, heartX, unitSize * 0.17, unitSize * 0.85, 500, text, config);
-            right = heartX + Math.max(valueSize * 0.46, ctx.measureText(metric.unit).width);
+            const heartX = right + metricSize * 0.18;
+            drawHeart(ctx, heartX, -metricSize * 0.61, metricSize * 0.5, config);
+            drawText(ctx, metric.unit, heartX, unitSize * 0.17, unitSize, 500, text, config);
+            right = heartX + Math.max(metricSize * 0.46, ctx.measureText(metric.unit).width);
         } else if (metric.pace) {
             ctx.beginPath();
-            ctx.moveTo(right + valueSize * 0.16, valueSize * 0.25);
-            ctx.lineTo(right + valueSize * 0.43, -valueSize * 0.6);
-            strokeLine(ctx, text, Math.max(0.8, valueSize * 0.025), config, 0.85);
-            right += valueSize * 0.52;
+            ctx.moveTo(right + metricSize * 0.16, metricSize * 0.25);
+            ctx.lineTo(right + metricSize * 0.43, -metricSize * 0.6);
+            strokeLine(ctx, text, Math.max(0.8, metricSize * 0.025), config, 0.85);
+            right += metricSize * 0.52;
             drawText(ctx, metric.unit, right, unitSize * 0.4, unitSize, 500, text, config);
             right += ctx.measureText(metric.unit).width;
         } else if (metric.unit) {
-            right += valueSize * 0.16;
+            right += metricSize * 0.16;
             drawText(ctx, metric.unit, right, unitSize * 0.1, unitSize, 500, text, config);
             right += ctx.measureText(metric.unit).width;
         }
@@ -255,8 +256,13 @@ function drawText(ctx: OverlayContext2D, value: string, x: number, y: number, si
     if (plane) { plane.place(ctx, x, y); x = 0; y = 0; }
     if (config.textShadow) {
         ctx.strokeStyle = contourFor(color, config);
-        ctx.lineWidth = Math.max(1.8, size * 0.05);
+        // Protect glyphs locally against bright and textured footage, without a panel.
+        ctx.lineWidth = Math.max(2.4, size * 0.065);
+        ctx.shadowColor = ctx.strokeStyle;
+        ctx.shadowBlur = Math.max(2, size * 0.09);
+        ctx.shadowOffsetY = Math.max(0.7, size * 0.035);
         ctx.strokeText(value, x, y);
+        ctx.shadowColor = 'transparent';
     }
     ctx.fillStyle = color;
     ctx.fillText(value, x, y);
@@ -334,7 +340,7 @@ function drawRightTelemetry(ctx: OverlayContext2D, frame: TelemetryFrame, w: num
     const compact = !portrait && h < 240;
     const width = w * (portrait ? 0.42 : compact ? 0.2 : 0.12);
     const x = w - safe - width;
-    const top = h * (portrait ? 0.64 : compact ? 0.43 : 0.585);
+    const top = portrait ? h * 0.86 - Math.max(100, short * 0.27) : h * (compact ? 0.43 : 0.585);
     const plane = createPlane(x, top, portrait || compact ? 0 : 0.012);
     const value = config.showElevation ? finiteValue(frame.elevationM) : config.showGrade ? finiteValue(frame.gradePercent, 1) : '';
     if (!value) return;
@@ -358,7 +364,7 @@ function drawRightTelemetry(ctx: OverlayContext2D, frame: TelemetryFrame, w: num
         ctx.textAlign = 'right';
         if (labelsVisible) drawText(ctx, label, 0, labelSize * 0.8, labelSize, 500, text, config);
         ctx.textAlign = 'left';
-        drawText(ctx, value, -valueWidth - unitWidth - size * 0.15, baseline, size, 600, accent, config);
+        drawText(ctx, value, -valueWidth - unitWidth - size * 0.15, baseline, size, 600, text, config);
         drawText(ctx, unit, -unitWidth, baseline, unitSize, 500, text, config);
         if (config.showGrade && config.showElevation) {
             const grade = `${finiteValue(frame.gradePercent, 1)}% grade`;
@@ -380,7 +386,7 @@ function drawRightTelemetry(ctx: OverlayContext2D, frame: TelemetryFrame, w: num
     }
     if (labelsVisible) drawText(ctx, label, x, top + labelSize * 0.8, labelSize, 500, text, config, plane);
     const baseline = top + (labelsVisible ? labelSize * 1.35 : 0) + size * 0.85;
-    drawText(ctx, value, x, baseline, size, 600, accent, config, plane);
+    drawText(ctx, value, x, baseline, size, 600, text, config, plane);
     const valueWidth = ctx.measureText(value).width;
     drawText(ctx, unit, x + valueWidth + size * 0.15, baseline, unitSize, 500, text, config, plane);
     if (config.showGrade && config.showElevation) {
@@ -411,7 +417,7 @@ function drawProgress(ctx: OverlayContext2D, route: GhostRunRoute, frame: Teleme
     const width = portrait ? w - safe * 2 - short * 0.04 : compact ? Math.min(w * 0.78, short * 2.9) : Math.min(w * 0.25, short * 0.46);
     const x = portrait ? safe + short * 0.04 : w - safe - width;
     const baseline = h * (portrait ? 0.86 : 0.825);
-    const plane = createPlane(x, baseline, portrait || compact ? 0 : 0.045);
+    const plane = createPlane(x, baseline, portrait || compact ? 0 : 0.012);
     const detailWidth = config.showElevation && route.ascentM !== undefined ? width * 0.2 : 0;
     const trackWidth = width - detailWidth - (detailWidth ? short * 0.025 : 0);
     const size = Math.max(portrait ? 18 : compact ? 12 : 8, short * (portrait ? 0.05 : 0.027));
@@ -420,11 +426,11 @@ function drawProgress(ctx: OverlayContext2D, route: GhostRunRoute, frame: Teleme
     if (config.showDistance) {
         const current = finiteValue(frame.distanceKm, 1);
         const remaining = ` / ${finiteValue(route.totalDistanceKm, 1)} km`;
-        ctx.font = `600 ${size}px ${TRAIL_RUN_FONT_FAMILY}`;
+        ctx.font = `500 ${size}px ${TRAIL_RUN_FONT_FAMILY}`;
         const currentWidth = ctx.measureText(current).width;
         ctx.font = `500 ${size * 0.8}px ${TRAIL_RUN_FONT_FAMILY}`;
         const scale = Math.min(1, labelWidth / (currentWidth + ctx.measureText(remaining).width + 2));
-        drawText(ctx, current, x, baseline - size * 0.8, size * scale, 600, text, config, plane);
+        drawText(ctx, current, x, baseline - size * 0.8, size * scale, 500, text, config, plane);
         const offset = ctx.measureText(current).width;
         drawText(ctx, remaining, x + offset, baseline - size * 0.8, size * 0.8 * scale, 500, text, config, plane);
         const start = plane.project(x, baseline);
@@ -458,7 +464,7 @@ function drawProgress(ctx: OverlayContext2D, route: GhostRunRoute, frame: Teleme
             if (index === 0) ctx.moveTo(p.x, p.y);
             else ctx.lineTo(p.x, p.y);
         });
-        strokeLine(ctx, accent, Math.max(0.8, short * 0.0015), config);
+        strokeLine(ctx, accent, Math.max(1.2, short * 0.0018), config);
     }
     if (detailWidth) {
         const gain = `+${Math.round(route.ascentM!)} m`;

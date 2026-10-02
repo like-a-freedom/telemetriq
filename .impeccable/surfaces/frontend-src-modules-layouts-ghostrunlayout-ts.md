@@ -113,3 +113,11 @@ Global documentation state was preserved: `DESIGN.md` predates this surface brie
 Supersedes the perspective description above: HUD blocks now use rigid rotation, with no perspective compression or shear of glyphs. Landscape rail and right telemetry use a restrained 0.012-radian rotation; progress uses 0.045 radians. Portrait and compact layouts remain level, including ascent/descent totals. Compact right telemetry sits higher to maintain separation from the progress details. Geometry contrast under-strokes are narrower. Existing contours remain to preserve readability over footage.
 
 The Ghost Run browser suite checks undistorted, orthogonal glyph transforms and level portrait typography alongside bounds, collisions, contrast and preview/export parity. All six tests passed after this correction; build and lint passed.
+
+## Independent first-principles review, 2026-10-02
+
+Two isolated reviews identified bright-footage contrast, equal metric emphasis, small secondary text, dispersed portrait terrain data, and inconsistent landscape angles. This update supersedes earlier styling details: pace retains full value size, other rail values use 88% when pace is enabled (compact two-column layouts retain equal size). Portrait rows have tighter spacing. Labels and units have a 13px portrait floor before extreme-value fitting; bpm no longer receives an additional 15% reduction.
+
+Text uses a contrasting glyph contour plus a soft, downward-offset glyph shadow; no panel or scene dimming. Elevation values use the same foreground as other measurements, with cyan reserved for route/status graphics. Portrait elevation and grade sit immediately above the progress region. The progress caption uses medium weight, its profile has a stronger minimum stroke, and all landscape blocks share a 0.012-radian rotation. Portrait/compact remain level.
+
+Validation: build and lint pass; six Ghost browser tests pass including 1,728 layout combinations, palette visibility, and preview/export parity. Ghost visual baseline refreshed in an additional passing test. Two bounded render batches inspected with real-footage composites and solid palette cases. Detector returns zero findings but does not establish Canvas contrast compliance. Native browser detector injection unavailable (read-only evaluation).

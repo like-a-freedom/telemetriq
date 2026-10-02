@@ -8,6 +8,7 @@ design-references/
 playwright-report/
 test_data/
 .agents/prompts/
+.impeccable/
 
 # Dependencies
 node_modules/
