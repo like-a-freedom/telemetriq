@@ -196,6 +196,9 @@ function _createInterpolatedFrame(
 
     return {
         timeOffset: gpxTime,
+        latitude: interpolateOptionalValue(beforeFrame.latitude, afterFrame.latitude, t),
+        longitude: interpolateLongitude(beforeFrame.longitude, afterFrame.longitude, t),
+        timestampMs: interpolateOptionalValue(beforeFrame.timestampMs, afterFrame.timestampMs, t),
         hr: _interpolateHeartRate(beforeFrame, afterFrame, t),
         paceSecondsPerKm: _interpolatePace(allFrames, gpxTime),
         speedKmh: _interpolateMetric(beforeFrame.speedKmh, afterFrame.speedKmh, t, beforeFrame, afterFrame),
@@ -209,6 +212,12 @@ function _createInterpolatedFrame(
         totalElapsedSeconds,
         isPaused,
     };
+}
+
+function interpolateLongitude(before: number | undefined, after: number | undefined, t: number): number | undefined {
+    if (before === undefined || after === undefined) return before ?? after;
+    const delta = ((after - before + 540) % 360) - 180;
+    return ((before + delta * t + 540) % 360) - 180;
 }
 
 function _interpolateHeartRate(before: TelemetryFrame, after: TelemetryFrame, t: number): number | undefined {

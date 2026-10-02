@@ -7,6 +7,7 @@ import {
     TRAIL_RUN_GRAPH_SAMPLE_COUNT,
 } from '../telemetryCore';
 import { renderOverlay } from '../overlayRenderer';
+import { getGhostRunRoute } from '../ghostRunRoute';
 import { drawVideoFrameWithRotation } from './frameOrientation';
 
 export interface RenderFrameParams {
@@ -58,6 +59,7 @@ export async function renderAndEncodeFrame(params: RenderFrameParams): Promise<v
         await renderOverlay(ctx, telemetry, videoMeta.width, videoMeta.height, config, {
             hrHistory,
             elevationHistory,
+            ghostRoute: config.layoutMode === 'ghost-run' ? getGhostRunRoute(telemetryFrames) : undefined,
             destinationHasBaseFrame: true,
         });
     }

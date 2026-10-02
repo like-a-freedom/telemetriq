@@ -60,4 +60,5 @@ export { minimalRingTemplate, drawMinimalRing } from './minimalRing';
 export { focusTypeTemplate } from './focusType';
 export { trailRunTemplate } from './trailRun';
 export { cyclingProTemplate } from './cyclingPro';
+export { ghostRunTemplate } from './ghostRun';
 export { customTemplate } from './custom';

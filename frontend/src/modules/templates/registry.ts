@@ -28,6 +28,7 @@ import { minimalRingTemplate } from './minimalRing';
 import { focusTypeTemplate } from './focusType';
 import { trailRunTemplate } from './trailRun';
 import { cyclingProTemplate } from './cyclingPro';
+import { ghostRunTemplate } from './ghostRun';
 import { customTemplate } from './custom';
 
 export interface BuiltTemplateRegistry {
@@ -88,6 +89,7 @@ const REGISTERED_TEMPLATES = [
     focusTypeTemplate,
     trailRunTemplate,
     cyclingProTemplate,
+    ghostRunTemplate,
     customTemplate,
 ] satisfies readonly TemplateDefinition[];
 

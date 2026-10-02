@@ -34,6 +34,10 @@ export interface GpxMetadata {
 
 /** Telemetry snapshot at a specific moment */
 export interface TelemetryFrame {
+    /** Original GPX position and recording time, used by route overlays. */
+    latitude?: number;
+    longitude?: number;
+    timestampMs?: number;
     /** Time offset from start in seconds */
     timeOffset: number;
     /** Heart rate in BPM */
@@ -80,6 +84,7 @@ export type OverlayLayoutMode =
     | 'corner-frame'   // L-Frame: L-shaped frame at corner
     | 'trail-run'
     | 'cycling-pro'
+    | 'ghost-run'
     | 'arc-gauge'
     | 'hero-number'
     | 'cinematic-bar'

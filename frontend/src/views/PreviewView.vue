@@ -289,7 +289,9 @@ const metricControls = computed(() =>
       ...control,
       checked: settingsStore.overlayConfig[control.key],
       available,
-      helperText: control.hint,
+      helperText: control.metric === "time" && settingsStore.overlayConfig.templateId === "ghost-run"
+        ? "Elapsed time including pauses."
+        : control.hint,
     };
   }).filter((control) => control.available)
 );

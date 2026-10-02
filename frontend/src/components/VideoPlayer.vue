@@ -23,6 +23,7 @@
 import { ref, watch, onMounted, onUnmounted } from "vue";
 import type { TelemetryFrame, ExtendedOverlayConfig } from "../core/types";
 import { renderOverlay } from "../modules/overlayRenderer";
+import { getGhostRunRoute } from "../modules/ghostRunRoute";
 import {
   getTelemetryAtTime,
   getInterpolatedHeartRateHistory,
@@ -127,7 +128,11 @@ async function drawOverlay(): Promise<void> {
       videoWidth.value,
       videoHeight.value,
       props.overlayConfig,
-      { hrHistory, elevationHistory }
+      {
+        hrHistory,
+        elevationHistory,
+        ghostRoute: props.overlayConfig.layoutMode === 'ghost-run' ? getGhostRunRoute(props.telemetryFrames) : undefined,
+      }
     );
   }
 }

@@ -9,6 +9,8 @@ import { renderLFrameLayout } from './layouts/lframeLayout';
 import { renderClassicLayout } from './layouts/classicLayout';
 import { renderTrailRunLayout } from './layouts/trailRunLayout';
 import { renderCyclingProLayout } from './layouts/cyclingProLayout';
+import { renderGhostRunLayout } from './layouts/ghostRunLayout';
+import type { GhostRunRoute } from './ghostRunRoute';
 import { renderExtendedLayout } from './layouts/extendedLayouts';
 import { WebGPUAdapter } from './webgpu/webgpuAdapter';
 
@@ -35,6 +37,7 @@ let highResolutionOverlayCache: { key: string; overlay: CachedOverlay } | null =
 export type { MetricItem } from '../core/types';
 
 export interface OverlayRenderContext {
+    ghostRoute?: GhostRunRoute;
     hrHistory?: number[];
     elevationHistory?: number[];
     destinationHasBaseFrame?: boolean;
@@ -94,7 +97,7 @@ export async function renderOverlay(
     if (!isRenderableSize(videoWidth, videoHeight)) return;
 
     const effectiveConfig = getEffectiveConfig(config);
-    if (effectiveConfig.templateId === 'classic' || ['trail-run', 'cycling-pro', 'arc-gauge', 'hero-number', 'cinematic-bar', 'ticker-tape', 'whisper', 'two-tone', 'condensed-strip', 'soft-rounded', 'thin-line', 'swiss-grid', 'garmin-style', 'bottom-bar', 'side-margins', 'corner-frame'].includes(effectiveConfig.layoutMode || '')) await ensureTrailRunFonts();
+    if (effectiveConfig.templateId === 'classic' || ['ghost-run', 'trail-run', 'cycling-pro', 'arc-gauge', 'hero-number', 'cinematic-bar', 'ticker-tape', 'whisper', 'two-tone', 'condensed-strip', 'soft-rounded', 'thin-line', 'swiss-grid', 'garmin-style', 'bottom-bar', 'side-margins', 'corner-frame'].includes(effectiveConfig.layoutMode || '')) await ensureTrailRunFonts();
     const metrics = buildMetrics(frame, effectiveConfig);
     const shouldRenderFixedTemplate = shouldRenderWithoutMetrics(effectiveConfig);
 
@@ -103,7 +106,7 @@ export async function renderOverlay(
     }
 
     // Check cache first using display-level values (reduces unnecessary rerenders).
-    const cacheStrategy = getCacheStrategy(videoWidth, videoHeight);
+    const cacheStrategy = effectiveConfig.layoutMode === 'ghost-run' ? 'none' : getCacheStrategy(videoWidth, videoHeight);
     const cacheKey = cacheStrategy !== 'none'
         ? buildCacheKey(metrics, effectiveConfig, videoWidth, videoHeight, renderContext)
         : undefined;
@@ -189,6 +192,11 @@ function renderLayout(
         return;
     }
 
+    if (layoutMode === 'ghost-run') {
+        renderGhostRunLayout(ctx, frame, w, h, config, renderContext);
+        return;
+    }
+
     if (layoutMode === 'cycling-pro') {
         renderCyclingProLayout(ctx, frame, w, h, config);
         return;
@@ -244,7 +252,7 @@ export function buildMetrics(frame: TelemetryFrame, config: ExtendedOverlayConfi
 }
 
 function shouldRenderWithoutMetrics(config: ExtendedOverlayConfig): boolean {
-    return config.layoutMode === 'trail-run' || config.layoutMode === 'cycling-pro';
+    return config.layoutMode === 'trail-run' || config.layoutMode === 'cycling-pro' || config.layoutMode === 'ghost-run';
 }
 
 function buildCacheKey(
@@ -403,12 +411,12 @@ export async function renderOverlayOnFrame(
     if (!isRenderableSize(width, height)) return videoFrame;
 
     const effectiveConfig = getEffectiveConfig(config);
-    if (effectiveConfig.templateId === 'classic' || ['trail-run', 'cycling-pro', 'arc-gauge', 'hero-number', 'cinematic-bar', 'ticker-tape', 'whisper', 'two-tone', 'condensed-strip', 'soft-rounded', 'thin-line', 'swiss-grid', 'garmin-style', 'bottom-bar', 'side-margins', 'corner-frame'].includes(effectiveConfig.layoutMode || '')) await ensureTrailRunFonts();
+    if (effectiveConfig.templateId === 'classic' || ['ghost-run', 'trail-run', 'cycling-pro', 'arc-gauge', 'hero-number', 'cinematic-bar', 'ticker-tape', 'whisper', 'two-tone', 'condensed-strip', 'soft-rounded', 'thin-line', 'swiss-grid', 'garmin-style', 'bottom-bar', 'side-margins', 'corner-frame'].includes(effectiveConfig.layoutMode || '')) await ensureTrailRunFonts();
     const metrics = buildMetrics(telemetryFrame, effectiveConfig);
     const shouldRenderFixedTemplate = shouldRenderWithoutMetrics(effectiveConfig);
 
     if (metrics.length > 0 || shouldRenderFixedTemplate) {
-        const cacheStrategy = getCacheStrategy(width, height);
+        const cacheStrategy = effectiveConfig.layoutMode === 'ghost-run' ? 'none' : getCacheStrategy(width, height);
         const cacheKey = cacheStrategy !== 'none'
             ? buildCacheKey(metrics, effectiveConfig, width, height, renderContext)
             : undefined;

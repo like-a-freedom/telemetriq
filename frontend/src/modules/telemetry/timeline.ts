@@ -89,6 +89,9 @@ function _createTelemetryFrame(
     const movingTimeSeconds = movingTimeMs / 1000;
 
     return {
+        latitude: point.lat,
+        longitude: point.lon,
+        timestampMs: point.time.getTime(),
         timeOffset,
         hr: point.hr,
         paceSecondsPerKm,
