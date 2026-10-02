@@ -980,5 +980,43 @@ describe('Pinia Stores', () => {
             store.saveAsCustomTemplate();
             expect(store.currentTemplateId).toBe('custom');
         });
+
+        it('should ignore resetToTemplateDefaults while a custom template is active', () => {
+            const store = useSettingsStore();
+            store.selectTemplate('classic');
+            store.updateOverlayConfig({ showHr: false });
+            store.saveAsCustomTemplate();
+
+            store.resetToTemplateDefaults();
+
+            expect(store.overlayConfig.templateId).toBe('custom');
+            expect(store.overlayConfig.showHr).toBe(false);
+        });
+
+        it('should keep the position when an unknown template id makes support unknown', () => {
+            const store = useSettingsStore();
+            store.selectTemplate('classic');
+            store.updateOverlayConfig({ position: 'top-right' });
+            expect(store.overlayConfig.position).toBe('top-right');
+
+            // A removed/unknown template id keeps the config untouched and drops
+            // position support back to the horizon defaults.
+            store.updateOverlayConfig({ templateId: 'removed-template' as never });
+            expect(store.overlayConfig.templateId).toBe('removed-template');
+
+            store.updateOverlayConfig({ position: 'bottom-right' });
+            expect(store.overlayConfig.position).toBe('top-right');
+        });
+
+        it('should store the runner weight used for power estimation', () => {
+            const store = useSettingsStore();
+            expect(store.runnerWeightKg).toBeNull();
+
+            store.setRunnerWeight(70);
+            expect(store.runnerWeightKg).toBe(70);
+
+            store.setRunnerWeight(null);
+            expect(store.runnerWeightKg).toBeNull();
+        });
     });
 });

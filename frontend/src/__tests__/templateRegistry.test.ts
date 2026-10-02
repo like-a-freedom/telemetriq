@@ -6,6 +6,9 @@ import {
     TEMPLATE_IDS,
     buildTemplateRegistry,
     defineTemplate,
+    getTemplateConfig,
+    getTemplateDefinition,
+    getTemplateMetadata,
 } from '../modules/templates';
 
 describe('template registry builder', () => {
@@ -177,9 +180,22 @@ describe('template registry builder', () => {
     it('includes trail-run and cycling-pro in canonical and legacy registry exports', () => {
         expect(TEMPLATE_IDS).toContain('trail-run');
         expect(TEMPLATE_IDS).toContain('cycling-pro');
+        expect(TEMPLATE_IDS).toContain('ghost-run');
         expect(TEMPLATE_CONFIGS['trail-run']?.layoutMode).toBe('trail-run');
         expect(TEMPLATE_CONFIGS['cycling-pro']?.layoutMode).toBe('cycling-pro');
+        expect(TEMPLATE_CONFIGS['ghost-run']?.layoutMode).toBe('ghost-run');
         expect(TEMPLATE_METADATA['trail-run']?.name).toBe('Trail Run');
         expect(TEMPLATE_METADATA['cycling-pro']?.name).toBe('Cycling Pro');
+        expect(TEMPLATE_METADATA['ghost-run']?.name).toBe('Ghost Run');
+    });
+
+    it('falls back to horizon for unknown template ids instead of throwing', () => {
+        const horizon = TEMPLATE_MAP['horizon']!;
+
+        expect(getTemplateDefinition('removed-template')).toBeUndefined();
+        expect(getTemplateConfig('removed-template')).toEqual(horizon.config);
+        expect(getTemplateConfig('removed-template').templateId).toBe('horizon');
+        expect(getTemplateConfig('removed-template')).not.toBe(horizon.config);
+        expect(getTemplateMetadata('removed-template')).toEqual(horizon.metadata);
     });
 });

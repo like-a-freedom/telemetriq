@@ -56,4 +56,15 @@ describe('TemplateSelector (template list)', () => {
         expect(settingsStore.overlayConfig.layoutMode).toBe('ghost-run');
         expect((wrapper.find('select').element as HTMLSelectElement).value).toBe('ghost-run');
     });
+
+    it('stays usable when the stored template id is no longer registered', () => {
+        const settingsStore = useSettingsStore();
+        settingsStore.updateOverlayConfig({ templateId: 'removed-template' as never });
+
+        const wrapper = mount(TemplateSelector);
+
+        const optionValues = wrapper.findAll('option').map((option) => option.attributes('value'));
+        expect(optionValues).toEqual(TEMPLATE_IDS.filter((id) => id !== 'custom'));
+        expect(wrapper.find('.template-dropdown__description').exists()).toBe(false);
+    });
 });

@@ -76,4 +76,39 @@ describe('Ghost Run route', () => {
         expect(Math.max(...route.profile.map((point) => point.elevationM))).toBe(1000);
         expect(route.totalDistanceKm).toBe(19.999);
     });
+
+    it('returns no position for empty routes or unusable lookup times', () => {
+        const route = getGhostRunRoute([frame(0, 0), frame(10, 1)]);
+        const empty = getGhostRunRoute([{ timeOffset: 0, distanceKm: 0, elapsedTime: '0:00', movingTimeSeconds: 0 }]);
+
+        expect(getGhostRoutePosition(empty, 5)).toBeUndefined();
+        expect(getGhostRoutePosition(route, Number.NaN)).toBeUndefined();
+        expect(getGhostRoutePosition(route, Number.POSITIVE_INFINITY)).toBeUndefined();
+        expect(empty.bounds).toEqual({ minX: 0, minY: 0, width: 0, height: 0 });
+    });
+
+    it('ignores non-finite distances instead of poisoning the route total', () => {
+        const frames = [
+            frame(0, 0),
+            frame(10, Number.NaN),
+            frame(20, 2.5),
+            { ...frame(30, 1), distanceKm: Number.POSITIVE_INFINITY },
+            { ...frame(40, 1), distanceKm: undefined as unknown as number },
+        ];
+
+        expect(getGhostRunRoute(frames).totalDistanceKm).toBe(2.5);
+    });
+
+    it('keeps a sustained descent in the sampled elevation profile, not only peaks', () => {
+        const frames = Array.from({ length: 500 }, (_, i) =>
+            frame(i, i / 1000, 45 + i / 1e6, 10 + i / 1e6, 1000 - i * 2));
+        const route = getGhostRunRoute(frames);
+        const elevations = route.profile.map((point) => point.elevationM);
+
+        expect(route.profile.length).toBeLessThanOrEqual(384);
+        expect(elevations.at(-1)).toBe(1000 - 499 * 2);
+        // Bucket minima survive sampling all the way down the hill.
+        expect(elevations.every((value, index) => index === 0 || elevations[index - 1]! >= value)).toBe(true);
+        expect(Math.min(...elevations)).toBe(1000 - 499 * 2);
+    });
 });

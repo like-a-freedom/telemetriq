@@ -6,7 +6,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import { nextTick } from 'vue';
 import { useTemplateCapabilities } from '../composables/useTemplateCapabilities';
 import { useSettingsStore } from '../stores/settingsStore';
-import { minimalRingTemplate } from '../modules/templates';
+import { minimalRingTemplate, DEFAULT_CAPABILITIES, DEFAULT_STYLES } from '../modules/templates';
 
 describe('useTemplateCapabilities', () => {
     beforeEach(() => {
@@ -169,5 +169,59 @@ describe('useTemplateCapabilities', () => {
         expect(capabilities.supportsFeature('supportsLayoutDirection')).toBe(false);
         expect(capabilities.supportsFeature('supportsTextShadow')).toBe(true);
         expect(capabilities.supportsFeature('supportsAccentColor')).toBe(true);
+    });
+
+    it('falls back to the default capabilities when the selected template id is unknown', async () => {
+        const settingsStore = useSettingsStore();
+        const capabilities = useTemplateCapabilities();
+
+        settingsStore.updateOverlayConfig({ templateId: 'removed-template' as never });
+        await nextTick();
+
+        expect(capabilities.currentTemplateId.value).toBe('removed-template');
+        expect(capabilities.currentCapabilities.value).toEqual(DEFAULT_CAPABILITIES);
+        expect(capabilities.currentStyles.value).toEqual(DEFAULT_STYLES);
+    });
+
+    it('reports unknown feature names as unsupported', async () => {
+        const capabilities = useTemplateCapabilities();
+
+        expect(capabilities.supportsFeature('supportsNonexistentFeature')).toBe(false);
+        expect(capabilities.supportsFeature('supportedMetrics')).toBe(false);
+        expect(capabilities.supportsFeature('')).toBe(false);
+    });
+
+    it('explains unsupported metrics with the default wording when the template has no reason', async () => {
+        const settingsStore = useSettingsStore();
+        const capabilities = useTemplateCapabilities();
+
+        settingsStore.selectTemplate('ghost-run');
+        await nextTick();
+
+        expect(capabilities.getMetricDisableReason('power')).toBe('Power is not supported by this template');
+        expect(capabilities.getMetricDisableReason('cadence')).toBe('Cadence is not supported by this template');
+        expect(capabilities.getMetricDisableReason('pace')).toBe('');
+    });
+
+    it('falls back to the short wording when a custom reason declines to explain', async () => {
+        const settingsStore = useSettingsStore();
+        const capabilities = useTemplateCapabilities();
+
+        settingsStore.selectTemplate('minimal-ring');
+        await nextTick();
+
+        expect(capabilities.getMetricDisableReason('speed')).toBe('Speed is not supported');
+        expect(capabilities.getMetricDisableReason('time')).toContain('Minimal Ring');
+    });
+
+    it('explains required metrics that cannot be switched off', async () => {
+        const settingsStore = useSettingsStore();
+        const capabilities = useTemplateCapabilities();
+
+        settingsStore.selectTemplate('minimal-ring');
+        await nextTick();
+
+        expect(capabilities.isMetricRequired('pace')).toBe(true);
+        expect(capabilities.getMetricDisableReason('pace')).toBe('Pace is required for this template');
     });
 });

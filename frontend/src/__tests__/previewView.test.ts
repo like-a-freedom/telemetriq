@@ -210,4 +210,21 @@ describe('PreviewView (synchronization panel)', () => {
         expect(wrapper.text()).toContain('Moving time that excludes pauses.');
         expect(wrapper.text()).not.toContain('Elapsed time including pauses.');
     });
+
+    it('lists only the metrics the selected template supports', () => {
+        const { settings } = makeStores({ autoSynced: false });
+        settings.updateOverlayConfig({ templateId: 'ghost-run' as never });
+
+        const wrapper = mount(PreviewView, {
+            global: { stubs: ['VideoPlayer', 'SyncSlider', 'TemplateSelector', 'DateTimePicker'] },
+        });
+
+        const labels = wrapper.findAll('.preview-view__checkbox').map((control) => control.text());
+        for (const supported of ['Heart rate', 'Pace', 'Distance', 'Time', 'Grade', 'Elevation']) {
+            expect(labels.some((label) => label.includes(supported)), supported).toBe(true);
+        }
+        for (const unsupported of ['Speed', 'Cadence', 'Power']) {
+            expect(labels.some((label) => label.includes(unsupported)), unsupported).toBe(false);
+        }
+    });
 });
