@@ -192,8 +192,13 @@ export function renderGhostRunLayout(
         let right = ctx.measureText(metric.value).width;
         if (metric.heart) {
             const heartX = right + metricSize * 0.18;
-            drawHeart(ctx, heartX, -metricSize * 0.61, metricSize * 0.5, config);
-            drawText(ctx, metric.unit, heartX, unitSize * 0.17, unitSize, 500, text, config);
+            const heartY = -metricSize * 0.61;
+            const heartSize = metricSize * 0.5;
+            drawHeart(ctx, heartX, heartY, heartSize, config);
+            ctx.font = `500 ${unitSize}px ${TRAIL_RUN_FONT_FAMILY}`;
+            const unitAscent = ctx.measureText(metric.unit).actualBoundingBoxAscent || unitSize * 0.8;
+            const unitBaseline = heartY + heartSize + unitAscent + Math.max(2, metricSize * 0.03);
+            drawText(ctx, metric.unit, heartX, unitBaseline, unitSize, 500, text, config);
             right = heartX + Math.max(metricSize * 0.46, ctx.measureText(metric.unit).width);
         } else if (metric.pace) {
             ctx.beginPath();

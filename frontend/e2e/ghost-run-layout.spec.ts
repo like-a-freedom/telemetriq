@@ -121,6 +121,115 @@ test('Ghost Run renders missing data explicitly and leaves the center transparen
     expect(result).toEqual({ centerClear: true, hasInk: true });
 });
 
+test('Ghost Run keeps the heart aligned and separated from heart rate and bpm', async ({ page }) => {
+    await page.goto('/?e2e');
+    const results = await page.evaluate(async () => {
+        const { renderGhostRunLayout } = await import('/src/modules/layouts/ghostRunLayout.ts');
+        const { getTemplateConfig } = await import('/src/modules/templates/registry.ts');
+        const { ensureTrailRunFonts } = await import('/src/modules/trailRunFonts.ts');
+        await ensureTrailRunFonts();
+        const config = { ...getTemplateConfig('ghost-run'), showPace: false, showDistance: false,
+            showTime: false, showHr: true, showElevation: false, showGrade: false };
+        const frame = { timeOffset: 0, distanceKm: 0, elapsedTime: '00:00:00', hr: 135 };
+        const sizes = [[286, 195], [320, 180], [360, 640], [1188, 669]];
+        const output: Array<{ width: number; value: Box; bpm: Box; heart: Box }> = [];
+        type Point = { x: number; y: number };
+        type Box = { left: number; right: number; top: number; bottom: number };
+        const bounds = (points: Point[]): Box => ({
+            left: Math.min(...points.map((point) => point.x)),
+            right: Math.max(...points.map((point) => point.x)),
+            top: Math.min(...points.map((point) => point.y)),
+            bottom: Math.max(...points.map((point) => point.y)),
+        });
+
+        for (const [width, height] of sizes) {
+            const canvas = document.createElement('canvas');
+            canvas.width = width!;
+            canvas.height = height!;
+            const ctx = canvas.getContext('2d')!;
+            const texts = new Map<string, Box>();
+            let pathPoints: Point[] = [];
+            let current: Point | undefined;
+            let heart: Box | undefined;
+
+            const originalFillText = ctx.fillText.bind(ctx);
+            ctx.fillText = (value, x, y) => {
+                const metrics = ctx.measureText(value);
+                const transform = ctx.getTransform();
+                const corners = [
+                    [x - metrics.actualBoundingBoxLeft, y - metrics.actualBoundingBoxAscent],
+                    [x + metrics.actualBoundingBoxRight, y - metrics.actualBoundingBoxAscent],
+                    [x + metrics.actualBoundingBoxRight, y + metrics.actualBoundingBoxDescent],
+                    [x - metrics.actualBoundingBoxLeft, y + metrics.actualBoundingBoxDescent],
+                ].map(([px, py]) => transform.transformPoint({ x: px!, y: py! }));
+                if (value === '135' || value === 'bpm') {
+                    texts.set(value, bounds(corners));
+                }
+                originalFillText(value, x, y);
+            };
+
+            const originalBeginPath = ctx.beginPath.bind(ctx);
+            ctx.beginPath = () => {
+                pathPoints = [];
+                current = undefined;
+                originalBeginPath();
+            };
+            const project = (x: number, y: number): Point => ctx.getTransform().transformPoint({ x, y });
+            const originalMoveTo = ctx.moveTo.bind(ctx);
+            ctx.moveTo = (x, y) => {
+                current = { x, y };
+                pathPoints.push(project(x, y));
+                originalMoveTo(x, y);
+            };
+            const originalBezierCurveTo = ctx.bezierCurveTo.bind(ctx);
+            ctx.bezierCurveTo = (x1, y1, x2, y2, x, y) => {
+                if (current) {
+                    const start = current;
+                    for (let step = 1; step <= 32; step++) {
+                        const t = step / 32;
+                        const inverse = 1 - t;
+                        const px = inverse ** 3 * start.x + 3 * inverse ** 2 * t * x1
+                            + 3 * inverse * t ** 2 * x2 + t ** 3 * x;
+                        const py = inverse ** 3 * start.y + 3 * inverse ** 2 * t * y1
+                            + 3 * inverse * t ** 2 * y2 + t ** 3 * y;
+                        pathPoints.push(project(px, py));
+                    }
+                }
+                current = { x, y };
+                originalBezierCurveTo(x1, y1, x2, y2, x, y);
+            };
+            const originalFill = ctx.fill.bind(ctx);
+            ctx.fill = () => {
+                if (pathPoints.length) heart = bounds(pathPoints);
+                originalFill();
+            };
+
+            renderGhostRunLayout(ctx, frame, width!, height!, config);
+            const value = texts.get('135');
+            const bpm = texts.get('bpm');
+            if (!value || !bpm || !heart) {
+                throw new Error(`Missing heart-rate geometry at ${width}x${height}: value=${Boolean(value)}, bpm=${Boolean(bpm)}, heart=${Boolean(heart)}`);
+            }
+            output.push({ width: width!, value, bpm, heart });
+        }
+        return output;
+    });
+
+    for (const { width, value, bpm, heart } of results) {
+        const pulseSize = value.bottom - value.top;
+        const valueHeartGap = heart.left - value.right;
+        const heartBpmGap = bpm.top - heart.bottom;
+        expect(valueHeartGap, `${width}px: heart should have a clear horizontal gap from the pulse value`)
+            .toBeGreaterThanOrEqual(pulseSize * 0.1);
+        expect(valueHeartGap, `${width}px: heart should remain visually grouped with the pulse value`)
+            .toBeLessThanOrEqual(pulseSize * 0.5);
+        expect(Math.abs(heart.left - bpm.left), `${width}px: heart and bpm should share a left alignment`)
+            .toBeLessThanOrEqual(pulseSize * 0.12);
+        expect(heartBpmGap, `${width}px: heart must not collide with the bpm label`)
+            .toBeGreaterThanOrEqual(Math.max(1.5, pulseSize * 0.03));
+    }
+});
+
 test('Ghost Run never exposes invalid numbers or invents an elapsed time', async ({ page }) => {
     await page.goto('/?e2e');
     const failures = await page.evaluate(async () => {
