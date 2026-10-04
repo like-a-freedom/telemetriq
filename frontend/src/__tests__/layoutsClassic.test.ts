@@ -74,6 +74,9 @@ describe('Classic Layout', () => {
         expect(mockCtx.save).toHaveBeenCalled();
         expect(mockCtx.fillText).toHaveBeenCalled();
         expect(mockCtx.restore).toHaveBeenCalled();
+        expect(mockCtx.fillText.mock.calls.map(([text]) => text)).toEqual([
+            'DISTANCE   5.2 km   ·   PACE   5:30 /km',
+        ]);
     });
 
     it('should handle empty metrics', () => {
@@ -101,15 +104,28 @@ describe('Classic Layout', () => {
     it('should calculate correct font size based on height', () => {
         const metrics: MetricItem[] = [{ label: 'Test', value: '10', unit: '' }];
 
-        renderClassicLayout(mockCtx as any, metrics, width, height, baseConfig);
+        // classicLayout.ts pins the draw size to the short side of the canvas:
+        // max(12, min(w, h) * fontSizePercent/100 * textScale * valueSizeMultiplier/2.5)
+        const expectedFontSize = (targetHeight: number) => {
+            const shortSide = Math.min(width, targetHeight);
+            const textScale = Math.min(1.18, Math.max(0.86, shortSide / 1080));
+            const multiplier = (baseConfig.valueSizeMultiplier ?? 2.5) / 2.5;
+            return Math.max(12, shortSide * ((baseConfig.fontSizePercent ?? 2) / 100) * textScale * multiplier);
+        };
+        const drawnFontSize = () => Number.parseFloat(mockCtx.font.match(/([\d.]+)px/)?.[1] ?? '0');
 
-        // Font should be set with calculated size
-        expect(mockCtx.font).toContain('px');
+        renderClassicLayout(mockCtx as any, metrics, width, 1080, baseConfig);
+        expect(drawnFontSize()).toBeCloseTo(expectedFontSize(1080), 5);
+
+        mockCtx = createMockContext();
+        renderClassicLayout(mockCtx as any, metrics, width, 2160, baseConfig);
+        expect(drawnFontSize()).toBeCloseTo(expectedFontSize(2160), 5);
     });
 
     it('should render at different positions', () => {
         const metrics: MetricItem[] = [{ label: 'Test', value: '10', unit: '' }];
         const positions = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const;
+        const anchors: Record<string, { x: number; y: number }> = {};
 
         for (const position of positions) {
             mockCtx = createMockContext();
@@ -119,8 +135,22 @@ describe('Classic Layout', () => {
             };
 
             renderClassicLayout(mockCtx as any, metrics, width, height, config);
-            expect(mockCtx.fillText).toHaveBeenCalled();
+            const call = mockCtx.fillText.mock.calls[0];
+            expect(call).toBeDefined();
+            anchors[position] = { x: Number(call![1]), y: Number(call![2]) };
         }
+
+        // Each position anchors the overlay box in its own quadrant.
+        const midX = width / 2;
+        const midY = height / 2;
+        expect(anchors['top-left']!.x).toBeLessThan(midX);
+        expect(anchors['top-left']!.y).toBeLessThan(midY);
+        expect(anchors['top-right']!.x).toBeGreaterThan(midX);
+        expect(anchors['top-right']!.y).toBeLessThan(midY);
+        expect(anchors['bottom-left']!.x).toBeLessThan(midX);
+        expect(anchors['bottom-left']!.y).toBeGreaterThan(midY);
+        expect(anchors['bottom-right']!.x).toBeGreaterThan(midX);
+        expect(anchors['bottom-right']!.y).toBeGreaterThan(midY);
     });
 
     it('respects the label visibility setting without substituting emoji', () => {

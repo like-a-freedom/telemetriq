@@ -200,11 +200,6 @@ describe('templates registry', () => {
                 expect(templates).toContain(id);
             });
         });
-
-        // 'custom' is a registered template but is excluded from the selector dropdown.
-        it('the UI selector list should exclude custom', () => {
-            expect(selectableTemplateIds).not.toContain('custom');
-        });
     });
 
     describe('getTemplateMetadata', () => {
@@ -227,6 +222,15 @@ describe('templates registry', () => {
             const templates = getAllTemplateMetadata();
             expect(templates).toHaveLength(allTemplateIds.length - 1);
             expect(templates.find(t => t.id === 'custom')).toBeUndefined();
+        });
+
+        // TemplateSelector.vue builds the #template-select options from
+        // getAllTemplateMetadata(), so the derived non-custom id list used by
+        // tests must equal the production selector source.
+        it('the UI selector list should exclude custom', () => {
+            const selectorIds = getAllTemplateMetadata().map(meta => meta.id);
+            expect(selectorIds).toEqual(selectableTemplateIds);
+            expect(selectorIds).not.toContain('custom');
         });
     });
 

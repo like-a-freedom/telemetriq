@@ -101,7 +101,6 @@ describe('trailRun layout', () => {
         expect(ctx.fillText).toHaveBeenCalledWith('ELEVATION', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).toHaveBeenCalledWith('HR', expect.any(Number), expect.any(Number));
         expect(ctx.fillText).toHaveBeenCalledWith('GRADE', expect.any(Number), expect.any(Number));
-        expect(ctx.fillText).toHaveBeenCalledWith('ELEVATION', expect.any(Number), expect.any(Number));
     });
     it.each([[1920, 1080], [1080, 1920], [640, 360], [360, 640]])(
         'keeps labels separate from sharp elevation peaks at %ix%i', (width, height) => {

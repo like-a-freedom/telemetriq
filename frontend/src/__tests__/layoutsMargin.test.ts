@@ -73,6 +73,12 @@ describe('Margin Layout', () => {
         expect(mockCtx.save).toHaveBeenCalled();
         expect(mockCtx.fillText).toHaveBeenCalled();
         expect(mockCtx.restore).toHaveBeenCalled();
+        expect(mockCtx.fillText.mock.calls.map(([text]) => text)).toEqual([
+            '5.2', 'km', 'D', 'I', 'S', 'T',
+            '5:30', '/km', 'P', 'A', 'C', 'E',
+            '140', 'bpm', 'H', 'R',
+            '30:00', 'T', 'I', 'M', 'E',
+        ]);
     });
 
     it('should split metrics between left and right sides', () => {
@@ -87,6 +93,19 @@ describe('Margin Layout', () => {
 
         // Should render all metrics
         expect(mockCtx.fillText).toHaveBeenCalled();
+
+        // half = ceil(4 / 2) = 2 → the first two values anchor to the left rail,
+        // the last two anchor to the right rail.
+        const valueXs = mockCtx.fillText.mock.calls
+            .filter(([text]) => ['10', '20', '30', '40'].includes(String(text)))
+            .map(([text, x]) => ({ text: String(text), x: Number(x) }));
+        expect(valueXs).toHaveLength(4);
+        const leftXs = valueXs.filter(entry => entry.x < width / 2);
+        const rightXs = valueXs.filter(entry => entry.x > width / 2);
+        expect(leftXs.map(entry => entry.text)).toEqual(['10', '20']);
+        expect(rightXs.map(entry => entry.text)).toEqual(['30', '40']);
+        expect(new Set(leftXs.map(entry => entry.x)).size).toBe(1); // one shared left rail
+        expect(new Set(rightXs.map(entry => entry.x)).size).toBe(1); // one shared right rail
     });
 
     it('should handle odd number of metrics', () => {
@@ -99,6 +118,15 @@ describe('Margin Layout', () => {
         renderMarginLayout(mockCtx as any, metrics, width, height, baseConfig);
 
         expect(mockCtx.fillText).toHaveBeenCalled();
+        const drawnTexts = mockCtx.fillText.mock.calls.map(([text]) => text);
+        expect(drawnTexts).toEqual(expect.arrayContaining(['5.2', '5:30', '140']));
+
+        // half = ceil(3 / 2) = 2 → two values on the left rail, one on the right.
+        const valueXs = mockCtx.fillText.mock.calls
+            .filter(([text]) => ['5.2', '5:30', '140'].includes(String(text)))
+            .map(([text, x]) => ({ text: String(text), x: Number(x) }));
+        expect(valueXs.filter(entry => entry.x < width / 2).map(entry => entry.text)).toEqual(['5.2', '5:30']);
+        expect(valueXs.filter(entry => entry.x > width / 2).map(entry => entry.text)).toEqual(['140']);
     });
 
     it('keeps the video clear without drawing backdrops', () => {
@@ -119,13 +147,27 @@ describe('Margin Layout', () => {
             { label: 'Distance', value: '5.2', unit: 'km' },
         ];
 
-        // Test different resolutions
-        renderMarginLayout(mockCtx as any, metrics, 1280, 720, baseConfig);
-        expect(mockCtx.fillText).toHaveBeenCalled();
+        const drawAt = (w: number, h: number) => {
+            mockCtx = createMockContext();
+            renderMarginLayout(mockCtx as any, metrics, w, h, baseConfig);
+            const valueCall = mockCtx.fillText.mock.calls.find(([text]) => text === '5.2')!;
+            return { x: Number(valueCall[1]), y: Number(valueCall[2]) };
+        };
 
-        mockCtx = createMockContext();
-        renderMarginLayout(mockCtx as any, metrics, 3840, 2160, baseConfig);
-        expect(mockCtx.fillText).toHaveBeenCalled();
+        const small = drawAt(1280, 720);
+        const large = drawAt(3840, 2160);
+
+        expect(small.x).not.toBe(large.x);
+        expect(small.y).not.toBe(large.y);
+
+        // marginLayout anchors the first slot at x = shortSide * 0.045 + rail (left side)
+        // and y = h * 0.16, both scaling with the frame size.
+        expect(small.x).toBeLessThan(1280 / 2);
+        expect(large.x).toBeLessThan(3840 / 2);
+        expect(small.y).toBeCloseTo(720 * 0.16, 5);
+        expect(large.y).toBeCloseTo(2160 * 0.16, 5);
+        expect(large.x / small.x).toBeCloseTo(3, 3);
+        expect(large.y / small.y).toBeCloseTo(3, 3);
     });
 
     it('applies value and label size multipliers to the rendered type hierarchy', () => {

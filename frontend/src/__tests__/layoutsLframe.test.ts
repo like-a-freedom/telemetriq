@@ -81,6 +81,11 @@ describe('LFrame Layout', () => {
         expect(mockCtx.save).toHaveBeenCalled();
         expect(mockCtx.fillText).toHaveBeenCalled();
         expect(mockCtx.restore).toHaveBeenCalled();
+        expect(mockCtx.fillText.mock.calls.map(([text]) => text)).toEqual([
+            'D', 'I', 'S', 'T', 'A', 'N', 'C', 'E', '5.2', 'km',
+            'P', 'A', 'C', 'E', '5:30', '/km',
+            'H', 'R', '140', 'bpm',
+        ]);
     });
 
     it('draws a corner frame without a backdrop or fake progress fill', () => {
@@ -103,29 +108,63 @@ describe('LFrame Layout', () => {
             { label: 'Distance', value: '5.2', unit: 'km' },
         ];
 
-        // Test different aspect ratios
-        renderLFrameLayout(mockCtx as any, metrics, mockFrame, 1280, 720, baseConfig);
-        expect(mockCtx.fillText).toHaveBeenCalled();
+        const drawAt = (w: number, h: number) => {
+            mockCtx = createMockContext();
+            renderLFrameLayout(mockCtx as any, metrics, mockFrame, w, h, baseConfig);
+            const valueCall = mockCtx.fillText.mock.calls.find(([text]) => text === '5.2')!;
+            const frameStart = mockCtx.moveTo.mock.calls[0]!;
+            return {
+                x: Number(valueCall[1]),
+                y: Number(valueCall[2]),
+                frameX: Number(frameStart[0]),
+            };
+        };
 
-        mockCtx = createMockContext();
-        renderLFrameLayout(mockCtx as any, metrics, mockFrame, 3840, 2160, baseConfig);
-        expect(mockCtx.fillText).toHaveBeenCalled();
+        const small = drawAt(1280, 720);
+        const large = drawAt(3840, 2160);
+
+        // Values are horizontally centered and anchored to the bottom strip at every size.
+        expect(small.x).toBeCloseTo(1280 / 2, 3);
+        expect(large.x).toBeCloseTo(3840 / 2, 3);
+        expect(small.y).toBeGreaterThan(720 / 2);
+        expect(large.y).toBeGreaterThan(2160 / 2);
+
+        // Coordinates scale with the short side (both sizes share the 16:9 ratio).
+        expect(small.x).not.toBe(large.x);
+        expect(small.y).not.toBe(large.y);
+        expect(large.y / small.y).toBeCloseTo(3, 2);
+        expect(large.frameX / small.frameX).toBeCloseTo(3, 2);
     });
 
-    it('should calculate optimal font sizes', () => {
+    it('scales the value font size with valueSizeMultiplier', () => {
         const metrics: MetricItem[] = [
             { label: 'VeryLongLabel', value: '999.9', unit: 'km' },
             { label: 'Short', value: '5', unit: '' },
         ];
-        const config: ExtendedOverlayConfig = {
-            ...baseConfig,
-            valueSizeMultiplier: 3,
+
+        const drawnValueFontPx = (valueSizeMultiplier?: number) => {
+            mockCtx = createMockContext();
+            let fontAtValue = '';
+            mockCtx.fillText.mockImplementation((text: string) => {
+                if (text === '999.9') fontAtValue = mockCtx.font;
+            });
+            const config: ExtendedOverlayConfig = valueSizeMultiplier === undefined
+                ? baseConfig
+                : { ...baseConfig, valueSizeMultiplier };
+            renderLFrameLayout(mockCtx as any, metrics, mockFrame, width, height, config);
+            return Number.parseFloat(fontAtValue.match(/([\d.]+)px/)?.[1] ?? '0');
         };
 
-        renderLFrameLayout(mockCtx as any, metrics, mockFrame, width, height, config);
+        // lframeLayout.ts: min(shortSide * 0.065 * sizeScale * valueScale, h * 0.13 / rows)
+        const expectedValueFontPx = (valueSizeMultiplier: number) => {
+            const sizeScale = (baseConfig.fontSizePercent ?? 2) / 2;
+            const valueScale = Math.min(2, Math.max(0.5, valueSizeMultiplier / 3));
+            return Math.min(1080 * 0.065 * sizeScale * valueScale, (height * 0.13) / 1);
+        };
 
-        // Should adjust font sizes to fit
-        expect(mockCtx.font).toContain('px');
+        // The template default (2.5) must render smaller than the configured multiplier of 3.
+        expect(drawnValueFontPx(3)).toBeCloseTo(expectedValueFontPx(3), 5);
+        expect(drawnValueFontPx(3)).toBeGreaterThan(drawnValueFontPx(undefined)!);
     });
 
     it('applies value and label size multipliers', () => {

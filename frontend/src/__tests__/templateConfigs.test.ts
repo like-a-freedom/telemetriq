@@ -106,33 +106,13 @@ describe('template-configs', () => {
         it('should include core and newly added templates', () => {
             const templates = getAllTemplateMetadata();
             const ids = templates.map(t => t.id);
+            // Completeness is derived from the registry, not a hardcoded id list.
+            expect(new Set(ids)).toEqual(new Set(TEMPLATE_IDS.filter(id => id !== 'custom')));
+            // Readable spot-checks for the core and newest templates:
             expect(ids).toContain('horizon');
             expect(ids).toContain('margin');
             expect(ids).toContain('l-frame');
             expect(ids).toContain('classic');
-            expect(ids).toContain('arc-gauge');
-            expect(ids).toContain('hero-number');
-            expect(ids).toContain('cinematic-bar');
-            expect(ids).toContain('editorial');
-            expect(ids).toContain('ticker-tape');
-            expect(ids).toContain('whisper');
-            expect(ids).toContain('two-tone');
-            expect(ids).toContain('condensed-strip');
-            expect(ids).toContain('soft-rounded');
-            expect(ids).toContain('thin-line');
-            expect(ids).toContain('swiss-grid');
-            expect(ids).toContain('garmin-style');
-            expect(ids).toContain('sports-broadcast');
-            expect(ids).toContain('cockpit-hud');
-            expect(ids).toContain('terminal');
-            expect(ids).toContain('night-runner');
-            expect(ids).toContain('data-block');
-            expect(ids).toContain('race-tag');
-            expect(ids).toContain('glass-panel');
-            expect(ids).toContain('minimal-ring');
-            expect(ids).toContain('focus-type');
-            expect(ids).toContain('trail-run');
-            expect(ids).toContain('cycling-pro');
             expect(ids).toContain('ghost-run');
         });
 
