@@ -18,16 +18,16 @@ describe('useTemplateCapabilities', () => {
         expect(capabilities.currentTemplateId.value).toBe('horizon');
     });
 
-    it('should return capabilities for current template', () => {
+    it('pins the exact supported metrics for the default horizon template', () => {
         const capabilities = useTemplateCapabilities();
-        expect(capabilities.currentCapabilities.value).toBeDefined();
-        expect(capabilities.currentCapabilities.value.supportedMetrics).toBeDefined();
+        expect(capabilities.currentCapabilities.value.supportedMetrics)
+            .toEqual(['pace', 'hr', 'distance', 'time', 'power']);
     });
 
-    it('should return styles for current template', () => {
+    it('pins the horizon typography font family for the default template', () => {
         const capabilities = useTemplateCapabilities();
-        expect(capabilities.currentStyles.value).toBeDefined();
-        expect(capabilities.currentStyles.value.typography).toBeDefined();
+        expect(capabilities.currentStyles.value.typography.fontFamily)
+            .toBe('"Barlow Semi Condensed", sans-serif');
     });
 
     it('isMetricAvailable should return true for supported metrics', () => {

@@ -209,7 +209,7 @@ describe('condensedStripStableValue', () => {
         expect(condensedStripStableValue('Pace')).toMatch(/min\/km$/);
         expect(condensedStripStableValue('HR')).toMatch(/bpm$/);
         expect(condensedStripStableValue('DIST')).toMatch(/km$/);
-        expect(condensedStripStableValue('TIME')).toBeTruthy();
+        expect(condensedStripStableValue('TIME')).toBe('88:88:88');
     });
 
     it('passes arbitrary labels through to the stable-formatting fallback', () => {
