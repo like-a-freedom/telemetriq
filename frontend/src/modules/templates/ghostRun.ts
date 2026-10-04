@@ -6,13 +6,14 @@ export const GHOST_RUN_COLORS = {
     accent: '#7DE6E3',
     heart: '#FF5B72',
     contour: '#152321',
+    panel: '#0F1B1E',
 };
 
 export const ghostRunTemplate = defineTemplate({
     id: 'ghost-run',
     metadata: {
         name: 'Ghost Run',
-        description: 'Transparent running HUD with a live route map and elevation progress',
+        description: 'Running HUD with translucent telemetry panels, a live route and elevation progress',
         previewColors: { bg: '#152321', accent: GHOST_RUN_COLORS.accent, text: GHOST_RUN_COLORS.text },
     },
     config: {

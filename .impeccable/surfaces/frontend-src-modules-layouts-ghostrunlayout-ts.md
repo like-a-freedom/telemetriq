@@ -7,31 +7,31 @@ related_targets: ["frontend/src/modules/templates/ghostRun.ts", "frontend/src/mo
 
 # Ghost Run overlay
 
-Scope: a new selectable Canvas overlay. Mode: Experience. The athlete's footage leads; telemetry stays at the edges. Reference: `docs/references/ghost-overlay.jpg`. The user confirmed HUD only, without the central runner.
+Scope: the existing selectable Ghost Run Canvas overlay. Mode: Experience. The athlete's footage leads; telemetry stays at the edges. Original reference: `docs/references/ghost-overlay.jpg`. The user confirmed HUD only, without the central runner. On 2026-10-04 the user requested an experiment replacing decorative lines with compact dark translucent blocks, soft corners and a cyan accent. Their subsequent feedback accepted the material but found it bland and identified inconsistent padding and alignment inside all panels; the current refinement addresses that spacing and adds a restrained pace accent.
 
 This is an ordinary extension of the incumbent Canvas template system. `DESIGN.md` remains the authority for product chrome and the global visual system. The choices below belong to Ghost Run only.
 
 ## Direction contract
 
-**THESIS:** Reproduce the reference's open, transparent running HUD with a left metric rail, route map and bottom-right route progress. No enclosing dashboard panel.
+**THESIS:** Keep the open running HUD and its edge hierarchy while giving each telemetry group compact translucent backing. The left metric rail, route map and bottom-right route progress stay recognizable; the footage's center stays open.
 
-**OWN-WORLD:** White condensed sans numerals, quieter white labels and units, pale cyan hairlines and position markers, coral heart. Use the bundled Barlow family at 600 for values and 500 for labels and units. Shallow perspective connects text and geometry; contrasting contours support the ink without covering the footage.
+**OWN-WORLD:** White condensed sans numerals, quieter white labels and units, dark translucent panels with soft corners and subtle pale cyan edges, cyan route/progress graphics and a coral heart. A fine cyan segment follows the pace panel's upper-right corner. Use bundled Barlow Semi Condensed at 600 for values and 500 for labels and units. All HUD blocks stay level. Thin contrasting contours support the ink; panels use flat fill without decorative shadows or blur.
 
 **STORY:** Read current pace, distance, elapsed time and heart rate, locate progress on the imported track, and understand its elevation. Missing measurements remain explicit; comparison and weather are omitted without source data.
 
-**FIRST VIEWPORT:** Landscape left rail begins near 5% width and 12% height, four generously separated metric groups, a fine open bracket outside it, route below. Small recording clock at top right, live elevation/grade at right, distance progress and elevation profile at bottom right. Center stays clear. Portrait uses larger relative type, a shared right margin and a wide bottom progress block. Shallow landscape reflows the four metrics into two columns and two rows.
+**FIRST VIEWPORT:** Landscape left rail begins near 5% width and 12% height, with one panel per metric and a matching route panel below. The clock, live elevation/grade and bottom-right progress/profile summary have the same backing. The left bracket is removed, and distance progress is a filled rounded bar. Center stays clear. Portrait uses larger relative type, a shared right margin and a wide bottom progress block; elevation/grade sits above it with a visible gap. Shallow landscape reflows the four metrics into two columns and two rows.
 
-**FORM:** User-pinned reference; no concept seed required. Implement its telemetry geometry directly in Canvas; the supplied image is the visual authority. Launcher unavailable, so context and contract are recorded directly.
+**FORM:** The original user-pinned reference establishes the telemetry composition. The user-confirmed panel experiment updates its material and decorative geometry for this surface only. Render directly in Canvas; this extension does not establish a new global visual world. Earlier launcher limitations and review results remain recorded in the dated history below.
 
-**FINISH:** unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+**FINISH:** Record the separate scoped review, current surface contract, validation evidence and capture provenance. Product/global design documents retain their existing authority. Ghost Run ships no raster artwork.
 
 ## Data semantics
 
-Distances use the application's kilometers and pace uses minutes per kilometer. The clock is GPX recording time in UTC. The route and elevation profile represent the complete imported activity; progress and position follow the synchronized telemetry frame. Elevation gain/loss describe the full recorded track. They are not comparison or planned-route values.
+Distances use the application's kilometers and pace uses minutes per kilometer. The clock renders absolute recording time as a zero-padded 24-hour clock in the renderer's local time zone; the timestamp alone does not identify the athlete's original time zone. It prefers the frame timestamp, falls back to route start plus frame offset, and disappears without usable absolute time. The route and elevation profile represent the complete imported activity; progress and position follow the synchronized telemetry frame. Elevation gain/loss describe the full recorded track. They are not comparison or planned-route values.
 
 - **ELAPSED** includes pauses and uses total recording time, rather than moving time. The preview Time helper explains this template-specific behavior.
 - The route keeps the imported track's aspect ratio. The current marker follows recording time, so loops and stationary samples remain unambiguous. The drawing trace is bounded to 384 points; elevation sampling retains local extrema instead of smoothing out narrow hills.
-- Missing finite pace, heart rate, elevation or grade readings display `N/A`. Route geometry, the elevation profile and gain/loss appear only when their source data supports them. Missing elevation samples break gain/loss accumulation across that segment.
+- Missing or non-finite pace, elapsed time, heart rate, elevation or grade readings display `N/A`; negative pace is rejected. Route geometry, the elevation profile and gain/loss appear only when their source data supports them. Missing elevation samples break gain/loss accumulation across that segment.
 - The right block shows live elevation and grade, or grade alone when elevation is disabled. Weather, a previous-run comparison and split delta are omitted because the current import flow has no source for them.
 
 ## Colors
@@ -41,45 +41,89 @@ The template owns a small local palette in `GHOST_RUN_COLORS`, without adding gl
 | Role | Implemented value | Use |
 | --- | --- | --- |
 | Soft white | `#F7FBFA` | Metric values, supporting text and route trace |
-| Pale cyan | `#7DE6E3` | Open bracket, current-position marker, live elevation, progress and profile |
+| Pale cyan | `#7DE6E3` | Subtle panel edges, current-position marker, grade status dot, progress and profile |
 | Coral | `#FF5B72` | Drawn heart beside the heart-rate value |
 | Dark contour | `#152321` | Local text and geometry contrast support |
+| Dark panel | `#0F1B1E` | Local translucent backing for telemetry groups |
 
-Template configuration supplies text and accent overrides. The heart retains its semantic coral color. No palette choice here changes the editor's indigo primary accent.
+Template configuration supplies text and accent overrides. The heart retains its semantic coral color. Panel backing adapts to dark custom ink without changing that foreground. No palette choice here changes the editor's indigo primary accent.
 
 ## Typography
 
 Use the bundled Barlow Semi Condensed faces: values at weight 600; labels, units, recording clock and profile details at weight 500. The shared font loader awaits both faces before Canvas measurement and rendering; the faces carry tabular numeral settings.
 
-The rail scales from the shorter frame dimension and the template's size controls. Fit all visible rail metrics together using measured text and reserved numeric widths, preserving a common value size as data changes. Portrait has a larger relative value scale, with 12px minimum rail labels and recording clock. Its unit sizing starts at 12px; the smaller bpm copy uses 85% of that size. Shallow landscape uses 10px minimum supporting rail text. These sizes precede projection. Values continue to scale proportionally through 4K instead of stopping at a fixed pixel cap.
+The rail scales from the shorter frame dimension and the template's size controls. Fit all visible rail metrics together using measured text and realistic reserved numeric widths; the widest visible or reserved group determines their shared panel width. Pace retains the full value size, while other rail values use 88% when pace is enabled; compact two-column layouts retain equal size. Portrait has a larger relative value scale, with 13px starting floors for rail labels and units and a 12px recording-clock floor. Bpm uses the same unit size without an additional reduction. Shallow landscape starts supporting rail text at 10px. Extreme content can reduce the shared fit. Values continue to scale proportionally through 4K instead of stopping at a fixed pixel cap.
 
-Each rail value, separator and unit shares one local plane tangent. The pace suffix is a tall drawn slash followed by lowered `km`, matching the reference's hierarchy while retaining kilometer semantics. Do not position its pieces on independent transforms.
+Each rail value, separator and unit shares one level transform. Measure the actual ink ascent, descent and side bearings when placing content inside panels; advance width alone does not define a painted edge. The pace suffix remains a tall drawn slash followed by lowered `km`, retaining kilometer semantics. The heart/bpm badge keeps the shared painted left edge, standard unit gap and value-baseline alignment established in the latest heart correction below. The panel refinement leaves those geometry constants intact.
 
 **The One Rail Rule.** Fit the rail as a complete type system; do not shrink individual metric values independently.
 
 ## Layout
 
-The default landscape rail starts near 4.7% of width and 12% of height. It contains pace, distance, elapsed time and heart rate, with an open bracket outside the metric groups. The route sits below this rail. A recording clock sits at top right; live elevation/grade occupies the right edge; current/total distance, progress, elevation profile and full-activity ascent/descent occupy bottom right. The athlete's center remains clear.
+Every edge group uses the same external frame inset: `12u` (6% of the shorter dimension, minimum 12px), measured at the panel's outer edge. The rail and route start at that inset; clock, elevation/grade and summary end at the mirrored right inset. Content sits another `4u` inside each panel. The clock also uses the frame inset above its panel. The default landscape rail starts at 12% of frame height. Pace, distance, elapsed time and heart rate each occupy a separate compact panel; the route uses matching backing below the rail. A recording clock sits at top right; live elevation/grade occupies the right edge; current/total distance, progress, elevation profile and full-activity ascent/descent share the bottom-right summary panel. The athlete's center remains clear.
 
-The rail, bracket and route use a shared mild projective plane. Right telemetry and progress use their own shallow planes; text follows each plane's local tangent rather than tilting independently of nearby geometry. Preserve the route's aspect ratio before projection.
+Rail, route, right telemetry and progress use level rigid transforms, with no perspective compression, shear or rotation. Preserve the route's aspect ratio within its panel. Functional route and elevation-profile lines remain; decorative bracket geometry is removed.
 
-Portrait keeps the same edge hierarchy. The rail begins at about 8% of width and 11% of height. Elevation labels, units, grade, recording clock and ascent/descent totals align their visible ink to the common outer right margin, 4% of the shorter dimension. The progress block spans most of the frame width; its nominal baseline sits at 86% of frame height. Landscape uses an 82.5% nominal progress baseline. These baselines acquire the plane's gentle slope.
+Portrait keeps the same edge hierarchy. The rail content begins at about 8% of width and the panel begins at 11% of frame height. Elevation labels, units, grade, recording clock and ascent/descent totals align their visible ink to the common right content inset (`16u`, normally 8% of the shorter dimension). The progress panel spans the frame between equal left and right external insets, with a level baseline at 86% of frame height. Landscape uses an 82.5% baseline. Portrait elevation is raised above the lower summary to preserve the gap between their panels.
 
 Landscape below 240px high reflows visible rail metrics into up to two columns, retaining readable support text and widening the progress/profile block. Metric toggles remove their corresponding rendered content; supported metrics are pace, distance, time, heart rate, elevation and grade.
+
+All panels share one local spacing unit (`u = max(1px, 0.5% of the shorter frame dimension)`): padding is `4u`, label/value gaps and the space above the grade row are `3u`, other internal gaps are `2u`, and rail/compact-column gaps are `3u`. Panel heights follow measured content plus padding. Stack rail panels from their finished edges; compact cells use the row's maximum content height and columns advance by panel width plus the shared gap. Labels share the same painted left inset. Stable numeric reserve widths keep changing readings from moving the rail.
+
+The clock uses its measured ink inside the same padding. Right telemetry retains the common painted right edge, measured stacking and numeric/grade reserves. The route reserves marker clearance while retaining the imported aspect ratio. The summary measures its distance caption at the actual fitted font with an explicit suffix gap, allocates distance/profile content in a common measured row, and aligns ascent/descent to the content's top and bottom.
 
 **The Portrait Edge Rule.** Align the painted right-side text to one safe outer margin; aligning only a containing block does not preserve the reference's edge rhythm.
 
 ## Elevation & Depth
 
-No enclosing panel, background fill, gradient or full-frame dim layer is drawn. The default text-shadow control enables thin glyph contours and geometry under-strokes beneath the bracket, route, markers, progress and profile. For recognized three- or six-digit hex colors, the renderer compares foreground and requested contour: below a 3:1 ratio it substitutes soft white for dark ink, or the dark contour for lighter ink. Otherwise it retains the requested contour. This protects both default and dark text/accent overrides without recoloring their foregrounds. Canvas shadow blur and offsets are zero.
+Flat local panels provide contrast while the footage between them remains open. Default light ink uses dark backing at alpha 0.64; pace backing is emphasized at 0.76. Recognized three- or six-digit hex text colors with relative luminance below 0.25 receive soft-white backing at alpha 0.86. Unrecognized color formats use the default dark backing. Accent borders use alpha 0.16, or 0.32 for pace. Background-opacity and gradient controls remain unavailable for this template; these panels are part of its layout.
 
-**The Local Contrast Rule.** Support the ink at its edges; preserve the open footage between HUD elements.
+The text-shadow control enables thin glyph contours and geometry under-strokes. For recognized three- or six-digit hex colors, the renderer compares foreground and requested contour: below a 3:1 ratio it substitutes soft white for dark ink, or the dark contour for lighter ink. Otherwise it retains the requested contour. Canvas shadows, blur and offsets are zero. No full-frame dim layer is drawn.
+
+**The Local Contrast Rule.** Keep contrast support within each telemetry group and preserve the open footage between HUD elements.
 
 ## Shapes
 
-An open, softly curved bracket groups the left rail. Fine route and profile strokes, small circular position markers and a drawn coral heart carry the remaining geometry. These are Canvas paths; the reference photograph and a runner illustration are not embedded in the shipping overlay.
+Panels have soft corners using the shared spacing scale (radius `2u`, capped by half their width and height). The pace panel's fine upper-right cyan corner segment adds restrained emphasis. The distance bar has a muted rounded track and a cyan fill proportional to current/total distance. Fine route and profile strokes, small circular position markers, the pace separator and a drawn coral heart retain their functional roles. These are Canvas paths; the reference photograph and a runner illustration are not embedded in the shipping overlay.
 
-## Validation and finish
+## Panel spacing refinement validation and finish, 2026-10-04
+
+External-margin follow-up: replaced the width-based left anchor and text-based right anchor with the shared `12u` panel frame inset. Bounds assertions cover all 1,728 metric/size/style configurations and 12 normal/missing-data cases across six sizes; clock/right ink alignment is also checked through portrait and landscape 4K. The previous renderer failed the new external-inset assertions. All 10 Ghost Chromium tests, 41 focused heart/clock unit tests, build/typecheck and lint passed. Updated the clock's former flush-edge unit-test contract to the shared inset plus padding, including its minimum-size allowance in shallow frames. Refreshed the Ghost visual baseline in a passing focused test and restored its original source. Final landscape, portrait and shallow captures (`ghost-margin-final-{landscape,portrait,shallow}.png`) were inspected with the same local DJI still and synthetic fixture. These captures supersede earlier evidence for external margins.
+
+User follow-up: increased label/value clearance and the space above `% grade` from `2u` to `3u`. Focused geometry assertions first failed on the previous spacing across all five normal/missing-data sizes, then passed with the new gaps. All 10 Ghost Chromium tests, 41 focused heart/clock unit tests, build/typecheck and lint passed. The Ghost visual baseline was refreshed in a passing focused test and its original test source restored. Final landscape and portrait captures (`ghost-spacing-final-{landscape,portrait}.png`) were inspected; they use the same local 8-second DJI still and synthetic fixture. This follow-up changes measured vertical spacing only and supersedes the earlier captures for those gaps.
+
+Finish disposition: **ship**, scoped to padding, alignment, content-based panel sizing, rail rhythm and the pace corner accent. A fresh separate reviewer opened both before captures and all six after captures and found no material defects. The character remains deliberately delicate; stronger emphasis is a taste choice. The documenter checked the current spacing/panel implementation, focused browser test contract, evidence manifest and product/global context. This refinement preserves the first experiment's dark flat material, footprint and topology, the existing pace hierarchy and heart/bpm contract.
+
+Validation recorded in `.impeccable/review/ghost-refined-evidence.json`: build/typecheck and lint passed; 41 focused heart/clock unit tests and all 10 Ghost Chromium tests passed. The existing 1,728 configurations pass alongside 10 new normal/missing-data cases across five sizes, measuring content margins in all eight panel roles, vertical balance, label edges, rail/column gaps and distance-caption clearance. Restoring the previous panel renderer failed on measured margins, vertical balance and rail/column gaps across all five sizes; the corrected renderer passed. Pre/post layout detector results were `[]`, with the existing Canvas coverage limit. Only the Ghost visual baseline was refreshed in a passing focused test, its original test source was restored, and the baseline's embedded origin was updated. No source corrections followed the visual captures.
+
+Evidence: `.impeccable/review/ghost-refined-before-{landscape,portrait}.png`, `ghost-refined-after-{landscape,portrait,square,shallow,missing,dark}.png`, `ghost-refined-evidence.json` and `ghost-refined-comparison.html`. All captures carry embedded origins. They use the same local DJI frame extracted at 8 seconds with macOS AVFoundation, synthetic telemetry/circular route, and `brightness(0.22)` on footage for the dark case. They establish the scoped static review, without video/telemetry synchronization, moving-footage or separate 4K visual approval. Product/global design documentation and its recorded drift retain their existing status; the dated sections below preserve the earlier verification provenance.
+
+## First panel experiment validation and finish, historical 2026-10-04
+
+Finish disposition: **ship**, scoped to the changed panels, typography fitting and placement in this experiment. A fresh separate reviewer opened the two before captures and all six final captures and found no material defects in the changed surface. This does not establish approval for every footage color, moving scene or export size.
+
+Implementation validation recorded in `.impeccable/review/ghost-panels-evidence.json`: production build/typecheck and lint passed; 41 focused heart/clock unit tests and all nine Ghost Chromium tests passed after cleanup. The 1,728 layout combinations cover bounds and text collisions, with panel alpha and portrait elevation/progress separation checked in the Ghost suite. The focused Ghost visual test passed after refreshing its baseline; its original test source was restored and only the Ghost snapshot changed. The completed-change detector returned `[]` on the changed TypeScript targets; that source scan does not establish Canvas contrast compliance.
+
+At that finish, the documenter checked the then-current renderer/template contract, product/global context, evidence manifest, all eight captures and their embedded `impeccable:prompt` origins:
+
+| Capture | Dimensions | Purpose |
+| --- | --- | --- |
+| `.impeccable/review/ghost-panels-before-landscape.png` | 960 × 540 | Original renderer comparison |
+| `.impeccable/review/ghost-panels-before-portrait.png` | 390 × 844 | Original renderer comparison |
+| `.impeccable/review/ghost-panels-after-landscape.png` | 960 × 540 | Final landscape panels |
+| `.impeccable/review/ghost-panels-after-portrait.png` | 390 × 844 | Final portrait placement and panel gap |
+| `.impeccable/review/ghost-panels-after-dark.png` | 960 × 540 | Dark footage contrast case |
+| `.impeccable/review/ghost-panels-after-shallow.png` | 884 × 151 | Compact reflow |
+| `.impeccable/review/ghost-panels-after-square.png` | 640 × 640 | Square composition |
+| `.impeccable/review/ghost-panels-after-missing.png` | 320 × 568 | Explicit missing measurements |
+
+The self-contained comparison is `.impeccable/review/ghost-panels-comparison.html`. Captures use a local DJI frame extracted at 8 seconds with macOS AVFoundation and synthetic telemetry/circular route for identical before/after comparison. The dark case applies `brightness(0.22)` to the footage only. These are browser captures, without generated artwork or a claim of video/telemetry synchronization.
+
+At that finish, the visual baseline, `frontend/e2e/templates-visual.spec.ts-snapshots/template-ghost-run-chromium-darwin.png` (884 × 151), carried an `impeccable:prompt` text chunk identifying the October 4 panel experiment and the synthetic Playwright preview fixture. It has since been refreshed for the spacing refinement above. The reference image and review captures are evidence, not shipping overlay artwork.
+
+This contract records the user-confirmed experiment for Ghost Run. It does not promote these local panels, colors or composition into the global design system. Pre-existing documentation drift remains recorded below. The dated October 2 sections retain their original verification provenance; their superseded no-panel, bracket, shadow and rotation descriptions are historical.
+
+## Validation and finish, historical 2026-10-02
 
 Finish disposition: **ship**, scoped to the resolved portrait alignment, shallow-frame readable reflow and corrected pace-suffix alignment. The reviewer observed no regressions across the 12 final recaptures. This records the reviewed fixes, not universal approval for every footage color or export size.
 
@@ -87,7 +131,7 @@ Implementation validation completed on 2026-10-02: build and lint passed; unit t
 
 `frontend/e2e/ghost-run-layout.spec.ts` covers 1,728 configurations: nine frame sizes, all 64 metric-toggle combinations and three size/style variations, checking transformed logical text bounds/collisions and path bounds. It also checks missing-data behavior, center transparency, editor selection, Canvas preview/video-frame export parity, portrait right edges and proportional pace type through portrait and landscape 4K. Twenty-four painted contrast cases combine two portrait sizes, six solid grounds and two ink palettes; they check the pace label's contrasting pixels and the pace value's size floor. They do not establish a contrast ratio for every metric over arbitrary moving footage. 4K is regression-tested, without a separate capture-based visual approval.
 
-The documenter checked the current template, renderer, route builder, bundled font loader, product/global style context, focused test contracts, pinned reference and all 12 final captures:
+On 2026-10-02 the documenter checked that version's template, renderer, route builder, bundled font loader, product/global style context, focused test contracts, pinned reference and all 12 final captures:
 
 - `.impeccable/review/ghost-run-landscape.png`
 - `.impeccable/review/ghost-run-portrait.png`
@@ -104,7 +148,7 @@ The documenter checked the current template, renderer, route builder, bundled fo
 
 Capture context is recorded in `.impeccable/review/ghost-run-evidence.json`: a local DJI footage frame and real Suunto GPX telemetry were combined for design review. Those captures do not assert that the two sources are synchronized.
 
-The refreshed visual-regression baseline, `frontend/e2e/templates-visual.spec.ts-snapshots/template-ghost-run-chromium-darwin.png`, contains an `impeccable:prompt` PNG text chunk identifying Playwright capture after the perspective/portrait refinements, its synthetic preview fixture and the Canvas renderer. It is a test capture, not generated artwork. Ghost Run ships no raster artwork.
+At that review, the visual-regression baseline, `frontend/e2e/templates-visual.spec.ts-snapshots/template-ghost-run-chromium-darwin.png`, carried an `impeccable:prompt` PNG text chunk identifying Playwright capture after the perspective/portrait refinements, its synthetic preview fixture and the Canvas renderer. That baseline has since been refreshed for the October 4 experiment described above. It remains a test capture, not generated artwork. Ghost Run ships no raster artwork.
 
 Global documentation state was preserved: `DESIGN.md` predates this surface brief, uses `Layout & Spacing` instead of the current document contract's canonical `Layout` heading, and carries component properties beyond that contract's eight-property schema. `.impeccable/design.json` is absent. This ordinary extension does not canonize or repair those pre-existing documentation gaps.
 

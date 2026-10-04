@@ -330,7 +330,8 @@ describe('formatGhostRunClock (missing absolute time)', () => {
 });
 
 describe('renderGhostRunLayout clock', () => {
-    const sizes: Array<[number, number]> = [[1920, 1080], [1080, 1920], [640, 360], [320, 180], [320, 568]];
+    const sizes: Array<[number, number]> = [[1920, 1080], [1080, 1920], [640, 360], [320, 180], [320, 568],
+        [884, 151], [2160, 3840], [3840, 2160]];
 
     it('draws the clock in the top-right corner', () => {
         const { ctx, texts } = createRenderContext();
@@ -341,7 +342,7 @@ describe('renderGhostRunLayout clock', () => {
         const clock = clocksIn(texts).filter((text) => text.align === 'right' && text.kind === 'fill');
         expect(clock).toHaveLength(1);
         expect(clock[0]!.value).toBe('11:12');
-        expect(clock[0]!.x).toBeGreaterThanOrEqual(1920 - 1080 * 0.05); // flush with the right edge
+        expect(clock[0]!.x).toBeCloseTo(1920 - 1080 * 0.08, 5); // shared panel inset plus internal padding
         expect(clock[0]!.y).toBeLessThanOrEqual(1080 * 0.15); // inside the top strip
         expect(texts.some((text) => text.value.includes('UTC'))).toBe(false);
     });
@@ -355,8 +356,10 @@ describe('renderGhostRunLayout clock', () => {
 
             const clock = clocksIn(texts).filter((text) => text.align === 'right' && text.kind === 'fill');
             expect(clock.map((entry) => entry.value), `${w}x${h}`).toEqual(['11:12']);
-            expect(clock[0]!.x, `${w}x${h}`).toBeGreaterThanOrEqual(w - Math.min(w, h) * 0.05);
-            expect(clock[0]!.y, `${w}x${h}`).toBeLessThanOrEqual(h * 0.15);
+            const unit = Math.max(1, Math.min(w, h) * 0.005);
+            expect(clock[0]!.x, `${w}x${h}`).toBeCloseTo(w - unit * 16, 5);
+            // The minimum clock type and panel insets need 24px in shallow frames.
+            expect(clock[0]!.y, `${w}x${h}`).toBeLessThanOrEqual(Math.max(24, h * 0.15));
         }
     });
 

@@ -1,12 +1,13 @@
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
-test('Ghost Run keeps telemetry inside the frame across metrics and sizes', async ({ page }) => {
+test('Ghost Run keeps translucent metric panels inside the frame across metrics and sizes', async ({ page }) => {
     await page.goto('/?e2e');
     const result = await page.evaluate(async () => {
         const { renderGhostRunLayout } = await import('/src/modules/layouts/ghostRunLayout.ts');
         const { getGhostRunRoute } = await import('/src/modules/ghostRunRoute.ts');
         const { getTemplateConfig } = await import('/src/modules/templates/registry.ts');
+        const { GHOST_RUN_COLORS } = await import('/src/modules/templates/ghostRun.ts');
         const { ensureTrailRunFonts } = await import('/src/modules/trailRunFonts.ts');
         await ensureTrailRunFonts();
         const base = getTemplateConfig('ghost-run');
@@ -46,11 +47,26 @@ test('Ghost Run keeps telemetry inside the frame across metrics and sizes', asyn
                     top: Math.min(...corners.map((p) => p.y)), bottom: Math.max(...corners.map((p) => p.y)) });
                 fillText(value, x, y);
             };
-            let fills = 0;
-            ctx.fillRect = () => { fills++; };
+            let panelFills = 0;
+            let invalidPanelOpacity = false;
+            let pathPoints: DOMPoint[] = [];
+            const panels: Array<{ left: number; right: number; top: number; bottom: number }> = [];
+            const beginPath = ctx.beginPath.bind(ctx);
+            ctx.beginPath = () => { pathPoints = []; beginPath(); };
+            const fill = ctx.fill.bind(ctx);
+            ctx.fill = () => {
+                if (ctx.fillStyle === GHOST_RUN_COLORS.panel.toLowerCase()) {
+                    panelFills++;
+                    invalidPanelOpacity ||= ctx.globalAlpha <= 0 || ctx.globalAlpha >= 1;
+                    panels.push({ left: Math.min(...pathPoints.map((p) => p.x)), right: Math.max(...pathPoints.map((p) => p.x)),
+                        top: Math.min(...pathPoints.map((p) => p.y)), bottom: Math.max(...pathPoints.map((p) => p.y)) });
+                }
+                fill();
+            };
             let outsidePath = false;
             const checkPoint = (x: number, y: number) => {
                 const point = ctx.getTransform().transformPoint({ x, y });
+                pathPoints.push(point);
                 outsidePath ||= point.x < 0 || point.x > w! || point.y < 0 || point.y > h!;
             };
             const moveTo = ctx.moveTo.bind(ctx);
@@ -74,12 +90,34 @@ test('Ghost Run keeps telemetry inside the frame across metrics and sizes', asyn
                     keys.forEach((key, index) => { config[key] = Boolean(mask & (1 << index)); });
                     const id = `${w}x${h}/${mask}/${variation}`;
                     text.length = 0;
-                    fills = 0;
+                    panelFills = 0;
+                    panels.length = 0;
+                    invalidPanelOpacity = false;
                     outsidePath = false;
                     ctx.clearRect(0, 0, w!, h!);
                     renderGhostRunLayout(ctx, frame, w!, h!, config, { ghostRoute: route });
-                    if (fills) failures.push(`${id}: panel background`);
+                    const railMetrics = [config.showPace, config.showDistance, config.showTime, config.showHr].filter(Boolean).length;
+                    if (panelFills < railMetrics) failures.push(`${id}: missing metric panel`);
+                    if (mask === 0 && panelFills) failures.push(`${id}: panel for hidden metrics`);
+                    if (invalidPanelOpacity) failures.push(`${id}: opaque panel`);
                     if (outsidePath) failures.push(`${id}: outside projected geometry`);
+                    const frameInset = Math.max(12, Math.min(w!, h!) * 0.06);
+                    const columns = w! >= h! && h! < 240 ? Math.min(2, Math.max(1, railMetrics)) : 1;
+                    for (const [index, panel] of panels.entries()) {
+                        if (panel.left < frameInset - 0.5 || w! - panel.right < frameInset - 0.5) {
+                            failures.push(`${id}: panel violates frame inset`);
+                        }
+                        if (index < railMetrics && index % columns === 0 && Math.abs(panel.left - frameInset) > 0.5) {
+                            failures.push(`${id}: drifting rail frame inset`);
+                        }
+                    }
+                    if (w! < h!) {
+                        const progress = panels.find((p) => p.top > h! * 0.5 && p.left < w! * 0.2 && p.right > w! * 0.9);
+                        const elevation = panels.find((p) => p.top > h! * 0.5 && p.left > w! * 0.4);
+                        if (progress && elevation && progress.top - elevation.bottom < Math.max(3, w! * 0.012)) {
+                            failures.push(`${id}: cramped elevation/progress panels`);
+                        }
+                    }
                     const expected = [config.showPace && '120:59', config.showDistance && '12345.6',
                         config.showTime && '123:59:59', config.showHr && '199', config.showElevation && '9999'];
                     for (const value of expected) if (value && !text.some((entry) => entry.value === value)) failures.push(`${id}: missing ${value}`);
@@ -101,6 +139,145 @@ test('Ghost Run keeps telemetry inside the frame across metrics and sizes', asyn
     });
     expect(result.cases).toBe(1728);
     expect(result.failures).toEqual([]);
+});
+
+test('Ghost Run balances painted content inside every panel and keeps a steady rail rhythm', async ({ page }) => {
+    await page.goto('/?e2e');
+    const failures = await page.evaluate(async () => {
+        const { renderGhostRunLayout } = await import('/src/modules/layouts/ghostRunLayout.ts');
+        const { getGhostRunRoute } = await import('/src/modules/ghostRunRoute.ts');
+        const { getTemplateConfig } = await import('/src/modules/templates/registry.ts');
+        const { GHOST_RUN_COLORS } = await import('/src/modules/templates/ghostRun.ts');
+        const { ensureTrailRunFonts } = await import('/src/modules/trailRunFonts.ts');
+        await ensureTrailRunFonts();
+        type Point = { x: number; y: number };
+        type Box = { left: number; right: number; top: number; bottom: number };
+        const box = (points: Point[]): Box => ({ left: Math.min(...points.map(p => p.x)), right: Math.max(...points.map(p => p.x)),
+            top: Math.min(...points.map(p => p.y)), bottom: Math.max(...points.map(p => p.y)) });
+        const frame = { timeOffset: 1005, totalElapsedSeconds: 1005, paceSecondsPerKm: 326, distanceKm: 2.8,
+            hr: 156, elevationM: 156, gradePercent: 0.7, timestampMs: Date.UTC(2026, 9, 2, 8, 28) };
+        const route = getGhostRunRoute(Array.from({ length: 60 }, (_, i) => ({ ...frame, timeOffset: i * 30,
+            distanceKm: i / 59 * 7.5, latitude: 45 + Math.sin(i / 59 * Math.PI * 2) * 0.01,
+            longitude: 10 + Math.cos(i / 59 * Math.PI * 2) * 0.01, elevationM: 100 + Math.sin(i / 5) * 35 })));
+        route.ascentM = 119; route.descentM = 140;
+        const failures: string[] = [];
+        for (const [w, h] of [[960, 540], [390, 844], [640, 640], [884, 151], [320, 568],
+            [1188, 669]]) {
+            for (const missing of [false, true]) {
+                const canvas = document.createElement('canvas'); canvas.width = w!; canvas.height = h!;
+                const ctx = canvas.getContext('2d')!;
+                const panels: Array<{ bounds: Box; content: Point[]; text: Map<string, Box> }> = [];
+                let points: Point[] = [];
+                let cursor: Point | undefined;
+                const project = (x: number, y: number) => ctx.getTransform().transformPoint({ x, y });
+                const begin = ctx.beginPath.bind(ctx);
+                ctx.beginPath = () => { points = []; cursor = undefined; begin(); };
+                const move = ctx.moveTo.bind(ctx);
+                ctx.moveTo = (x, y) => { points.push(project(x, y)); cursor = { x, y }; move(x, y); };
+                const line = ctx.lineTo.bind(ctx);
+                ctx.lineTo = (x, y) => { points.push(project(x, y)); cursor = { x, y }; line(x, y); };
+                const quadratic = ctx.quadraticCurveTo.bind(ctx);
+                ctx.quadraticCurveTo = (cx, cy, x, y) => { points.push(project(cx, cy), project(x, y)); cursor = { x, y }; quadratic(cx, cy, x, y); };
+                const bezier = ctx.bezierCurveTo.bind(ctx);
+                ctx.bezierCurveTo = (x1, y1, x2, y2, x, y) => {
+                    if (cursor) for (let i = 1; i <= 32; i++) {
+                        const t = i / 32, u = 1 - t;
+                        points.push(project(u ** 3 * cursor.x + 3 * u ** 2 * t * x1 + 3 * u * t ** 2 * x2 + t ** 3 * x,
+                            u ** 3 * cursor.y + 3 * u ** 2 * t * y1 + 3 * u * t ** 2 * y2 + t ** 3 * y));
+                    }
+                    cursor = { x, y }; bezier(x1, y1, x2, y2, x, y);
+                };
+                const arc = ctx.arc.bind(ctx);
+                ctx.arc = (x, y, r, start, end, ccw) => {
+                    points.push(project(x - r, y - r), project(x + r, y + r)); arc(x, y, r, start, end, ccw);
+                };
+                const fill = ctx.fill.bind(ctx);
+                ctx.fill = () => {
+                    if (ctx.fillStyle === GHOST_RUN_COLORS.panel.toLowerCase()) {
+                        panels.push({ bounds: box(points), content: [], text: new Map() });
+                    } else panels.at(-1)?.content.push(...points);
+                    fill();
+                };
+                const stroke = ctx.stroke.bind(ctx);
+                ctx.stroke = () => { if (ctx.fillStyle !== GHOST_RUN_COLORS.panel.toLowerCase()) panels.at(-1)?.content.push(...points); stroke(); };
+                const fillText = ctx.fillText.bind(ctx);
+                ctx.fillText = (value, x, y) => {
+                    const ink = ctx.measureText(value);
+                    const corners = [project(x - ink.actualBoundingBoxLeft, y - ink.actualBoundingBoxAscent),
+                        project(x + ink.actualBoundingBoxRight, y + ink.actualBoundingBoxDescent)];
+                    panels.at(-1)?.content.push(...corners);
+                    panels.at(-1)?.text.set(value.trim(), box(corners));
+                    fillText(value, x, y);
+                };
+                renderGhostRunLayout(ctx, missing ? { ...frame, paceSecondsPerKm: undefined, hr: undefined,
+                    elevationM: undefined, gradePercent: undefined } : frame, w!, h!, getTemplateConfig('ghost-run'), { ghostRoute: route });
+                const id = `${w}x${h}/${missing ? 'missing' : 'normal'}`;
+                const padding = Math.max(1, Math.min(w!, h!) * 0.005) * 4;
+                const gap = padding * 0.75;
+                const stackGap = padding * 0.75;
+                const frameInset = Math.max(12, Math.min(w!, h!) * 0.06);
+                const compact = w! >= h! && h! < 240;
+                if (panels.length !== 8) failures.push(`${id}: expected eight panel roles`);
+                for (const [i, panel] of panels.entries()) {
+                    if ((i < 5 && !(compact && (i === 1 || i === 3))) || (i === 6 && w! < h!)) {
+                        if (Math.abs(panel.bounds.left - frameInset) > 0.5) failures.push(`${id}/${i}: drifting left panel inset`);
+                    }
+                    if (i >= 5 && Math.abs(w! - panel.bounds.right - frameInset) > 0.5) {
+                        failures.push(`${id}/${i}: drifting right panel inset`);
+                    }
+                    if (!panel.content.length) { failures.push(`${id}/${i}: empty panel`); continue; }
+                    const content = box(panel.content);
+                    const margins = { left: content.left - panel.bounds.left, right: panel.bounds.right - content.right,
+                        top: content.top - panel.bounds.top, bottom: panel.bounds.bottom - content.bottom };
+                    for (const [side, margin] of Object.entries(margins)) {
+                        if (margin < padding - 1.5) failures.push(`${id}/${i}: tight ${side} margin ${margin.toFixed(2)}`);
+                    }
+                    // Aspect-ratio preserving route geometry has deliberate spare space.
+                    // Compact cells share their row's height; other panels hug measured ink.
+                    if (i !== 4 && !(h! < 240 && i < 4)
+                        && Math.abs(margins.top - margins.bottom) > 2) failures.push(`${id}/${i}: unbalanced vertical margins`);
+                    const labels = ['PACE', 'DISTANCE', 'ELAPSED', 'HEART RATE'];
+                    if (i < 4 && panel.text.has(labels[i]!)) {
+                        const label = panel.text.get(labels[i]!)!;
+                        if (Math.abs(label.left - panel.bounds.left - padding) > 0.5) {
+                            failures.push(`${id}/${i}: drifting label edge`);
+                        }
+                        const values = [missing ? 'N/A' : '5:26', '2.8', '16:45', missing ? 'N/A' : '156'];
+                        const value = panel.text.get(values[i]!);
+                        if (!value || value.top - label.bottom < stackGap - 0.5) {
+                            failures.push(`${id}/${i}: cramped label/value gap`);
+                        }
+                    }
+                }
+                const terrain = panels[5]!;
+                const terrainLabel = terrain.text.get('ELEVATION');
+                const terrainValue = terrain.text.get(missing ? 'N/A' : '156');
+                const terrainUnit = terrain.text.get('m');
+                const grade = terrain.text.get(missing ? 'N/A% grade' : '0.7% grade');
+                if (!terrainLabel || !terrainValue || terrainValue.top - terrainLabel.bottom < stackGap - 0.5) {
+                    failures.push(`${id}: cramped elevation label/value gap`);
+                }
+                if (!terrainValue || !terrainUnit || !grade
+                    || grade.top - Math.max(terrainValue.bottom, terrainUnit.bottom) < stackGap - 0.5) {
+                    failures.push(`${id}: cramped space above grade`);
+                }
+                for (let i = compact ? 2 : 1; i < 4; i++) {
+                    const previous = panels[i - (compact ? 2 : 1)]!.bounds;
+                    if (Math.abs(panels[i]!.bounds.top - previous.bottom - gap) > 0.5) failures.push(`${id}: uneven rail gap`);
+                }
+                if (compact && Math.abs(panels[1]!.bounds.left - panels[0]!.bounds.right - gap) > 0.5) {
+                    failures.push(`${id}: detached compact column`);
+                }
+                const summary = panels[6]!;
+                const current = summary.text.get('2.8');
+                const remaining = summary.text.get('/ 7.5 km');
+                if (!current || !remaining) failures.push(`${id}: missing distance caption`);
+                else if (remaining.left - current.right < padding / 4 - 0.5) failures.push(`${id}: cramped distance suffix`);
+            }
+        }
+        return failures;
+    });
+    expect(failures).toEqual([]);
 });
 
 test('Ghost Run renders missing data explicitly and leaves the center transparent', async ({ page }) => {
@@ -416,7 +593,7 @@ test('Ghost Run preserves portrait right edges and proportional type up to 4K vi
             const ctx = canvas.getContext('2d')!;
             const portrait = w! < h!;
             const short = Math.min(w!, h!);
-            const edge = w! - short * 0.04;
+            const edge = w! - Math.max(12, short * 0.06) - Math.max(4, short * 0.02);
             const fillText = ctx.fillText.bind(ctx);
             let paceHeight = 0;
             ctx.fillText = (value, x, y) => {
